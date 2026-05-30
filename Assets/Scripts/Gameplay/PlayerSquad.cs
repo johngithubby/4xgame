@@ -18,13 +18,21 @@ namespace LaneSurvivor.Gameplay
 
         public float MoveSpeed { get; private set; }
 
+        public int CurrentLaneIndex { get; private set; }
+
         public bool IsMoving { get; private set; }
+
+        private float[] lanePositions = { 0f };
+
+        private float laneChangeSpeed = 8f;
 
         public void Initialize(LevelDefinition levelDefinition)
         {
             SquadCount = Mathf.Max(0, levelDefinition.startingSquadCount);
             DamagePerMember = Mathf.Max(0f, levelDefinition.startingDamagePerMember);
             MoveSpeed = Mathf.Max(0f, levelDefinition.squadMoveSpeed);
+            laneChangeSpeed = Mathf.Max(0.1f, levelDefinition.laneChangeSpeed);
+            ConfigureLanes(levelDefinition.lanePositions);
             IsMoving = false;
             SquadCountChanged?.Invoke(SquadCount);
             DamageChanged?.Invoke(DamagePerMember);
@@ -38,6 +46,21 @@ namespace LaneSurvivor.Gameplay
         public float GetTotalDamage()
         {
             return DamagePerMember * Mathf.Max(0, SquadCount);
+        }
+
+        public bool IsInSameLaneAs(float worldX, float tolerance)
+        {
+            return Mathf.Abs(transform.position.x - worldX) <= Mathf.Max(0.01f, tolerance);
+        }
+
+        public void MoveLane(int direction)
+        {
+            if (direction == 0 || lanePositions.Length == 0)
+            {
+                return;
+            }
+
+            CurrentLaneIndex = Mathf.Clamp(CurrentLaneIndex + direction, 0, lanePositions.Length - 1);
         }
 
         public void ApplyGate(GateModifierType modifierType, int squadValue, float damageValue)
@@ -73,12 +96,27 @@ namespace LaneSurvivor.Gameplay
 
         private void Update()
         {
-            if (!IsMoving)
+            float targetX = lanePositions[Mathf.Clamp(CurrentLaneIndex, 0, lanePositions.Length - 1)];
+            float nextX = Mathf.MoveTowards(transform.position.x, targetX, laneChangeSpeed * Time.deltaTime);
+            Vector3 nextPosition = transform.position;
+            nextPosition.x = nextX;
+
+            if (IsMoving)
             {
-                return;
+                nextPosition.z += MoveSpeed * Time.deltaTime;
             }
 
-            transform.position += Vector3.forward * (MoveSpeed * Time.deltaTime);
+            transform.position = nextPosition;
+        }
+
+        private void ConfigureLanes(float[] configuredLanePositions)
+        {
+            lanePositions = configuredLanePositions is { Length: > 0 }
+                ? (float[])configuredLanePositions.Clone()
+                : new[] { 0f };
+
+            CurrentLaneIndex = Mathf.Clamp(lanePositions.Length / 2, 0, lanePositions.Length - 1);
+            transform.position = new Vector3(lanePositions[CurrentLaneIndex], transform.position.y, transform.position.z);
         }
 
         private void SetSquadCount(int value)

@@ -18,18 +18,30 @@ namespace LaneSurvivor.UI
         [SerializeField]
         private Button startButton;
 
+        [SerializeField]
+        private Button leftLaneButton;
+
+        [SerializeField]
+        private Button rightLaneButton;
+
         private LevelManager levelManager;
 
         private PlayerSquad playerSquad;
 
         private float finishDistance;
 
-        public void Configure(Text squadLabel, Text progressLabel, Text stateLabel, Button startLevelButton)
+        public Button LeftLaneButton => leftLaneButton;
+
+        public Button RightLaneButton => rightLaneButton;
+
+        public void Configure(Text squadLabel, Text progressLabel, Text stateLabel, Button startLevelButton, Button laneLeftButton, Button laneRightButton)
         {
             squadCountText = squadLabel;
             progressText = progressLabel;
             stateText = stateLabel;
             startButton = startLevelButton;
+            leftLaneButton = laneLeftButton;
+            rightLaneButton = laneRightButton;
         }
 
         public void Initialize(LevelManager manager, PlayerSquad squad, float levelFinishDistance)

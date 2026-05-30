@@ -13,7 +13,8 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Open the project root in Unity.
 - Open `Assets/Scenes/Minigame.unity`.
 - Press Play.
-- The squad auto-starts after a short delay, moves forward, applies gates, shoots zombies, and reaches a win or loss state.
+- The squad auto-starts after a short delay, moves forward, changes lanes with left/right input, applies gates in the matching lane, shoots zombies in the current lane, and reaches a win or loss state.
+- Lane input works with the on-screen arrow buttons, keyboard `A/D`, keyboard arrow keys, or tapping/clicking the left or right third of the screen.
 
 ## Validation
 

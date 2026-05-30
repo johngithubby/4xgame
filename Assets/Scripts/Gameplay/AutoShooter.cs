@@ -14,15 +14,19 @@ namespace LaneSurvivor.Gameplay
         [SerializeField]
         private float shotInterval = 0.35f;
 
+        [SerializeField]
+        private float laneTolerance = 0.8f;
+
         private readonly List<Zombie> zombies = new();
 
         private float shotTimer;
 
-        public void Initialize(PlayerSquad squad, float range, float interval)
+        public void Initialize(PlayerSquad squad, float range, float interval, float targetLaneTolerance)
         {
             playerSquad = squad;
             shootRange = Mathf.Max(0.1f, range);
             shotInterval = Mathf.Max(0.05f, interval);
+            laneTolerance = Mathf.Max(0.1f, targetLaneTolerance);
             shotTimer = 0f;
         }
 
@@ -79,8 +83,7 @@ namespace LaneSurvivor.Gameplay
                     continue;
                 }
 
-                float laneDistance = Mathf.Abs(zombie.transform.position.x - playerSquad.transform.position.x);
-                if (laneDistance > 2.25f)
+                if (!playerSquad.IsInSameLaneAs(zombie.transform.position.x, laneTolerance))
                 {
                     continue;
                 }

@@ -19,6 +19,14 @@ namespace LaneSurvivor.Data
         public float squadMoveSpeed = 4f;
 
         [Min(0.1f)]
+        public float laneChangeSpeed = 8f;
+
+        [Min(0.1f)]
+        public float laneMatchTolerance = 0.8f;
+
+        public float[] lanePositions = { -2f, 0f, 2f };
+
+        [Min(0.1f)]
         public float shootRange = 8f;
 
         [Min(0.05f)]

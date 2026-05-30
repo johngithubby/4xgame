@@ -73,7 +73,7 @@ namespace LaneSurvivor.Gameplay
             playerSquad.Initialize(levelDefinition);
             playerSquad.Defeated += HandlePlayerDefeated;
 
-            autoShooter.Initialize(playerSquad, levelDefinition.shootRange, levelDefinition.shotInterval);
+            autoShooter.Initialize(playerSquad, levelDefinition.shootRange, levelDefinition.shotInterval, levelDefinition.laneMatchTolerance);
 
             hudController.Initialize(this, playerSquad, levelDefinition.finishDistance);
             endScreenController.Initialize(RestartLevel);
@@ -180,6 +180,14 @@ namespace LaneSurvivor.Gameplay
             finish.name = "Finish Line";
             finish.transform.position = new Vector3(0f, 0.05f, levelDefinition.finishDistance);
             finish.transform.localScale = new Vector3(7f, 0.12f, 0.4f);
+
+            foreach (float laneX in levelDefinition.lanePositions)
+            {
+                GameObject laneMarker = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                laneMarker.name = "Lane Marker";
+                laneMarker.transform.position = new Vector3(laneX, 0.02f, levelDefinition.finishDistance * 0.5f);
+                laneMarker.transform.localScale = new Vector3(0.08f, 0.04f, levelDefinition.finishDistance + 8f);
+            }
         }
 
         private void BuildGates()
@@ -228,7 +236,7 @@ namespace LaneSurvivor.Gameplay
         {
             foreach (Gate gate in gates)
             {
-                gate.TryApply(playerSquad);
+                gate.TryResolve(playerSquad, levelDefinition.laneMatchTolerance);
             }
         }
 
@@ -236,7 +244,7 @@ namespace LaneSurvivor.Gameplay
         {
             foreach (Zombie zombie in zombies)
             {
-                zombie.TryBreach(playerSquad);
+                zombie.TryBreach(playerSquad, levelDefinition.laneMatchTolerance);
             }
         }
     }

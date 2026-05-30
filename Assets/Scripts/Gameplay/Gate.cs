@@ -17,7 +17,7 @@ namespace LaneSurvivor.Gameplay
         [SerializeField]
         private TextMesh label;
 
-        public bool HasTriggered { get; private set; }
+        public bool HasResolved { get; private set; }
 
         public void Configure(GateSpawnDefinition definition, Material gateMaterial, TextMesh labelText)
         {
@@ -36,9 +36,9 @@ namespace LaneSurvivor.Gameplay
             SetLabelText();
         }
 
-        public void TryApply(PlayerSquad playerSquad)
+        public void TryResolve(PlayerSquad playerSquad, float laneTolerance)
         {
-            if (HasTriggered || playerSquad == null)
+            if (HasResolved || playerSquad == null)
             {
                 return;
             }
@@ -48,9 +48,16 @@ namespace LaneSurvivor.Gameplay
                 return;
             }
 
-            HasTriggered = true;
-            playerSquad.ApplyGate(modifierType, squadValue, damageValue);
-            MarkConsumed();
+            HasResolved = true;
+            if (playerSquad.IsInSameLaneAs(transform.position.x, laneTolerance))
+            {
+                playerSquad.ApplyGate(modifierType, squadValue, damageValue);
+                MarkResolved(Color.gray);
+            }
+            else
+            {
+                MarkResolved(new Color(0.18f, 0.18f, 0.18f));
+            }
         }
 
         private void SetLabelText()
@@ -70,12 +77,12 @@ namespace LaneSurvivor.Gameplay
             };
         }
 
-        private void MarkConsumed()
+        private void MarkResolved(Color resolvedColor)
         {
             Renderer gateRenderer = GetComponent<Renderer>();
             if (gateRenderer != null)
             {
-                gateRenderer.material.color = Color.gray;
+                gateRenderer.material.color = resolvedColor;
             }
         }
     }

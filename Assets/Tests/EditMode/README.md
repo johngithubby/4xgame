@@ -2,7 +2,7 @@
 
 ## Files
 
-- `PhaseOneGameplayTests.cs`: Verifies gate modifiers, zombie defeat, and basic win/loss state evaluation.
+- `PhaseOneGameplayTests.cs`: Verifies gate modifiers, lane selection rules, zombie defeat, and basic win/loss state evaluation.
 
 ## Compile
 

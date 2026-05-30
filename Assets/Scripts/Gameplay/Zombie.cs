@@ -44,7 +44,7 @@ namespace LaneSurvivor.Gameplay
             }
         }
 
-        public void TryBreach(PlayerSquad playerSquad)
+        public void TryBreach(PlayerSquad playerSquad, float laneTolerance)
         {
             if (IsDefeated || playerSquad == null)
             {
@@ -56,7 +56,11 @@ namespace LaneSurvivor.Gameplay
                 return;
             }
 
-            playerSquad.TakeLoss(breachPenalty);
+            if (playerSquad.IsInSameLaneAs(transform.position.x, laneTolerance))
+            {
+                playerSquad.TakeLoss(breachPenalty);
+            }
+
             MarkDefeated();
         }
 

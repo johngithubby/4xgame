@@ -35,12 +35,14 @@ namespace LaneSurvivor.EditorTools
 
             PlayerSquad playerSquad = CreatePlayerSquad(playerMaterial);
             AutoShooter autoShooter = playerSquad.gameObject.AddComponent<AutoShooter>();
+            SquadLaneInput laneInput = playerSquad.gameObject.AddComponent<SquadLaneInput>();
 
             Camera camera = CreateCamera(playerSquad.transform);
             CreateLight();
 
             MinigameHudController hudController = CreateHud();
             EndScreenController endScreenController = CreateEndScreen();
+            laneInput.Configure(playerSquad, hudController.LeftLaneButton, hudController.RightLaneButton);
             CreateEventSystem();
 
             LevelManager levelManager = new GameObject("Level Manager").AddComponent<LevelManager>();
@@ -67,6 +69,9 @@ namespace LaneSurvivor.EditorTools
             levelDefinition.startingDamagePerMember = 1f;
             levelDefinition.finishDistance = 48f;
             levelDefinition.squadMoveSpeed = 4.2f;
+            levelDefinition.laneChangeSpeed = 8f;
+            levelDefinition.laneMatchTolerance = 0.85f;
+            levelDefinition.lanePositions = new[] { -2f, 0f, 2f };
             levelDefinition.shootRange = 8f;
             levelDefinition.shotInterval = 0.35f;
             levelDefinition.gates = new[]
@@ -76,28 +81,28 @@ namespace LaneSurvivor.EditorTools
                     modifierType = GateModifierType.AddSquad,
                     squadValue = 4,
                     damageValue = 0f,
-                    position = new Vector3(0f, 1.1f, 9f)
+                    position = new Vector3(-2f, 1.1f, 9f)
                 },
                 new GateSpawnDefinition
                 {
                     modifierType = GateModifierType.MultiplySquad,
                     squadValue = 2,
                     damageValue = 0f,
-                    position = new Vector3(0f, 1.1f, 18f)
+                    position = new Vector3(2f, 1.1f, 9f)
                 },
                 new GateSpawnDefinition
                 {
                     modifierType = GateModifierType.AddDamage,
                     squadValue = 0,
                     damageValue = 0.5f,
-                    position = new Vector3(0f, 1.1f, 29f)
+                    position = new Vector3(0f, 1.1f, 22f)
                 },
                 new GateSpawnDefinition
                 {
                     modifierType = GateModifierType.SubtractSquad,
                     squadValue = 5,
                     damageValue = 0f,
-                    position = new Vector3(0f, 1.1f, 38f)
+                    position = new Vector3(-2f, 1.1f, 36f)
                 }
             };
             levelDefinition.zombies = new[]
@@ -106,19 +111,19 @@ namespace LaneSurvivor.EditorTools
                 {
                     health = 8f,
                     breachPenalty = 2,
-                    position = new Vector3(0f, 1f, 14f)
+                    position = new Vector3(0f, 1f, 15f)
                 },
                 new ZombieSpawnDefinition
                 {
                     health = 18f,
                     breachPenalty = 4,
-                    position = new Vector3(-1.5f, 1f, 25f)
+                    position = new Vector3(2f, 1f, 27f)
                 },
                 new ZombieSpawnDefinition
                 {
                     health = 24f,
                     breachPenalty = 6,
-                    position = new Vector3(1.5f, 1f, 34f)
+                    position = new Vector3(-2f, 1f, 41f)
                 }
             };
 
@@ -170,12 +175,11 @@ namespace LaneSurvivor.EditorTools
             Text progressText = CreateText(canvas.transform, "Progress Text", "Progress: 0%", font, new Vector2(20f, -55f), TextAnchor.UpperLeft);
             Text stateText = CreateText(canvas.transform, "State Text", "Ready", font, new Vector2(0f, -20f), TextAnchor.UpperCenter);
             Button startButton = CreateButton(canvas.transform, "Start Button", "START", font, new Vector2(0f, -95f));
+            Button leftButton = CreateButton(canvas.transform, "Left Lane Button", "<", font, new Vector2(-120f, 60f), new Vector2(0.5f, 0f));
+            Button rightButton = CreateButton(canvas.transform, "Right Lane Button", ">", font, new Vector2(120f, 60f), new Vector2(0.5f, 0f));
 
             MinigameHudController hudController = canvas.gameObject.AddComponent<MinigameHudController>();
-            SetPrivateField(hudController, "squadCountText", squadText);
-            SetPrivateField(hudController, "progressText", progressText);
-            SetPrivateField(hudController, "stateText", stateText);
-            SetPrivateField(hudController, "startButton", startButton);
+            hudController.Configure(squadText, progressText, stateText, startButton, leftButton, rightButton);
 
             return hudController;
         }
@@ -198,7 +202,7 @@ namespace LaneSurvivor.EditorTools
             panelRect.offsetMax = Vector2.zero;
 
             Text resultText = CreateText(panel.transform, "Result Text", "Result", font, new Vector2(0f, -45f), TextAnchor.UpperCenter);
-            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(0f, -130f));
+            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(0f, -130f), new Vector2(0.5f, 1f));
 
             EndScreenController endScreenController = canvas.gameObject.AddComponent<EndScreenController>();
             SetPrivateField(endScreenController, "panel", panel);
@@ -242,6 +246,11 @@ namespace LaneSurvivor.EditorTools
 
         private static Button CreateButton(Transform parent, string name, string text, Font font, Vector2 anchoredPosition)
         {
+            return CreateButton(parent, name, text, font, anchoredPosition, new Vector2(0.5f, 1f));
+        }
+
+        private static Button CreateButton(Transform parent, string name, string text, Font font, Vector2 anchoredPosition, Vector2 anchor)
+        {
             GameObject buttonObject = new(name);
             buttonObject.transform.SetParent(parent, false);
 
@@ -251,8 +260,8 @@ namespace LaneSurvivor.EditorTools
             Button button = buttonObject.AddComponent<Button>();
 
             RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-            buttonRect.anchorMin = new Vector2(0.5f, 1f);
-            buttonRect.anchorMax = new Vector2(0.5f, 1f);
+            buttonRect.anchorMin = anchor;
+            buttonRect.anchorMax = anchor;
             buttonRect.anchoredPosition = anchoredPosition;
             buttonRect.sizeDelta = new Vector2(180f, 44f);
 

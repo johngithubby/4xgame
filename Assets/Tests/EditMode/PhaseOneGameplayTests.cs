@@ -26,6 +26,40 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void GateResolution_OnlyAppliesWhenSquadIsInGateLane()
+        {
+            PlayerSquad squad = CreateSquad(5, 1f);
+            Gate missedGate = CreateGate(GateModifierType.AddSquad, 10, 0f, new Vector3(2f, 1f, 0f));
+
+            squad.transform.position = new Vector3(0f, 1f, 1f);
+            missedGate.TryResolve(squad, 0.5f);
+
+            Assert.AreEqual(5, squad.SquadCount);
+            Assert.IsTrue(missedGate.HasResolved);
+
+            Gate hitGate = CreateGate(GateModifierType.AddSquad, 10, 0f, new Vector3(0f, 1f, 0f));
+            hitGate.TryResolve(squad, 0.5f);
+
+            Assert.AreEqual(15, squad.SquadCount);
+            Assert.IsTrue(hitGate.HasResolved);
+        }
+
+        [Test]
+        public void LaneMovement_ClampsToConfiguredLaneRange()
+        {
+            PlayerSquad squad = CreateSquad(5, 1f);
+
+            squad.MoveLane(-1);
+            squad.MoveLane(-1);
+            Assert.AreEqual(0, squad.CurrentLaneIndex);
+
+            squad.MoveLane(1);
+            squad.MoveLane(1);
+            squad.MoveLane(1);
+            Assert.AreEqual(2, squad.CurrentLaneIndex);
+        }
+
+        [Test]
         public void Zombie_TakesDamageAndReportsDefeat()
         {
             GameObject zombieObject = new("Zombie Under Test");
@@ -66,10 +100,27 @@ namespace LaneSurvivor.Tests.EditMode
             levelDefinition.startingSquadCount = startingCount;
             levelDefinition.startingDamagePerMember = startingDamage;
             levelDefinition.squadMoveSpeed = 1f;
+            levelDefinition.lanePositions = new[] { -2f, 0f, 2f };
 
             PlayerSquad squad = squadObject.AddComponent<PlayerSquad>();
             squad.Initialize(levelDefinition);
             return squad;
+        }
+
+        private static Gate CreateGate(GateModifierType modifierType, int squadValue, float damageValue, Vector3 position)
+        {
+            GameObject gateObject = new("Gate Under Test");
+            GateSpawnDefinition gateDefinition = new()
+            {
+                modifierType = modifierType,
+                squadValue = squadValue,
+                damageValue = damageValue,
+                position = position
+            };
+
+            Gate gate = gateObject.AddComponent<Gate>();
+            gate.Configure(gateDefinition, null, null);
+            return gate;
         }
     }
 }
