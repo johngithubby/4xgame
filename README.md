@@ -16,9 +16,21 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - The squad auto-starts after a short delay, moves forward, changes lanes with left/right input, applies gates in the matching lane, shoots zombies in the current lane, and reaches a win or loss state.
 - Lane input works with the on-screen arrow buttons, keyboard `A/D`, keyboard arrow keys, or tapping/clicking the left or right third of the screen.
 
+## Phase 2
+
+- Open `Assets/Scenes/Base.unity` to try the first base-building slice.
+- The base scene shows a placeholder HQ building, local coins, collect, HQ upgrade, and play controls.
+- HQ starts at level 1.
+- Collect grants local coins.
+- Upgrade HQ spends coins and starts a persisted local timer.
+- Completed HQ upgrades increase HQ level.
+- HQ levels above 1 add a visible starting squad bonus in the minigame.
+- The minigame end screen has a `BASE` button to return to the base scene.
+
 ## Validation
 
 - EditMode tests live in `Assets/Tests/EditMode`.
+- Current EditMode test coverage includes Phase 1 gameplay rules and Phase 2 progression/save rules.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
 
 ## Notes

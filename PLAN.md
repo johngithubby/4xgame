@@ -71,20 +71,34 @@ Phase 1 is implemented and pushed on `develop`.
 
 Add a simple home/base screen connected to the minigame. Prove the loop where local base progress affects minigame stats or unlocks.
 
+### Current Status
+
+The first tiny Phase 2 slice is implemented:
+
+- `Base` scene exists.
+- Placeholder HQ building displays saved HQ level.
+- Local coins can be collected.
+- HQ upgrade spends coins and starts a local persisted timer.
+- Ready upgrades complete from scene load or while the base scene is open.
+- HQ level grants a starting squad bonus in the minigame.
+- Base scene can launch Minigame.
+- Minigame win/loss screen can return to Base.
+- Save, wallet, timer, and progression rules have EditMode coverage.
+
 ### Smallest Useful Slice
 
-1. Create a `Base` scene.
-2. Add an HQ building placeholder.
-3. Add a local resource value, initially `coins`.
-4. Add a `Collect` button that grants coins.
-5. Add an `Upgrade HQ` button.
-6. HQ starts at level 1.
-7. HQ upgrade spends coins and starts a short timer.
-8. Timer persists locally across app close/reopen.
-9. Completed HQ upgrade increases HQ level.
-10. HQ level grants a visible minigame bonus, such as increased starting squad count.
-11. Add navigation from Base to Minigame.
-12. Add navigation from Minigame win/loss screen back to Base.
+1. Create a `Base` scene. Done.
+2. Add an HQ building placeholder. Done.
+3. Add a local resource value, initially `coins`. Done.
+4. Add a `Collect` button that grants coins. Done.
+5. Add an `Upgrade HQ` button. Done.
+6. HQ starts at level 1. Done.
+7. HQ upgrade spends coins and starts a short timer. Done.
+8. Timer persists locally across app close/reopen. Done.
+9. Completed HQ upgrade increases HQ level. Done.
+10. HQ level grants a visible minigame bonus, such as increased starting squad count. Done.
+11. Add navigation from Base to Minigame. Done.
+12. Add navigation from Minigame win/loss screen back to Base. Done.
 
 ### Proposed Files
 
@@ -113,21 +127,21 @@ SaveGameData
 
 ### Acceptance Criteria
 
-- Player can open the Base scene.
-- HQ displays level 1 on a fresh save.
-- Player can collect coins locally.
-- Player can spend coins to start an HQ upgrade.
-- Upgrade timer visibly counts down.
-- Closing and reopening preserves coins, HQ level, and active timer state.
-- Finished timer upgrades HQ level.
-- HQ level affects minigame content or stats in a visible way.
+- Player can open the Base scene. Done.
+- HQ displays level 1 on a fresh save. Done.
+- Player can collect coins locally. Done.
+- Player can spend coins to start an HQ upgrade. Done.
+- Upgrade timer visibly counts down. Done.
+- Closing and reopening preserves coins, HQ level, and active timer state. Covered by save/timer implementation and EditMode tests.
+- Finished timer upgrades HQ level. Done.
+- HQ level affects minigame content or stats in a visible way. Done.
 - No server is required.
 - No monetization is added.
 
 ### Validation
 
-- Add EditMode tests for resource spending, insufficient funds, timer completion, and save/load persistence.
-- Run Unity EditMode tests with the documented temp-copy batch workflow.
+- Add EditMode tests for resource spending, insufficient funds, timer completion, and save/load persistence. Done.
+- Run Unity EditMode tests with the documented temp-copy batch workflow. Done for the first Phase 2 slice.
 - Manually press Play through Base -> Minigame -> win/loss -> Base.
 
 ## Phase 3: Heroes
@@ -196,11 +210,9 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 ## Near-Term Next Step
 
-Start Phase 2 with the smallest base-building slice:
+Continue Phase 2 with a small usability pass:
 
-1. Add local save data and save manager.
-2. Add base scene bootstrap and simple UI.
-3. Add HQ model with collect and upgrade timer.
-4. Connect HQ level to minigame starting squad bonus.
-5. Add tests for save, resources, and timers.
-6. Run EditMode tests on a temporary project copy.
+1. Add a visible minigame completion coin reward.
+2. Add a clearer "upgrade complete" base feedback message.
+3. Add an optional local save reset/debug button for development builds.
+4. Add a PlayMode smoke test for Base -> Minigame scene loading if practical.

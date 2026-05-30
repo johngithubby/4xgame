@@ -52,7 +52,11 @@ namespace LaneSurvivor.EditorTools
             camera.tag = "MainCamera";
 
             EditorSceneManager.SaveScene(scene, ScenePath);
-            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+            EditorBuildSettings.scenes = new[]
+            {
+                new EditorBuildSettingsScene("Assets/Scenes/Base.unity", true),
+                new EditorBuildSettingsScene(ScenePath, true)
+            };
             AssetDatabase.SaveAssets();
         }
 
@@ -202,12 +206,11 @@ namespace LaneSurvivor.EditorTools
             panelRect.offsetMax = Vector2.zero;
 
             Text resultText = CreateText(panel.transform, "Result Text", "Result", font, new Vector2(0f, -45f), TextAnchor.UpperCenter);
-            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(0f, -130f), new Vector2(0.5f, 1f));
+            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(-100f, -130f), new Vector2(0.5f, 1f));
+            Button baseButton = CreateButton(panel.transform, "Base Button", "BASE", font, new Vector2(100f, -130f), new Vector2(0.5f, 1f));
 
             EndScreenController endScreenController = canvas.gameObject.AddComponent<EndScreenController>();
-            SetPrivateField(endScreenController, "panel", panel);
-            SetPrivateField(endScreenController, "resultText", resultText);
-            SetPrivateField(endScreenController, "restartButton", restartButton);
+            endScreenController.Configure(panel, resultText, restartButton, baseButton);
             panel.SetActive(false);
 
             return endScreenController;
@@ -312,14 +315,6 @@ namespace LaneSurvivor.EditorTools
         {
             Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             return font != null ? font : Resources.GetBuiltinResource<Font>("Arial.ttf");
-        }
-
-        private static void SetPrivateField(Object target, string fieldName, Object value)
-        {
-            SerializedObject serializedObject = new(target);
-            SerializedProperty property = serializedObject.FindProperty(fieldName);
-            property.objectReferenceValue = value;
-            serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void EnsureFolder(string parent, string child)

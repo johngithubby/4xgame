@@ -15,17 +15,31 @@ namespace LaneSurvivor.UI
         [SerializeField]
         private Button restartButton;
 
-        public void Configure(GameObject resultPanel, Text resultLabel, Button restartLevelButton)
+        [SerializeField]
+        private Button baseButton;
+
+        public void Configure(GameObject resultPanel, Text resultLabel, Button restartLevelButton, Button returnToBaseButton = null)
         {
             panel = resultPanel;
             resultText = resultLabel;
             restartButton = restartLevelButton;
+            baseButton = returnToBaseButton;
         }
 
-        public void Initialize(Action restartAction)
+        public void Initialize(Action restartAction, Action baseAction = null)
         {
+            // Replace listeners so rebuilt runtime UI cannot accumulate duplicate callbacks.
             restartButton.onClick.RemoveAllListeners();
             restartButton.onClick.AddListener(() => restartAction?.Invoke());
+
+            // The Base button is optional so older tests and minimal scenes can keep using restart only.
+            if (baseButton != null)
+            {
+                baseButton.onClick.RemoveAllListeners();
+                baseButton.onClick.AddListener(() => baseAction?.Invoke());
+                baseButton.gameObject.SetActive(baseAction != null);
+            }
+
             Hide();
         }
 

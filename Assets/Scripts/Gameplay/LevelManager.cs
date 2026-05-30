@@ -38,6 +38,9 @@ namespace LaneSurvivor.Gameplay
         [SerializeField]
         private float autoStartDelay = 0.5f;
 
+        [SerializeField]
+        private string baseSceneName = "Base";
+
         private LevelState state = LevelState.Ready;
 
         private readonly List<Gate> gates = new();
@@ -76,7 +79,7 @@ namespace LaneSurvivor.Gameplay
             autoShooter.Initialize(playerSquad, levelDefinition.shootRange, levelDefinition.shotInterval, levelDefinition.laneMatchTolerance);
 
             hudController.Initialize(this, playerSquad, levelDefinition.finishDistance);
-            endScreenController.Initialize(RestartLevel);
+            endScreenController.Initialize(RestartLevel, ReturnToBase);
 
             BuildRuntimeLevel();
             SetState(LevelState.Ready);
@@ -127,6 +130,12 @@ namespace LaneSurvivor.Gameplay
         private void RestartLevel()
         {
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
+
+        private void ReturnToBase()
+        {
+            // Scene-name navigation keeps the local prototype independent from a backend or flow manager.
+            SceneManager.LoadScene(baseSceneName);
         }
 
         private void HandlePlayerDefeated()
