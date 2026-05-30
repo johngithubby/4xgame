@@ -32,16 +32,20 @@ namespace LaneSurvivor.Tests.EditMode
             Gate missedGate = CreateGate(GateModifierType.AddSquad, 10, 0f, new Vector3(2f, 1f, 0f));
 
             squad.transform.position = new Vector3(0f, 1f, 1f);
-            missedGate.TryResolve(squad, 0.5f);
+            bool missedGateResolved = missedGate.TryResolve(squad, 0.5f);
 
+            Assert.IsTrue(missedGateResolved);
             Assert.AreEqual(5, squad.SquadCount);
             Assert.IsTrue(missedGate.HasResolved);
+            Assert.IsFalse(missedGate.LastResolutionApplied);
 
             Gate hitGate = CreateGate(GateModifierType.AddSquad, 10, 0f, new Vector3(0f, 1f, 0f));
-            hitGate.TryResolve(squad, 0.5f);
+            bool hitGateResolved = hitGate.TryResolve(squad, 0.5f);
 
+            Assert.IsTrue(hitGateResolved);
             Assert.AreEqual(15, squad.SquadCount);
             Assert.IsTrue(hitGate.HasResolved);
+            Assert.IsTrue(hitGate.LastResolutionApplied);
         }
 
         [Test]
@@ -74,6 +78,21 @@ namespace LaneSurvivor.Tests.EditMode
 
             Assert.IsTrue(zombie.IsDefeated);
             Assert.IsTrue(defeated);
+        }
+
+        [Test]
+        public void ZombieBreach_OnlyDamagesSquadInSameLane()
+        {
+            PlayerSquad squad = CreateSquad(5, 1f);
+            Zombie zombie = CreateZombie(new Vector3(2f, 1f, 0f), 3);
+
+            squad.transform.position = new Vector3(0f, 1f, 1f);
+            bool resolved = zombie.TryBreach(squad, 0.5f);
+
+            Assert.IsTrue(resolved);
+            Assert.IsTrue(zombie.IsDefeated);
+            Assert.IsFalse(zombie.LastBreachApplied);
+            Assert.AreEqual(5, squad.SquadCount);
         }
 
         [Test]
@@ -121,6 +140,16 @@ namespace LaneSurvivor.Tests.EditMode
             Gate gate = gateObject.AddComponent<Gate>();
             gate.Configure(gateDefinition, null, null);
             return gate;
+        }
+
+        private static Zombie CreateZombie(Vector3 position, int breachPenalty)
+        {
+            GameObject zombieObject = new("Zombie Under Test");
+            zombieObject.transform.position = position;
+
+            Zombie zombie = zombieObject.AddComponent<Zombie>();
+            zombie.Configure(5f, breachPenalty, null);
+            return zombie;
         }
     }
 }

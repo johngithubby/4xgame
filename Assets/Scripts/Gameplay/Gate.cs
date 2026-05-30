@@ -19,6 +19,10 @@ namespace LaneSurvivor.Gameplay
 
         public bool HasResolved { get; private set; }
 
+        public bool LastResolutionApplied { get; private set; }
+
+        public string DisplayText => label != null ? label.text : BuildLabelText();
+
         public void Configure(GateSpawnDefinition definition, Material gateMaterial, TextMesh labelText)
         {
             modifierType = definition.modifierType;
@@ -31,25 +35,27 @@ namespace LaneSurvivor.Gameplay
             if (gateRenderer != null)
             {
                 gateRenderer.sharedMaterial = gateMaterial;
+                gateRenderer.material.color = GetGateColor(modifierType);
             }
 
             SetLabelText();
         }
 
-        public void TryResolve(PlayerSquad playerSquad, float laneTolerance)
+        public bool TryResolve(PlayerSquad playerSquad, float laneTolerance)
         {
             if (HasResolved || playerSquad == null)
             {
-                return;
+                return false;
             }
 
             if (playerSquad.transform.position.z < transform.position.z)
             {
-                return;
+                return false;
             }
 
             HasResolved = true;
-            if (playerSquad.IsInSameLaneAs(transform.position.x, laneTolerance))
+            LastResolutionApplied = playerSquad.IsInSameLaneAs(transform.position.x, laneTolerance);
+            if (LastResolutionApplied)
             {
                 playerSquad.ApplyGate(modifierType, squadValue, damageValue);
                 MarkResolved(Color.gray);
@@ -58,6 +64,8 @@ namespace LaneSurvivor.Gameplay
             {
                 MarkResolved(new Color(0.18f, 0.18f, 0.18f));
             }
+
+            return true;
         }
 
         private void SetLabelText()
@@ -67,13 +75,30 @@ namespace LaneSurvivor.Gameplay
                 return;
             }
 
-            label.text = modifierType switch
+            label.text = BuildLabelText();
+        }
+
+        private string BuildLabelText()
+        {
+            return modifierType switch
             {
                 GateModifierType.AddSquad => $"+{squadValue}",
                 GateModifierType.MultiplySquad => $"x{squadValue}",
                 GateModifierType.SubtractSquad => $"-{squadValue}",
                 GateModifierType.AddDamage => $"+{damageValue:0.#} DMG",
                 _ => "?"
+            };
+        }
+
+        private static Color GetGateColor(GateModifierType gateModifierType)
+        {
+            return gateModifierType switch
+            {
+                GateModifierType.AddSquad => new Color(0.10f, 0.72f, 0.32f),
+                GateModifierType.MultiplySquad => new Color(0.10f, 0.55f, 0.95f),
+                GateModifierType.SubtractSquad => new Color(0.90f, 0.18f, 0.16f),
+                GateModifierType.AddDamage => new Color(0.95f, 0.72f, 0.12f),
+                _ => Color.white
             };
         }
 

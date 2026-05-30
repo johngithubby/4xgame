@@ -17,11 +17,14 @@ namespace LaneSurvivor.Gameplay
 
         public int BreachPenalty => breachPenalty;
 
+        public bool LastBreachApplied { get; private set; }
+
         public void Configure(float startingHealth, int startingBreachPenalty, Material zombieMaterial)
         {
             health = Mathf.Max(1f, startingHealth);
             breachPenalty = Mathf.Max(0, startingBreachPenalty);
             IsDefeated = false;
+            LastBreachApplied = false;
 
             Renderer zombieRenderer = GetComponent<Renderer>();
             if (zombieRenderer != null)
@@ -44,24 +47,26 @@ namespace LaneSurvivor.Gameplay
             }
         }
 
-        public void TryBreach(PlayerSquad playerSquad, float laneTolerance)
+        public bool TryBreach(PlayerSquad playerSquad, float laneTolerance)
         {
             if (IsDefeated || playerSquad == null)
             {
-                return;
+                return false;
             }
 
             if (playerSquad.transform.position.z < transform.position.z)
             {
-                return;
+                return false;
             }
 
-            if (playerSquad.IsInSameLaneAs(transform.position.x, laneTolerance))
+            LastBreachApplied = playerSquad.IsInSameLaneAs(transform.position.x, laneTolerance);
+            if (LastBreachApplied)
             {
                 playerSquad.TakeLoss(breachPenalty);
             }
 
             MarkDefeated();
+            return true;
         }
 
         private void MarkDefeated()

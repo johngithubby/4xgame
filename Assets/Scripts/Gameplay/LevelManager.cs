@@ -180,6 +180,8 @@ namespace LaneSurvivor.Gameplay
             finish.name = "Finish Line";
             finish.transform.position = new Vector3(0f, 0.05f, levelDefinition.finishDistance);
             finish.transform.localScale = new Vector3(7f, 0.12f, 0.4f);
+            SetPrimitiveColor(finish, new Color(0.25f, 0.95f, 0.42f));
+            CreateWorldLabel("FINISH", new Vector3(0f, 0.5f, levelDefinition.finishDistance + 0.25f), Color.white, 0.45f);
 
             foreach (float laneX in levelDefinition.lanePositions)
             {
@@ -187,6 +189,7 @@ namespace LaneSurvivor.Gameplay
                 laneMarker.name = "Lane Marker";
                 laneMarker.transform.position = new Vector3(laneX, 0.02f, levelDefinition.finishDistance * 0.5f);
                 laneMarker.transform.localScale = new Vector3(0.08f, 0.04f, levelDefinition.finishDistance + 8f);
+                SetPrimitiveColor(laneMarker, new Color(0.82f, 0.86f, 0.88f));
             }
         }
 
@@ -236,7 +239,12 @@ namespace LaneSurvivor.Gameplay
         {
             foreach (Gate gate in gates)
             {
-                gate.TryResolve(playerSquad, levelDefinition.laneMatchTolerance);
+                if (gate.TryResolve(playerSquad, levelDefinition.laneMatchTolerance))
+                {
+                    string message = gate.LastResolutionApplied ? gate.DisplayText : "MISS";
+                    Color color = gate.LastResolutionApplied ? Color.white : new Color(0.75f, 0.75f, 0.75f);
+                    SpawnFeedback(message, gate.transform.position + Vector3.up * 1.5f, color);
+                }
             }
         }
 
@@ -244,8 +252,47 @@ namespace LaneSurvivor.Gameplay
         {
             foreach (Zombie zombie in zombies)
             {
-                zombie.TryBreach(playerSquad, levelDefinition.laneMatchTolerance);
+                if (zombie.TryBreach(playerSquad, levelDefinition.laneMatchTolerance))
+                {
+                    string message = zombie.LastBreachApplied ? $"-{zombie.BreachPenalty}" : "DODGED";
+                    Color color = zombie.LastBreachApplied ? new Color(1f, 0.25f, 0.20f) : new Color(0.45f, 0.9f, 1f);
+                    SpawnFeedback(message, zombie.transform.position + Vector3.up * 1.4f, color);
+                }
             }
+        }
+
+        private static void SetPrimitiveColor(GameObject primitive, Color color)
+        {
+            // Runtime primitives each receive their own material instance when using renderer.material.
+            Renderer renderer = primitive.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material.color = color;
+            }
+        }
+
+        private static TextMesh CreateWorldLabel(string text, Vector3 position, Color color, float scale)
+        {
+            // TextMesh keeps placeholder feedback independent from imported fonts or sprites.
+            GameObject labelObject = new(text);
+            labelObject.transform.position = position;
+            labelObject.transform.rotation = Quaternion.Euler(65f, 0f, 0f);
+            labelObject.transform.localScale = Vector3.one * scale;
+
+            TextMesh label = labelObject.AddComponent<TextMesh>();
+            label.text = text;
+            label.anchor = TextAnchor.MiddleCenter;
+            label.alignment = TextAlignment.Center;
+            label.characterSize = 1f;
+            label.color = color;
+            return label;
+        }
+
+        private static void SpawnFeedback(string message, Vector3 position, Color color)
+        {
+            // Feedback labels float upward and self-destroy, so no manager bookkeeping is needed.
+            TextMesh label = CreateWorldLabel(message, position, color, 0.32f);
+            label.gameObject.AddComponent<FloatingFeedback>().Configure(message, color, 1.1f);
         }
     }
 }
