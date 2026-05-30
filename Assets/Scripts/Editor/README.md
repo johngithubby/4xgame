@@ -2,11 +2,12 @@
 
 ## Files
 
+- `LaneSurvivor.Editor.asmdef`: Declares the editor-only assembly and references `LaneSurvivor.Runtime` for scene-building tools.
 - `PhaseOneSceneBuilder.cs`: Rebuilds the Phase 1 level asset, placeholder materials, Unity scene, player, camera, UI, and build settings.
 
 ## Compile
 
-Unity compiles this file into the editor-only assembly because it is under an `Editor` folder.
+Unity compiles these files into the `LaneSurvivor.Editor` assembly because the assembly definition is limited to the Editor platform.
 
 ## Behavior
 
