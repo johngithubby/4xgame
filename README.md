@@ -20,3 +20,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 
 - EditMode tests live in `Assets/Tests/EditMode`.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
+
+## Notes
+
+- See `LESSONS_LEARNED.md` for Unity batch-mode, Test Runner, autoreview, and Phase 1 implementation lessons from this prototype.
