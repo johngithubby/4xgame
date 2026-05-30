@@ -10,7 +10,7 @@
 - `PhaseOneRuntimeBootstrap.cs`: Builds the playable Phase 1 prototype from a minimal scene at runtime.
 - `PlayerSquad.cs`: Moves the squad forward, tracks squad count, tracks damage, and reports defeat.
 - `SimpleCameraFollow.cs`: Keeps the camera following the moving squad with a fixed offset.
-- `SquadLaneInput.cs`: Reads keyboard, pointer, touch, and on-screen button input to move the squad between lanes.
+- `SquadLaneInput.cs`: Reads keyboard, pointer, touch, and on-screen button input to move the squad between lanes while ignoring raw pointer gestures over UI buttons.
 - `Zombie.cs`: Tracks zombie health, defeat state, and squad loss when the squad reaches an undefeated zombie.
 
 ## Compile

@@ -60,14 +60,36 @@ namespace LaneSurvivor.Gameplay
         {
             if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began)
             {
+                Touch touch = Input.GetTouch(0);
+
+                // Record the touch frame before returning so Unity's synthetic mouse event does not double-handle the same tap.
                 lastTouchFrame = Time.frameCount;
-                MoveTowardScreenSide(Input.GetTouch(0).position.x);
+
+                // Lane buttons already move through onClick, so raw gestures only ignore those button rectangles.
+                if (!IsPointerOverLaneButton(touch.position))
+                {
+                    MoveTowardScreenSide(touch.position.x);
+                }
             }
 
-            if (Input.GetMouseButtonDown(0) && lastTouchFrame != Time.frameCount)
+            if (Input.GetMouseButtonDown(0) && lastTouchFrame != Time.frameCount && !IsPointerOverLaneButton(Input.mousePosition))
             {
                 MoveTowardScreenSide(Input.mousePosition.x);
             }
+        }
+
+        private bool IsPointerOverLaneButton(Vector2 screenPosition)
+        {
+            // Overlay canvases use a null camera for rectangle hit testing.
+            return IsPointerOverButton(leftButton, screenPosition) || IsPointerOverButton(rightButton, screenPosition);
+        }
+
+        private static bool IsPointerOverButton(Button button, Vector2 screenPosition)
+        {
+            // Missing buttons should never suppress raw gestures in hand-built test scenes.
+            return button != null
+                && button.TryGetComponent(out RectTransform rectTransform)
+                && RectTransformUtility.RectangleContainsScreenPoint(rectTransform, screenPosition);
         }
 
         private void MoveTowardScreenSide(float screenX)
