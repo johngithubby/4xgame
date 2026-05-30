@@ -23,4 +23,5 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 
 ## Notes
 
+- See `PLAN.md` for the phased prototype roadmap and next implementation slices.
 - See `LESSONS_LEARNED.md` for Unity batch-mode, Test Runner, autoreview, and Phase 1 implementation lessons from this prototype.
