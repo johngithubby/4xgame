@@ -161,10 +161,15 @@ namespace LaneSurvivor.Base
                 return "None earned yet";
             }
 
-            // This first slice shows the first owned hero; a later hero screen can list multiple rows.
-            HeroDefinition hero = ownedHeroes[0];
-            string equippedLabel = equippedHero != null && equippedHero.id == hero.id ? " EQUIPPED" : string.Empty;
-            return $"{hero.displayName} [{hero.rarity}]{equippedLabel}\n+{hero.startingSquadBonus} squad  +{hero.damageBonus:0.##} damage";
+            // Keep the panel compact enough for the placeholder mobile HUD.
+            List<string> heroLines = new();
+            foreach (HeroDefinition hero in ownedHeroes)
+            {
+                string equippedLabel = equippedHero != null && equippedHero.id == hero.id ? " EQ" : string.Empty;
+                heroLines.Add($"{hero.displayName} [{hero.rarity}]{equippedLabel} +{hero.startingSquadBonus}/+{hero.damageBonus:0.##}");
+            }
+
+            return string.Join("\n", heroLines);
         }
 
         private static bool HasUnequippedOwnedHero(IReadOnlyList<HeroDefinition> ownedHeroes, HeroDefinition equippedHero)
@@ -175,8 +180,8 @@ namespace LaneSurvivor.Base
                 return false;
             }
 
-            // Enable the button only when the first listed hero is not already equipped.
-            return equippedHero == null || equippedHero.id != ownedHeroes[0].id;
+            // One owned but unequipped hero can be equipped; multiple heroes can cycle selection.
+            return equippedHero == null || ownedHeroes.Count > 1;
         }
     }
 }

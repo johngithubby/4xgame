@@ -63,6 +63,30 @@ namespace LaneSurvivor.Heroes
                 .ToList();
         }
 
+        public static HeroDefinition GetNextOwnedHeroToEquip(SaveGameData data)
+        {
+            // The Base panel cycles owned heroes until a richer selection UI exists.
+            IReadOnlyList<HeroDefinition> ownedHeroes = GetOwnedHeroes(data);
+            if (ownedHeroes.Count == 0)
+            {
+                return null;
+            }
+
+            // No current equipped hero means the first owned hero is the next valid choice.
+            HeroDefinition equippedHero = GetEquippedHero(data);
+            if (equippedHero == null)
+            {
+                return ownedHeroes[0];
+            }
+
+            // Find the current hero and wrap to the beginning when it is the last owned hero.
+            int equippedIndex = ownedHeroes
+                .Select((hero, index) => hero.id == equippedHero.id ? index : -1)
+                .FirstOrDefault(index => index >= 0);
+            int nextIndex = (equippedIndex + 1) % ownedHeroes.Count;
+            return ownedHeroes[nextIndex];
+        }
+
         public static HeroDefinition GetEquippedHero(SaveGameData data)
         {
             // A null or empty equipped id means no hero stat bonus should apply.

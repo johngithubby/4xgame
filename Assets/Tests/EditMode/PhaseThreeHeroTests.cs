@@ -95,6 +95,62 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void HqLevelTwoHeroReward_GrantsSecondHero()
+        {
+            SaveGameData saveData = new()
+            {
+                hqLevel = 2
+            };
+
+            HeroDefinition grantedHero = HeroRewardSystem.TryGrantHqLevelTwoHero(saveData);
+
+            Assert.IsNotNull(grantedHero);
+            Assert.AreEqual(HeroCatalog.HqLevelTwoHeroId, grantedHero.id);
+            Assert.IsTrue(HeroInventory.OwnsHero(saveData, HeroCatalog.HqLevelTwoHeroId));
+        }
+
+        [Test]
+        public void HqLevelTwoHeroReward_DoesNotGrantBeforeHqLevelTwo()
+        {
+            SaveGameData saveData = new()
+            {
+                hqLevel = 1
+            };
+
+            HeroDefinition grantedHero = HeroRewardSystem.TryGrantHqLevelTwoHero(saveData);
+
+            Assert.IsNull(grantedHero);
+            Assert.IsFalse(HeroInventory.OwnsHero(saveData, HeroCatalog.HqLevelTwoHeroId));
+        }
+
+        [Test]
+        public void NextOwnedHeroToEquip_CyclesBetweenOwnedHeroes()
+        {
+            SaveGameData saveData = new();
+
+            HeroInventory.GrantHero(saveData, HeroCatalog.FirstWinHeroId);
+            HeroInventory.GrantHero(saveData, HeroCatalog.HqLevelTwoHeroId);
+            HeroInventory.EquipHero(saveData, HeroCatalog.FirstWinHeroId);
+
+            HeroDefinition nextHero = HeroInventory.GetNextOwnedHeroToEquip(saveData);
+
+            Assert.IsNotNull(nextHero);
+            Assert.AreEqual(HeroCatalog.HqLevelTwoHeroId, nextHero.id);
+        }
+
+        [Test]
+        public void SecondHeroStats_AppliesWhenEquipped()
+        {
+            SaveGameData saveData = new();
+
+            HeroInventory.GrantHero(saveData, HeroCatalog.HqLevelTwoHeroId);
+            HeroInventory.EquipHero(saveData, HeroCatalog.HqLevelTwoHeroId);
+
+            Assert.AreEqual(1, HeroInventory.GetStartingSquadBonus(saveData));
+            Assert.AreEqual(0.35f, HeroInventory.GetDamageBonus(saveData));
+        }
+
+        [Test]
         public void SaveGameManager_PreservesHeroInventory()
         {
             // Use an isolated path so hero persistence tests never touch the real prototype save.

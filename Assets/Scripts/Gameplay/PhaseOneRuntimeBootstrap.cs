@@ -42,7 +42,19 @@ namespace LaneSurvivor.Gameplay
         {
             LevelDefinition levelDefinition = ScriptableObject.CreateInstance<LevelDefinition>();
             SaveGameData saveData = SaveGameManager.Load();
+            bool saveNeeded = false;
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
+            {
+                saveNeeded = true;
+            }
+
+            // HQ milestone hero rewards can complete while entering the minigame from a stale save.
+            if (HeroRewardSystem.TryGrantHqLevelTwoHero(saveData) != null)
+            {
+                saveNeeded = true;
+            }
+
+            if (saveNeeded)
             {
                 SaveGameManager.Save(saveData);
             }

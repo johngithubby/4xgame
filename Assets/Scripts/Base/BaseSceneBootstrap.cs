@@ -27,8 +27,13 @@ namespace LaneSurvivor.Base
             // Complete any timer that finished while the app was closed.
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
             {
-                SaveGameManager.Save(saveData);
                 statusMessage = "HQ upgrade complete";
+                GrantHqMilestoneRewards();
+                SaveGameManager.Save(saveData);
+            }
+            else if (GrantHqMilestoneRewards())
+            {
+                SaveGameManager.Save(saveData);
             }
 
             Material groundMaterial = CreateMaterial(new Color(0.18f, 0.25f, 0.24f));
@@ -40,7 +45,7 @@ namespace LaneSurvivor.Base
             CreateGround(groundMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ResetSave, EquipFirstOwnedHero);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ResetSave, EquipNextOwnedHero);
 
             RefreshScene();
         }
@@ -50,8 +55,9 @@ namespace LaneSurvivor.Base
             // Poll timer completion locally; no server authority exists in Phase 2.
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
             {
-                SaveGameManager.Save(saveData);
                 statusMessage = "HQ upgrade complete";
+                GrantHqMilestoneRewards();
+                SaveGameManager.Save(saveData);
                 RefreshScene();
                 return;
             }
@@ -91,11 +97,11 @@ namespace LaneSurvivor.Base
             RefreshScene();
         }
 
-        private void EquipFirstOwnedHero()
+        private void EquipNextOwnedHero()
         {
-            // The first hero panel slice equips the first owned hero until a fuller selection UI exists.
-            var ownedHeroes = HeroInventory.GetOwnedHeroes(saveData);
-            if (ownedHeroes.Count == 0)
+            // The Base panel cycles through owned heroes until a fuller selection UI exists.
+            HeroDefinition hero = HeroInventory.GetNextOwnedHeroToEquip(saveData);
+            if (hero == null)
             {
                 statusMessage = "No heroes owned";
                 RefreshScene();
@@ -103,13 +109,26 @@ namespace LaneSurvivor.Base
             }
 
             // Persist the manual equip action immediately so the next minigame run sees the selected hero.
-            HeroDefinition hero = ownedHeroes[0];
             if (HeroInventory.EquipHero(saveData, hero.id))
             {
                 SaveGameManager.Save(saveData);
                 statusMessage = $"{hero.displayName} equipped";
                 RefreshScene();
             }
+        }
+
+        private bool GrantHqMilestoneRewards()
+        {
+            // HQ milestone hero rewards stay local and deterministic, with no gacha or backend.
+            HeroDefinition heroReward = HeroRewardSystem.TryGrantHqLevelTwoHero(saveData);
+            if (heroReward == null)
+            {
+                return false;
+            }
+
+            // Surface the reward in Base immediately after the HQ milestone is reached.
+            statusMessage = $"{heroReward.displayName} joined";
+            return true;
         }
 
         private void LaunchMinigame()

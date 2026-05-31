@@ -7,6 +7,8 @@ namespace LaneSurvivor.Heroes
     {
         public const string FirstWinHeroId = "mira_vanguard";
 
+        public const string HqLevelTwoHeroId = "dax_medic";
+
         private static readonly HeroDefinition[] definitions =
         {
             new()
@@ -16,6 +18,14 @@ namespace LaneSurvivor.Heroes
                 rarity = HeroRarity.Common,
                 startingSquadBonus = 2,
                 damageBonus = 0.15f
+            },
+            new()
+            {
+                id = HqLevelTwoHeroId,
+                displayName = "Dax Medic",
+                rarity = HeroRarity.Rare,
+                startingSquadBonus = 1,
+                damageBonus = 0.35f
             }
         };
 
