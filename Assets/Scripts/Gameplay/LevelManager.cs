@@ -1,4 +1,5 @@
 using LaneSurvivor.Data;
+using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Save;
 using LaneSurvivor.UI;
@@ -156,8 +157,7 @@ namespace LaneSurvivor.Gameplay
 
             if (state == LevelState.Won)
             {
-                int rewardCoins = ClaimWinReward();
-                string rewardText = rewardCoins > 0 ? $"+{rewardCoins} coins" : string.Empty;
+                string rewardText = ClaimWinReward();
                 endScreenController.Show("Level Complete", rewardText);
             }
             else if (state == LevelState.Lost)
@@ -170,7 +170,7 @@ namespace LaneSurvivor.Gameplay
             }
         }
 
-        private int ClaimWinReward()
+        private string ClaimWinReward()
         {
             // Load the current local save so rewards stack with any base progress made before the run.
             SaveGameData saveData = SaveGameManager.Load();
@@ -179,12 +179,17 @@ namespace LaneSurvivor.Gameplay
             int rewardCoins = PlayerProgression.TryClaimMinigameWinReward(saveData, ref winRewardClaimed);
             if (rewardCoins <= 0)
             {
-                return 0;
+                return string.Empty;
             }
+
+            // The first gameplay win also grants the first local hero, then auto-equips it.
+            HeroDefinition heroReward = HeroRewardSystem.TryGrantFirstWinHero(saveData);
 
             // Persist the reward immediately so returning to Base shows the updated coin balance.
             SaveGameManager.Save(saveData);
-            return rewardCoins;
+            return heroReward != null
+                ? $"+{rewardCoins} coins\nHero: {heroReward.displayName}"
+                : $"+{rewardCoins} coins";
         }
 
         private void BuildRuntimeLevel()

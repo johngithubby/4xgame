@@ -1,4 +1,5 @@
 using LaneSurvivor.Data;
+using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Save;
 using LaneSurvivor.UI;
@@ -46,8 +47,10 @@ namespace LaneSurvivor.Gameplay
                 SaveGameManager.Save(saveData);
             }
 
-            levelDefinition.startingSquadCount = 6 + PlayerProgression.GetStartingSquadBonus(saveData);
-            levelDefinition.startingDamagePerMember = 1f;
+            levelDefinition.startingSquadCount = 6
+                + PlayerProgression.GetStartingSquadBonus(saveData)
+                + HeroInventory.GetStartingSquadBonus(saveData);
+            levelDefinition.startingDamagePerMember = 1f + HeroInventory.GetDamageBonus(saveData);
             levelDefinition.finishDistance = 48f;
             levelDefinition.squadMoveSpeed = 4.2f;
             levelDefinition.laneChangeSpeed = 8f;
@@ -179,6 +182,9 @@ namespace LaneSurvivor.Gameplay
 
             Text resultText = CreateText(panel.transform, "Result Text", "Result", font, new Vector2(0f, -38f), TextAnchor.UpperCenter);
             Text rewardText = CreateText(panel.transform, "Reward Text", string.Empty, font, new Vector2(0f, -78f), TextAnchor.UpperCenter);
+
+            // Hero rewards can add a second line, so the reward label gets a taller text box.
+            rewardText.GetComponent<RectTransform>().sizeDelta = new Vector2(340f, 70f);
             Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(-100f, -138f), new Vector2(0.5f, 1f));
             Button baseButton = CreateButton(panel.transform, "Base Button", "BASE", font, new Vector2(100f, -138f), new Vector2(0.5f, 1f));
 

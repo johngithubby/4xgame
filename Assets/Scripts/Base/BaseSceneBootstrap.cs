@@ -186,6 +186,7 @@ namespace LaneSurvivor.Base
             Text coinsText = CreateText(canvas.transform, "Coins Text", "Coins: 0", font, new Vector2(16f, -58f), TextAnchor.UpperLeft, new Vector2(240f, 34f));
             Text hqText = CreateText(canvas.transform, "HQ Text", "HQ Level: 1", font, new Vector2(16f, -90f), TextAnchor.UpperLeft, new Vector2(240f, 34f));
             Text timerText = CreateText(canvas.transform, "Timer Text", "Upgrade: Ready", font, new Vector2(16f, -122f), TextAnchor.UpperLeft, new Vector2(280f, 34f));
+            Text heroText = CreateText(canvas.transform, "Hero Text", "Hero: None", font, new Vector2(16f, -154f), TextAnchor.UpperLeft, new Vector2(340f, 34f));
             Text statusText = CreateText(canvas.transform, "Status Text", "Next HQ upgrade", font, new Vector2(0f, 92f), TextAnchor.LowerCenter, new Vector2(360f, 34f));
             Text playHintText = CreateText(canvas.transform, "Play Hint Text", $"Win reward: +{PlayerProgression.MinigameWinCoins} coins", font, new Vector2(0f, 128f), TextAnchor.LowerCenter, new Vector2(360f, 34f));
             Button collectButton = CreateButton(canvas.transform, "Collect Button", "COLLECT", font, new Vector2(-126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
@@ -194,7 +195,7 @@ namespace LaneSurvivor.Base
             Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-58f, -18f), new Vector2(1f, 1f), new Vector2(72f, 34f));
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, statusText, playHintText, collectButton, upgradeButton, playButton, resetButton);
+            hud.Configure(titleText, coinsText, hqText, timerText, heroText, statusText, playHintText, collectButton, upgradeButton, playButton, resetButton);
             return hud;
         }
 

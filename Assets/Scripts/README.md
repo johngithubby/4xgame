@@ -8,6 +8,7 @@
 - `Economy/`: Contains local resource wallet helpers.
 - `Editor/`: Contains editor-only scene building tools.
 - `Gameplay/`: Contains minigame controllers, player squad behavior, gates, zombies, shooting, and runtime bootstrap code.
+- `Heroes/`: Contains local hero definitions, inventory helpers, and gameplay reward rules.
 - `Progression/`: Contains HQ upgrade and timer rules that connect base progress to minigame bonuses.
 - `Save/`: Contains local JSON save data and persistence helpers.
 - `UI/`: Contains HUD and end-screen controllers.
@@ -18,4 +19,4 @@ Unity compiles runtime scripts through the `LaneSurvivor.Runtime` assembly. Edit
 
 ## Behavior
 
-The runtime assembly owns the local Phase 1 minigame prototype and Phase 2 base-building slice. Editor tooling references it only to rebuild or configure development scenes.
+The runtime assembly owns the local Phase 1 minigame prototype, Phase 2 base-building slice, and first Phase 3 hero slice. Editor tooling references it only to rebuild or configure development scenes.

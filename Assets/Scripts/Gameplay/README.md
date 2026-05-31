@@ -5,10 +5,10 @@
 - `AutoShooter.cs`: Selects the nearest zombie ahead of the squad and applies automatic damage on a timer.
 - `FloatingFeedback.cs`: Animates short world-space text feedback for gate and zombie outcomes.
 - `Gate.cs`: Applies a configured gate modifier once when the player squad reaches the gate position.
-- `LevelManager.cs`: Owns the Phase 1 level flow, runtime level spawning, win/loss state, local win reward claim, scene restart, and base return.
+- `LevelManager.cs`: Owns the Phase 1 level flow, runtime level spawning, win/loss state, local coin and hero win reward claim, scene restart, and base return.
 - `LevelState.cs`: Defines the minigame states used by gameplay and UI.
 - `LevelStateEvaluator.cs`: Contains small testable rules for win/loss evaluation.
-- `PhaseOneRuntimeBootstrap.cs`: Builds the playable Phase 1 prototype from a minimal scene at runtime.
+- `PhaseOneRuntimeBootstrap.cs`: Builds the playable Phase 1 prototype from a minimal scene at runtime and applies HQ/hero save bonuses.
 - `PlayerSquad.cs`: Moves the squad forward, tracks squad count, tracks damage, and reports defeat.
 - `SimpleCameraFollow.cs`: Keeps the camera following the moving squad with a fixed offset.
 - `SquadLaneInput.cs`: Reads keyboard, pointer, touch, and on-screen button input to move the squad between lanes while ignoring raw pointer gestures over UI buttons.
@@ -20,4 +20,4 @@ Unity compiles these files automatically as part of the main runtime assembly.
 
 ## Behavior
 
-The gameplay loop is intentionally small: the squad starts, moves forward, lane input chooses which gates and zombies matter, automatic shooting defeats zombies in the current lane, visible feedback explains outcomes, and the level ends when the squad reaches the finish or reaches zero members. A win grants one local coin reward for that run and saves it before the player returns to Base.
+The gameplay loop is intentionally small: the squad starts, moves forward, lane input chooses which gates and zombies matter, automatic shooting defeats zombies in the current lane, visible feedback explains outcomes, and the level ends when the squad reaches the finish or reaches zero members. A win grants one local coin reward for that run, can grant the first hero, and saves before the player returns to Base.

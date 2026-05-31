@@ -31,11 +31,19 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Editor and development builds show a local save reset button for quick prototype iteration.
 - The minigame end screen has a `BASE` button to return to the base scene.
 
+## Phase 3
+
+- Winning the minigame can grant the first local hero, `Mira Vanguard`.
+- The first hero is auto-equipped and shown on the Base HUD.
+- Equipped heroes modify minigame starting squad size and damage.
+- Hero ownership and equipment persist in the local save.
+- Hero rewards are gameplay-only; no paid gacha or loot boxes are used.
+
 ## Validation
 
 - EditMode tests live in `Assets/Tests/EditMode`.
 - PlayMode scene smoke tests live in `Assets/Tests/PlayMode`.
-- Current EditMode test coverage includes Phase 1 gameplay rules and Phase 2 progression/save rules.
+- Current EditMode test coverage includes Phase 1 gameplay rules, Phase 2 progression/save rules, and Phase 3 hero inventory rules.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
 
 ## Notes

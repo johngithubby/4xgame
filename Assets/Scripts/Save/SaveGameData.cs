@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LaneSurvivor.Save
@@ -18,12 +19,17 @@ namespace LaneSurvivor.Save
 
         public int unlockedMinigameLevel = 1;
 
+        public List<string> ownedHeroIds = new();
+
+        public string equippedHeroId = string.Empty;
+
         public void Normalize()
         {
             // Clamp save values after load so corrupt or older data cannot break gameplay assumptions.
             coins = Mathf.Max(0, coins);
             hqLevel = Mathf.Max(1, hqLevel);
             unlockedMinigameLevel = Mathf.Max(1, unlockedMinigameLevel);
+            NormalizeHeroes();
 
             // Invalid persisted timer values cannot be recovered safely, so clear the active timer.
             if (hqUpgradeInProgress && !HasRecoverableHqUpgradeTimer())
@@ -75,6 +81,29 @@ namespace LaneSurvivor.Save
 
             // The saved duration must fit inside DateTime's valid range from the saved start.
             return hqUpgradeStartedUtcTicks <= DateTime.MaxValue.Ticks - durationTicks;
+        }
+
+        private void NormalizeHeroes()
+        {
+            // Older saves do not have hero lists, so create one before inventory code reads it.
+            ownedHeroIds ??= new List<string>();
+
+            // Remove empty ids and duplicates so corrupted saves cannot display phantom hero entries.
+            HashSet<string> seenHeroIds = new();
+            for (int index = ownedHeroIds.Count - 1; index >= 0; index -= 1)
+            {
+                string heroId = ownedHeroIds[index];
+                if (string.IsNullOrWhiteSpace(heroId) || !seenHeroIds.Add(heroId))
+                {
+                    ownedHeroIds.RemoveAt(index);
+                }
+            }
+
+            // Equipped heroes must also be owned; otherwise clear the invalid equipped id.
+            if (string.IsNullOrWhiteSpace(equippedHeroId) || !ownedHeroIds.Contains(equippedHeroId))
+            {
+                equippedHeroId = string.Empty;
+            }
         }
     }
 }

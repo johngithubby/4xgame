@@ -1,4 +1,5 @@
 using System;
+using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Save;
 using UnityEngine;
@@ -21,6 +22,9 @@ namespace LaneSurvivor.Base
         private Text timerText;
 
         [SerializeField]
+        private Text heroText;
+
+        [SerializeField]
         private Text statusText;
 
         [SerializeField]
@@ -38,12 +42,13 @@ namespace LaneSurvivor.Base
         [SerializeField]
         private Button resetButton;
 
-        public void Configure(Text title, Text coins, Text hq, Text timer, Text status, Text playHint, Button collect, Button upgrade, Button play, Button reset)
+        public void Configure(Text title, Text coins, Text hq, Text timer, Text hero, Text status, Text playHint, Button collect, Button upgrade, Button play, Button reset)
         {
             titleText = title;
             coinsText = coins;
             hqText = hq;
             timerText = timer;
+            heroText = hero;
             statusText = status;
             playHintText = playHint;
             collectButton = collect;
@@ -83,6 +88,7 @@ namespace LaneSurvivor.Base
             int upgradeCost = PlayerProgression.GetHqUpgradeCost(hqLevel);
             bool upgradeRunning = saveData != null && saveData.hqUpgradeInProgress;
             bool canAffordUpgrade = coins >= upgradeCost;
+            HeroDefinition equippedHero = HeroInventory.GetEquippedHero(saveData);
 
             // Build the default status separately so action feedback can override it cleanly.
             string fallbackStatus = upgradeRunning
@@ -93,10 +99,17 @@ namespace LaneSurvivor.Base
             coinsText.text = $"Coins: {coins}";
             hqText.text = $"HQ Level: {hqLevel}";
             timerText.text = upgradeRunning ? $"Upgrade: {remainingSeconds}s" : "Upgrade: Ready";
+            heroText.text = equippedHero != null
+                ? $"Hero: {equippedHero.displayName} (+{equippedHero.startingSquadBonus} squad)"
+                : "Hero: None";
             statusText.text = !string.IsNullOrWhiteSpace(statusOverride)
                 ? statusOverride
                 : fallbackStatus;
-            playHintText.text = $"Win reward: +{PlayerProgression.MinigameWinCoins} coins";
+
+            // Before the first hero is owned, the play hint tells the player a hero can be earned.
+            playHintText.text = equippedHero != null
+                ? $"Win reward: +{PlayerProgression.MinigameWinCoins} coins"
+                : $"Win reward: +{PlayerProgression.MinigameWinCoins} coins + hero";
 
             // The collect button remains available in this prototype so the loop can be tested quickly.
             collectButton.interactable = true;
