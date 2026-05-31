@@ -34,7 +34,8 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 ## Phase 3
 
 - Winning the minigame can grant the first local hero, `Mira Vanguard`.
-- The first hero is auto-equipped and shown on the Base HUD.
+- The first hero is auto-equipped and shown in the Base hero panel.
+- The Base hero panel lists owned heroes and includes an `EQUIP` button path.
 - Equipped heroes modify minigame starting squad size and damage.
 - Hero ownership and equipment persist in the local save.
 - Hero rewards are gameplay-only; no paid gacha or loot boxes are used.

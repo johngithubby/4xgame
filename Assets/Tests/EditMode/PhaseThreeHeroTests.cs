@@ -67,6 +67,34 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void ManualEquip_EquipsOwnedHero()
+        {
+            SaveGameData saveData = new();
+
+            // Grant ownership without using the reward system so the manual equip path is isolated.
+            HeroInventory.GrantHero(saveData, HeroCatalog.FirstWinHeroId);
+
+            // Clear the equipped id to simulate an owned hero waiting in the Base hero panel.
+            saveData.equippedHeroId = string.Empty;
+
+            bool equipped = HeroInventory.EquipHero(saveData, HeroCatalog.FirstWinHeroId);
+
+            Assert.IsTrue(equipped);
+            Assert.AreEqual(HeroCatalog.FirstWinHeroId, saveData.equippedHeroId);
+        }
+
+        [Test]
+        public void ManualEquip_RejectsUnownedHero()
+        {
+            SaveGameData saveData = new();
+
+            bool equipped = HeroInventory.EquipHero(saveData, HeroCatalog.FirstWinHeroId);
+
+            Assert.IsFalse(equipped);
+            Assert.IsEmpty(saveData.equippedHeroId);
+        }
+
+        [Test]
         public void SaveGameManager_PreservesHeroInventory()
         {
             // Use an isolated path so hero persistence tests never touch the real prototype save.

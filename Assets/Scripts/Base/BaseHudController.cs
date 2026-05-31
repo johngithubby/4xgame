@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Save;
@@ -25,6 +26,12 @@ namespace LaneSurvivor.Base
         private Text heroText;
 
         [SerializeField]
+        private Text heroPanelTitleText;
+
+        [SerializeField]
+        private Text heroPanelText;
+
+        [SerializeField]
         private Text statusText;
 
         [SerializeField]
@@ -42,34 +49,56 @@ namespace LaneSurvivor.Base
         [SerializeField]
         private Button resetButton;
 
-        public void Configure(Text title, Text coins, Text hq, Text timer, Text hero, Text status, Text playHint, Button collect, Button upgrade, Button play, Button reset)
+        [SerializeField]
+        private Button equipHeroButton;
+
+        public void Configure(
+            Text title,
+            Text coins,
+            Text hq,
+            Text timer,
+            Text hero,
+            Text heroPanelTitle,
+            Text heroPanel,
+            Text status,
+            Text playHint,
+            Button collect,
+            Button upgrade,
+            Button play,
+            Button reset,
+            Button equipHero)
         {
             titleText = title;
             coinsText = coins;
             hqText = hq;
             timerText = timer;
             heroText = hero;
+            heroPanelTitleText = heroPanelTitle;
+            heroPanelText = heroPanel;
             statusText = status;
             playHintText = playHint;
             collectButton = collect;
             upgradeButton = upgrade;
             playButton = play;
             resetButton = reset;
+            equipHeroButton = equipHero;
         }
 
-        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action resetAction)
+        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action resetAction, Action equipHeroAction)
         {
             // Replace listeners so scene rebuilds or test setup cannot accidentally duplicate clicks.
             collectButton.onClick.RemoveAllListeners();
             upgradeButton.onClick.RemoveAllListeners();
             playButton.onClick.RemoveAllListeners();
             resetButton.onClick.RemoveAllListeners();
+            equipHeroButton.onClick.RemoveAllListeners();
 
             // Button listeners stay tiny and delegate all state changes to the bootstrap.
             collectButton.onClick.AddListener(() => collectAction?.Invoke());
             upgradeButton.onClick.AddListener(() => upgradeAction?.Invoke());
             playButton.onClick.AddListener(() => playAction?.Invoke());
             resetButton.onClick.AddListener(() => resetAction?.Invoke());
+            equipHeroButton.onClick.AddListener(() => equipHeroAction?.Invoke());
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             // Keep the reset affordance available in editor and development builds for fast iteration.
@@ -89,6 +118,8 @@ namespace LaneSurvivor.Base
             bool upgradeRunning = saveData != null && saveData.hqUpgradeInProgress;
             bool canAffordUpgrade = coins >= upgradeCost;
             HeroDefinition equippedHero = HeroInventory.GetEquippedHero(saveData);
+            IReadOnlyList<HeroDefinition> ownedHeroes = HeroInventory.GetOwnedHeroes(saveData);
+            bool firstHeroOwned = HeroInventory.OwnsHero(saveData, HeroCatalog.FirstWinHeroId);
 
             // Build the default status separately so action feedback can override it cleanly.
             string fallbackStatus = upgradeRunning
@@ -102,12 +133,14 @@ namespace LaneSurvivor.Base
             heroText.text = equippedHero != null
                 ? $"Hero: {equippedHero.displayName} (+{equippedHero.startingSquadBonus} squad)"
                 : "Hero: None";
+            heroPanelTitleText.text = "Owned Heroes";
+            heroPanelText.text = BuildHeroPanelText(ownedHeroes, equippedHero);
             statusText.text = !string.IsNullOrWhiteSpace(statusOverride)
                 ? statusOverride
                 : fallbackStatus;
 
             // Before the first hero is owned, the play hint tells the player a hero can be earned.
-            playHintText.text = equippedHero != null
+            playHintText.text = firstHeroOwned
                 ? $"Win reward: +{PlayerProgression.MinigameWinCoins} coins"
                 : $"Win reward: +{PlayerProgression.MinigameWinCoins} coins + hero";
 
@@ -117,6 +150,33 @@ namespace LaneSurvivor.Base
             // Prevent starting a second timer or spending coins that are not available.
             upgradeButton.interactable = !upgradeRunning && canAffordUpgrade;
             playButton.interactable = true;
+            equipHeroButton.interactable = HasUnequippedOwnedHero(ownedHeroes, equippedHero);
+        }
+
+        private static string BuildHeroPanelText(IReadOnlyList<HeroDefinition> ownedHeroes, HeroDefinition equippedHero)
+        {
+            // Empty ownership should be explicit because the panel exists before the first win reward.
+            if (ownedHeroes == null || ownedHeroes.Count == 0)
+            {
+                return "None earned yet";
+            }
+
+            // This first slice shows the first owned hero; a later hero screen can list multiple rows.
+            HeroDefinition hero = ownedHeroes[0];
+            string equippedLabel = equippedHero != null && equippedHero.id == hero.id ? " EQUIPPED" : string.Empty;
+            return $"{hero.displayName} [{hero.rarity}]{equippedLabel}\n+{hero.startingSquadBonus} squad  +{hero.damageBonus:0.##} damage";
+        }
+
+        private static bool HasUnequippedOwnedHero(IReadOnlyList<HeroDefinition> ownedHeroes, HeroDefinition equippedHero)
+        {
+            // Without owned heroes there is nothing for the Base panel button to equip.
+            if (ownedHeroes == null || ownedHeroes.Count == 0)
+            {
+                return false;
+            }
+
+            // Enable the button only when the first listed hero is not already equipped.
+            return equippedHero == null || equippedHero.id != ownedHeroes[0].id;
         }
     }
 }

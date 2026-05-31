@@ -1,4 +1,5 @@
 using System;
+using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Save;
 using UnityEngine;
@@ -39,7 +40,7 @@ namespace LaneSurvivor.Base
             CreateGround(groundMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ResetSave);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ResetSave, EquipFirstOwnedHero);
 
             RefreshScene();
         }
@@ -88,6 +89,27 @@ namespace LaneSurvivor.Base
             saveData = SaveGameManager.ResetToFreshData();
             statusMessage = "Local save reset";
             RefreshScene();
+        }
+
+        private void EquipFirstOwnedHero()
+        {
+            // The first hero panel slice equips the first owned hero until a fuller selection UI exists.
+            var ownedHeroes = HeroInventory.GetOwnedHeroes(saveData);
+            if (ownedHeroes.Count == 0)
+            {
+                statusMessage = "No heroes owned";
+                RefreshScene();
+                return;
+            }
+
+            // Persist the manual equip action immediately so the next minigame run sees the selected hero.
+            HeroDefinition hero = ownedHeroes[0];
+            if (HeroInventory.EquipHero(saveData, hero.id))
+            {
+                SaveGameManager.Save(saveData);
+                statusMessage = $"{hero.displayName} equipped";
+                RefreshScene();
+            }
         }
 
         private void LaunchMinigame()
@@ -187,15 +209,18 @@ namespace LaneSurvivor.Base
             Text hqText = CreateText(canvas.transform, "HQ Text", "HQ Level: 1", font, new Vector2(16f, -90f), TextAnchor.UpperLeft, new Vector2(240f, 34f));
             Text timerText = CreateText(canvas.transform, "Timer Text", "Upgrade: Ready", font, new Vector2(16f, -122f), TextAnchor.UpperLeft, new Vector2(280f, 34f));
             Text heroText = CreateText(canvas.transform, "Hero Text", "Hero: None", font, new Vector2(16f, -154f), TextAnchor.UpperLeft, new Vector2(340f, 34f));
+            Text heroPanelTitleText = CreateText(canvas.transform, "Hero Panel Title Text", "Owned Heroes", font, new Vector2(0f, 260f), TextAnchor.LowerCenter, new Vector2(360f, 30f));
+            Text heroPanelText = CreateText(canvas.transform, "Hero Panel Text", "None earned yet", font, new Vector2(0f, 214f), TextAnchor.LowerCenter, new Vector2(360f, 58f));
             Text statusText = CreateText(canvas.transform, "Status Text", "Next HQ upgrade", font, new Vector2(0f, 92f), TextAnchor.LowerCenter, new Vector2(360f, 34f));
             Text playHintText = CreateText(canvas.transform, "Play Hint Text", $"Win reward: +{PlayerProgression.MinigameWinCoins} coins", font, new Vector2(0f, 128f), TextAnchor.LowerCenter, new Vector2(360f, 34f));
             Button collectButton = CreateButton(canvas.transform, "Collect Button", "COLLECT", font, new Vector2(-126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button upgradeButton = CreateButton(canvas.transform, "Upgrade Button", "UPGRADE", font, new Vector2(0f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button playButton = CreateButton(canvas.transform, "Play Button", "PLAY", font, new Vector2(126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-58f, -18f), new Vector2(1f, 1f), new Vector2(72f, 34f));
+            Button equipHeroButton = CreateButton(canvas.transform, "Equip Hero Button", "EQUIP", font, new Vector2(0f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, heroText, statusText, playHintText, collectButton, upgradeButton, playButton, resetButton);
+            hud.Configure(titleText, coinsText, hqText, timerText, heroText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, resetButton, equipHeroButton);
             return hud;
         }
 

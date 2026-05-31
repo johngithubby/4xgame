@@ -173,6 +173,7 @@ The first tiny Phase 3 slice is implemented:
 - Minigame wins can grant the first hero through gameplay.
 - The first hero auto-equips when earned.
 - Base HUD shows the equipped hero.
+- Base HUD includes a small owned hero panel and manual `EQUIP` button path.
 - Equipped hero grants a visible starting squad and damage bonus in the minigame.
 - Hero ownership and equipped state persist in local save data.
 - Hero inventory and reward rules have EditMode coverage.
@@ -181,8 +182,8 @@ The first tiny Phase 3 slice is implemented:
 
 - Hero definitions with rarity: Common, Rare, Epic, Legendary.
 - Hero levels. Not started.
-- Hero inventory. First local slice done.
-- Equipped hero selection. First hero auto-equip done; manual selection not started.
+- Hero inventory. First local slice and Base owned-hero panel done.
+- Equipped hero selection. First hero auto-equip and first manual equip path done.
 - Heroes modify minigame stats, such as starting squad size, squad damage, or survivability. First stat bonuses done.
 - Hero rewards come from gameplay only. Done for first hero.
 - No paid gacha.
@@ -203,14 +204,14 @@ The first tiny Phase 3 slice is implemented:
 ### Acceptance Criteria
 
 - Player can earn a hero through gameplay. Done for first hero.
-- Player can view owned heroes. Partial: Base HUD shows equipped hero.
-- Player can select or equip a hero. Partial: first hero auto-equips.
+- Player can view owned heroes. Done for first hero through Base panel.
+- Player can select or equip a hero. Done for first owned hero through Base panel.
 - Equipped hero changes minigame gameplay in a visible way. Done through starting squad and damage bonuses.
 - Hero state persists locally. Done.
 
 ### Validation
 
-- Add EditMode tests for first hero reward, duplicate prevention, equipped stat bonuses, save persistence, and invalid equipped hero repair. Done.
+- Add EditMode tests for first hero reward, duplicate prevention, manual equip, equipped stat bonuses, save persistence, and invalid equipped hero repair. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done for first slice.
 - Run Unity PlayMode smoke tests to keep Base -> Minigame scene loading covered.
 
@@ -244,8 +245,8 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 ## Near-Term Next Step
 
-Continue Phase 3 with the next small hero usability slice:
+Continue Phase 3 with the next small hero content slice:
 
-1. Add a tiny hero screen or Base panel listing owned heroes.
-2. Add manual hero selection once there is more than one hero.
-3. Add a second gameplay-earned hero reward after another local milestone.
+1. Add a second gameplay-earned hero reward after another local milestone.
+2. Expand the Base hero panel to switch between multiple owned heroes.
+3. Add hero levels only after multiple heroes and selection feel stable.

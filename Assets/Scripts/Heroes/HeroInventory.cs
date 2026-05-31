@@ -1,4 +1,6 @@
 using LaneSurvivor.Save;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace LaneSurvivor.Heroes
@@ -43,6 +45,22 @@ namespace LaneSurvivor.Heroes
             // Save the equipped id directly; Normalize will clear it if ownership is later removed.
             data.equippedHeroId = heroId;
             return true;
+        }
+
+        public static IReadOnlyList<HeroDefinition> GetOwnedHeroes(SaveGameData data)
+        {
+            // Normalize before reading so older saves have a valid, de-duplicated owned list.
+            data?.Normalize();
+            if (data == null)
+            {
+                return new List<HeroDefinition>();
+            }
+
+            // Map saved ids back to catalog definitions and ignore unknown ids from corrupted saves.
+            return data.ownedHeroIds
+                .Select(HeroCatalog.GetById)
+                .Where(definition => definition != null)
+                .ToList();
         }
 
         public static HeroDefinition GetEquippedHero(SaveGameData data)
