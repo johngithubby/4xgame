@@ -21,6 +21,12 @@ namespace LaneSurvivor.Tests.EditMode
             {
                 File.Delete(tempSavePath);
             }
+
+            // Remove any temp write file left behind if a persistence assertion fails midway.
+            if (!string.IsNullOrEmpty(tempSavePath) && File.Exists($"{tempSavePath}.tmp"))
+            {
+                File.Delete($"{tempSavePath}.tmp");
+            }
         }
 
         [Test]
@@ -207,6 +213,34 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(0, loadedData.coins);
             Assert.AreEqual(1, loadedData.hqLevel);
             Assert.IsFalse(loadedData.hqUpgradeInProgress);
+            Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
+        }
+
+        [Test]
+        public void SaveGameManager_ResetToFreshData_PersistsDefaultProgress()
+        {
+            // Use an isolated path so reset never touches the real local prototype save.
+            tempSavePath = Path.Combine(Path.GetTempPath(), $"lane-survivor-save-{Guid.NewGuid():N}.json");
+            SaveGameManager.UseCustomSavePathForTests(tempSavePath);
+
+            // Seed non-default progress so the reset has visible state to replace.
+            SaveGameManager.Save(new SaveGameData
+            {
+                coins = 250,
+                hqLevel = 4,
+                unlockedMinigameLevel = 4
+            });
+
+            // Reset writes fresh data immediately, and a later load should read the same defaults.
+            SaveGameData resetData = SaveGameManager.ResetToFreshData();
+            SaveGameData loadedData = SaveGameManager.Load();
+
+            // Both the returned object and persisted file should match first-launch progress.
+            Assert.AreEqual(0, resetData.coins);
+            Assert.AreEqual(1, resetData.hqLevel);
+            Assert.AreEqual(1, resetData.unlockedMinigameLevel);
+            Assert.AreEqual(0, loadedData.coins);
+            Assert.AreEqual(1, loadedData.hqLevel);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
         }
     }

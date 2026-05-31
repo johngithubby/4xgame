@@ -16,6 +16,8 @@ namespace LaneSurvivor.Base
 
         private BaseHudController hudController;
 
+        private string statusMessage = string.Empty;
+
         private void Awake()
         {
             // Load local progress before building UI so the first frame reflects persisted state.
@@ -25,6 +27,7 @@ namespace LaneSurvivor.Base
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
             {
                 SaveGameManager.Save(saveData);
+                statusMessage = "HQ upgrade complete";
             }
 
             Material groundMaterial = CreateMaterial(new Color(0.18f, 0.25f, 0.24f));
@@ -36,7 +39,7 @@ namespace LaneSurvivor.Base
             CreateGround(groundMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ResetSave);
 
             RefreshScene();
         }
@@ -47,6 +50,7 @@ namespace LaneSurvivor.Base
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
             {
                 SaveGameManager.Save(saveData);
+                statusMessage = "HQ upgrade complete";
                 RefreshScene();
                 return;
             }
@@ -63,6 +67,7 @@ namespace LaneSurvivor.Base
             // Save immediately so tapping collect then closing the app preserves progress.
             PlayerProgression.CollectCoins(saveData);
             SaveGameManager.Save(saveData);
+            statusMessage = $"+{PlayerProgression.CoinsPerCollect} coins collected";
             RefreshScene();
         }
 
@@ -72,8 +77,17 @@ namespace LaneSurvivor.Base
             if (PlayerProgression.TryStartHqUpgrade(saveData, DateTime.UtcNow))
             {
                 SaveGameManager.Save(saveData);
+                statusMessage = "HQ upgrade started";
                 RefreshScene();
             }
+        }
+
+        private void ResetSave()
+        {
+            // Reset through the save manager so the same default data is written to disk and shown in UI.
+            saveData = SaveGameManager.ResetToFreshData();
+            statusMessage = "Local save reset";
+            RefreshScene();
         }
 
         private void LaunchMinigame()
@@ -88,7 +102,7 @@ namespace LaneSurvivor.Base
             // Keep world and HUD state synchronized from one saved data object.
             int remainingSeconds = PlayerProgression.GetHqUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
             hqBuilding.ApplySaveData(saveData);
-            hudController.UpdateView(saveData, remainingSeconds);
+            hudController.UpdateView(saveData, remainingSeconds, statusMessage);
         }
 
         private static void CreateCamera()
@@ -173,12 +187,14 @@ namespace LaneSurvivor.Base
             Text hqText = CreateText(canvas.transform, "HQ Text", "HQ Level: 1", font, new Vector2(20f, -58f), TextAnchor.UpperLeft);
             Text timerText = CreateText(canvas.transform, "Timer Text", "Upgrade: Ready", font, new Vector2(20f, -92f), TextAnchor.UpperLeft);
             Text statusText = CreateText(canvas.transform, "Status Text", "Next HQ upgrade", font, new Vector2(0f, 92f), TextAnchor.LowerCenter);
+            Text playHintText = CreateText(canvas.transform, "Play Hint Text", $"Win reward: +{PlayerProgression.MinigameWinCoins} coins", font, new Vector2(0f, 138f), TextAnchor.LowerCenter);
             Button collectButton = CreateButton(canvas.transform, "Collect Button", "COLLECT", font, new Vector2(-210f, 36f), new Vector2(0.5f, 0f));
             Button upgradeButton = CreateButton(canvas.transform, "Upgrade Button", "UPGRADE HQ", font, new Vector2(0f, 36f), new Vector2(0.5f, 0f));
             Button playButton = CreateButton(canvas.transform, "Play Button", "PLAY", font, new Vector2(210f, 36f), new Vector2(0.5f, 0f));
+            Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-110f, -30f), new Vector2(1f, 1f));
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, statusText, collectButton, upgradeButton, playButton);
+            hud.Configure(titleText, coinsText, hqText, timerText, statusText, playHintText, collectButton, upgradeButton, playButton, resetButton);
             return hud;
         }
 
@@ -251,6 +267,7 @@ namespace LaneSurvivor.Base
             {
                 TextAnchor.UpperLeft => new Vector2(0f, 1f),
                 TextAnchor.UpperCenter => new Vector2(0.5f, 1f),
+                TextAnchor.UpperRight => new Vector2(1f, 1f),
                 TextAnchor.LowerCenter => new Vector2(0.5f, 0f),
                 TextAnchor.MiddleCenter => new Vector2(0.5f, 0.5f),
                 _ => new Vector2(0.5f, 0.5f)

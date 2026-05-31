@@ -84,6 +84,8 @@ The first tiny Phase 2 slice is implemented:
 - Base scene can launch Minigame.
 - Minigame win/loss screen can return to Base.
 - Minigame wins grant a fixed local coin reward and show it on the completion screen.
+- Base shows a visible feedback message when HQ upgrades complete.
+- Editor and development builds expose a local save reset button for prototype iteration.
 - Save, wallet, timer, and progression rules have EditMode coverage.
 
 ### Smallest Useful Slice
@@ -101,6 +103,8 @@ The first tiny Phase 2 slice is implemented:
 11. Add navigation from Base to Minigame. Done.
 12. Add navigation from Minigame win/loss screen back to Base. Done.
 13. Add visible minigame win coin rewards. Done.
+14. Add upgrade-complete Base feedback. Done.
+15. Add a development-only local save reset button. Done.
 
 ### Proposed Files
 
@@ -138,12 +142,14 @@ SaveGameData
 - Finished timer upgrades HQ level. Done.
 - HQ level affects minigame content or stats in a visible way. Done.
 - Winning the minigame grants coins once per run and persists them locally. Done.
+- Player gets visible Base feedback when an HQ upgrade completes. Done.
+- Development builds can reset local save progress from the Base scene. Done.
 - No server is required.
 - No monetization is added.
 
 ### Validation
 
-- Add EditMode tests for resource spending, insufficient funds, timer completion, minigame win rewards, and save/load persistence. Done.
+- Add EditMode tests for resource spending, insufficient funds, timer completion, minigame win rewards, save reset, and save/load persistence. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done for the first Phase 2 slice.
 - Manually press Play through Base -> Minigame -> win/loss -> Base.
 
@@ -215,7 +221,7 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 Continue Phase 2 with a small usability pass:
 
-1. Add a clearer "upgrade complete" base feedback message.
-2. Add an optional local save reset/debug button for development builds.
-3. Add a PlayMode smoke test for Base -> Minigame scene loading if practical.
-4. Add a second small level definition unlocked by HQ level 2.
+1. Add a PlayMode smoke test for Base -> Minigame scene loading if practical.
+2. Add a second small level definition unlocked by HQ level 2.
+3. Improve Base UI spacing and mobile safe-area handling.
+4. Then start Phase 3 heroes once the local Base/minigame loop feels stable.

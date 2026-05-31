@@ -68,6 +68,16 @@ namespace LaneSurvivor.Save
             }
         }
 
+        public static SaveGameData ResetToFreshData()
+        {
+            // Create normalized defaults so reset uses the same first-launch values as a missing save.
+            SaveGameData freshData = CreateFreshData();
+
+            // Persist the defaults immediately so the next scene reads the reset state.
+            Save(freshData);
+            return freshData;
+        }
+
         public static void UseCustomSavePathForTests(string path)
         {
             // Tests point the manager at a temp file so they never touch the developer's real save.
