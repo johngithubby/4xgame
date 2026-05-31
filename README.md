@@ -25,6 +25,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Upgrade HQ spends coins and starts a persisted local timer.
 - Completed HQ upgrades increase HQ level.
 - HQ levels above 1 add a visible starting squad bonus in the minigame.
+- Winning the minigame grants a local coin reward and shows the reward on the completion screen.
 - The minigame end screen has a `BASE` button to return to the base scene.
 
 ## Validation

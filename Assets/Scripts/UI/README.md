@@ -2,7 +2,7 @@
 
 ## Files
 
-- `EndScreenController.cs`: Shows the win/loss result panel and wires the restart button.
+- `EndScreenController.cs`: Shows the win/loss result panel, optional win reward text, restart button, and base return button.
 - `MinigameHudController.cs`: Displays squad count, level progress, current level state, the start button, and lane-change buttons.
 
 ## Compile

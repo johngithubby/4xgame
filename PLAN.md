@@ -83,6 +83,7 @@ The first tiny Phase 2 slice is implemented:
 - HQ level grants a starting squad bonus in the minigame.
 - Base scene can launch Minigame.
 - Minigame win/loss screen can return to Base.
+- Minigame wins grant a fixed local coin reward and show it on the completion screen.
 - Save, wallet, timer, and progression rules have EditMode coverage.
 
 ### Smallest Useful Slice
@@ -99,6 +100,7 @@ The first tiny Phase 2 slice is implemented:
 10. HQ level grants a visible minigame bonus, such as increased starting squad count. Done.
 11. Add navigation from Base to Minigame. Done.
 12. Add navigation from Minigame win/loss screen back to Base. Done.
+13. Add visible minigame win coin rewards. Done.
 
 ### Proposed Files
 
@@ -135,12 +137,13 @@ SaveGameData
 - Closing and reopening preserves coins, HQ level, and active timer state. Covered by save/timer implementation and EditMode tests.
 - Finished timer upgrades HQ level. Done.
 - HQ level affects minigame content or stats in a visible way. Done.
+- Winning the minigame grants coins once per run and persists them locally. Done.
 - No server is required.
 - No monetization is added.
 
 ### Validation
 
-- Add EditMode tests for resource spending, insufficient funds, timer completion, and save/load persistence. Done.
+- Add EditMode tests for resource spending, insufficient funds, timer completion, minigame win rewards, and save/load persistence. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done for the first Phase 2 slice.
 - Manually press Play through Base -> Minigame -> win/loss -> Base.
 
@@ -212,7 +215,7 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 Continue Phase 2 with a small usability pass:
 
-1. Add a visible minigame completion coin reward.
-2. Add a clearer "upgrade complete" base feedback message.
-3. Add an optional local save reset/debug button for development builds.
-4. Add a PlayMode smoke test for Base -> Minigame scene loading if practical.
+1. Add a clearer "upgrade complete" base feedback message.
+2. Add an optional local save reset/debug button for development builds.
+3. Add a PlayMode smoke test for Base -> Minigame scene loading if practical.
+4. Add a second small level definition unlocked by HQ level 2.

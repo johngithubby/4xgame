@@ -13,17 +13,21 @@ namespace LaneSurvivor.UI
         private Text resultText;
 
         [SerializeField]
+        private Text rewardText;
+
+        [SerializeField]
         private Button restartButton;
 
         [SerializeField]
         private Button baseButton;
 
-        public void Configure(GameObject resultPanel, Text resultLabel, Button restartLevelButton, Button returnToBaseButton = null)
+        public void Configure(GameObject resultPanel, Text resultLabel, Button restartLevelButton, Button returnToBaseButton = null, Text rewardLabel = null)
         {
             panel = resultPanel;
             resultText = resultLabel;
             restartButton = restartLevelButton;
             baseButton = returnToBaseButton;
+            rewardText = rewardLabel;
         }
 
         public void Initialize(Action restartAction, Action baseAction = null)
@@ -43,14 +47,24 @@ namespace LaneSurvivor.UI
             Hide();
         }
 
-        public void Show(string result)
+        public void Show(string result, string reward = "")
         {
+            // The result line is always visible for both win and loss outcomes.
             resultText.text = result;
+
+            // The reward line is optional so losses and older scenes can show only the result.
+            if (rewardText != null)
+            {
+                rewardText.text = reward;
+                rewardText.gameObject.SetActive(!string.IsNullOrWhiteSpace(reward));
+            }
+
             panel.SetActive(true);
         }
 
         public void Hide()
         {
+            // Hide the whole panel between runs and while the minigame is active.
             panel.SetActive(false);
         }
     }

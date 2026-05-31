@@ -34,6 +34,29 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void MinigameWinReward_AddsCoinsOnlyOncePerRun()
+        {
+            // Start with existing coins so the test proves rewards add to, rather than replace, save data.
+            SaveGameData saveData = new()
+            {
+                coins = 10
+            };
+
+            // The run-scoped flag starts false for a fresh minigame attempt.
+            bool rewardClaimed = false;
+
+            // Claiming twice simulates duplicate win-state calls in one run.
+            int firstReward = PlayerProgression.TryClaimMinigameWinReward(saveData, ref rewardClaimed);
+            int secondReward = PlayerProgression.TryClaimMinigameWinReward(saveData, ref rewardClaimed);
+
+            // Only the first claim should mutate coins and report a reward amount.
+            Assert.AreEqual(PlayerProgression.MinigameWinCoins, firstReward);
+            Assert.AreEqual(0, secondReward);
+            Assert.AreEqual(10 + PlayerProgression.MinigameWinCoins, saveData.coins);
+            Assert.IsTrue(rewardClaimed);
+        }
+
+        [Test]
         public void StartHqUpgrade_SpendsCoinsAndStartsTimer()
         {
             SaveGameData saveData = new()

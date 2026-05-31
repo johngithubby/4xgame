@@ -9,6 +9,8 @@ namespace LaneSurvivor.Progression
     {
         public const int CoinsPerCollect = 25;
 
+        public const int MinigameWinCoins = 50;
+
         public const int HqUpgradeDurationSeconds = 20;
 
         public static void CollectCoins(SaveGameData data)
@@ -21,6 +23,22 @@ namespace LaneSurvivor.Progression
         {
             // Costs rise slowly so the prototype can be exercised in a few taps.
             return 50 + Mathf.Max(1, hqLevel) * 25;
+        }
+
+        public static int TryClaimMinigameWinReward(SaveGameData data, ref bool rewardClaimed)
+        {
+            // A null save cannot receive rewards, and each minigame run should pay out at most once.
+            if (data == null || rewardClaimed)
+            {
+                return 0;
+            }
+
+            // Mark the reward as claimed before mutating coins so repeated calls in the same run are harmless.
+            rewardClaimed = true;
+
+            // Keep the prototype reward fixed and visible so the base loop is easy to verify.
+            ResourceWallet.AddCoins(data, MinigameWinCoins);
+            return MinigameWinCoins;
         }
 
         public static bool TryStartHqUpgrade(SaveGameData data, DateTime utcNow)

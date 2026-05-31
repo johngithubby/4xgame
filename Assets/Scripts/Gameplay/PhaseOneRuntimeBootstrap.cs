@@ -177,12 +177,13 @@ namespace LaneSurvivor.Gameplay
             panelRect.offsetMin = Vector2.zero;
             panelRect.offsetMax = Vector2.zero;
 
-            Text resultText = CreateText(panel.transform, "Result Text", "Result", font, new Vector2(0f, -45f), TextAnchor.UpperCenter);
-            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(-100f, -130f), new Vector2(0.5f, 1f));
-            Button baseButton = CreateButton(panel.transform, "Base Button", "BASE", font, new Vector2(100f, -130f), new Vector2(0.5f, 1f));
+            Text resultText = CreateText(panel.transform, "Result Text", "Result", font, new Vector2(0f, -38f), TextAnchor.UpperCenter);
+            Text rewardText = CreateText(panel.transform, "Reward Text", string.Empty, font, new Vector2(0f, -78f), TextAnchor.UpperCenter);
+            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(-100f, -138f), new Vector2(0.5f, 1f));
+            Button baseButton = CreateButton(panel.transform, "Base Button", "BASE", font, new Vector2(100f, -138f), new Vector2(0.5f, 1f));
 
             EndScreenController endScreenController = canvas.gameObject.AddComponent<EndScreenController>();
-            endScreenController.Configure(panel, resultText, restartButton, baseButton);
+            endScreenController.Configure(panel, resultText, restartButton, baseButton, rewardText);
             panel.SetActive(false);
             return endScreenController;
         }

@@ -1,4 +1,6 @@
 using LaneSurvivor.Data;
+using LaneSurvivor.Progression;
+using LaneSurvivor.Save;
 using LaneSurvivor.UI;
 using System.Collections.Generic;
 using UnityEngine;
@@ -49,6 +51,8 @@ namespace LaneSurvivor.Gameplay
 
         private float startTimer;
 
+        private bool winRewardClaimed;
+
         public LevelState State => state;
 
         public void Configure(
@@ -84,6 +88,7 @@ namespace LaneSurvivor.Gameplay
             BuildRuntimeLevel();
             SetState(LevelState.Ready);
             startTimer = autoStartDelay;
+            winRewardClaimed = false;
         }
 
         private void Update()
@@ -151,7 +156,9 @@ namespace LaneSurvivor.Gameplay
 
             if (state == LevelState.Won)
             {
-                endScreenController.Show("Level Complete");
+                int rewardCoins = ClaimWinReward();
+                string rewardText = rewardCoins > 0 ? $"+{rewardCoins} coins" : string.Empty;
+                endScreenController.Show("Level Complete", rewardText);
             }
             else if (state == LevelState.Lost)
             {
@@ -161,6 +168,23 @@ namespace LaneSurvivor.Gameplay
             {
                 endScreenController.Hide();
             }
+        }
+
+        private int ClaimWinReward()
+        {
+            // Load the current local save so rewards stack with any base progress made before the run.
+            SaveGameData saveData = SaveGameManager.Load();
+
+            // The progression rule owns the one-time-per-run guard through this manager's claim flag.
+            int rewardCoins = PlayerProgression.TryClaimMinigameWinReward(saveData, ref winRewardClaimed);
+            if (rewardCoins <= 0)
+            {
+                return 0;
+            }
+
+            // Persist the reward immediately so returning to Base shows the updated coin balance.
+            SaveGameManager.Save(saveData);
+            return rewardCoins;
         }
 
         private void BuildRuntimeLevel()
