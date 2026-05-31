@@ -35,6 +35,8 @@ Phase 1 is implemented and pushed on `develop`.
 - Basic level start, win, and lose flow.
 - Win/loss screen with restart.
 - Placeholder primitives, colored gates, lane markers, finish marker, and floating feedback text.
+- Placeholder shot tracers and damage numbers make automatic shooting easier to read.
+- HQ level 2 unlocks a second small minigame layout.
 - Local-only scene with no server and no monetization.
 
 ### Important Files
@@ -60,8 +62,8 @@ Phase 1 is implemented and pushed on `develop`.
 
 ### Remaining Phase 1 Polish Ideas
 
-- Add a simple sound-free hit flash or projectile placeholder.
-- Add a second small level definition.
+- Add a simple sound-free hit flash or projectile placeholder. Done with shot tracers.
+- Add a second small level definition. Done through the HQ level 2 unlock.
 - Improve camera framing for different device aspect ratios.
 - Add a PlayMode smoke test once PlayMode test setup is worthwhile.
 
@@ -82,13 +84,14 @@ The first tiny Phase 2 slice is implemented:
 - Ready upgrades complete from scene load or while the base scene is open.
 - HQ level grants a starting squad bonus in the minigame.
 - Base scene can launch Minigame.
+- Base scene can launch the dedicated Heroes screen.
 - Minigame win/loss screen can return to Base.
 - Minigame wins grant a fixed local coin reward and show it on the completion screen.
 - Base shows a visible feedback message when HQ upgrades complete.
 - Editor and development builds expose a local save reset button for prototype iteration.
 - Base HUD spacing has been tightened around a phone-sized reference layout.
 - Save, wallet, timer, and progression rules have EditMode coverage.
-- Base-to-Minigame scene navigation has PlayMode smoke coverage.
+- Base-to-Minigame and Base-to-Heroes scene navigation have PlayMode smoke coverage.
 
 ### Smallest Useful Slice
 
@@ -213,16 +216,17 @@ The first Phase 3 hero slices are implemented:
 ### Acceptance Criteria
 
 - Player can earn a hero through gameplay. Done for first win and HQ level 2 milestone heroes.
-- Player can view owned heroes. Done through Base panel.
-- Player can select or equip a hero. Done through Base cycling equip button.
+- Player can view owned heroes. Done through Base panel and dedicated Hero screen.
+- Player can select or equip a hero. Done through Base and Hero screen cycling equip buttons.
+- Player can manually level an equipped hero with local coins. Done through the Hero screen.
 - Equipped hero changes minigame gameplay in a visible way. Done through starting squad and damage bonuses.
 - Hero state persists locally. Done, including level/XP.
 
 ### Validation
 
-- Add EditMode tests for first hero reward, HQ milestone hero reward, duplicate prevention, manual/cycling equip, hero XP/leveling, equipped stat bonuses, save persistence, and invalid equipped hero repair. Done.
-- Run Unity EditMode tests with the documented temp-copy batch workflow. Done for first slice.
-- Run Unity PlayMode smoke tests to keep Base -> Minigame scene loading covered.
+- Add EditMode tests for first hero reward, HQ milestone hero reward, duplicate prevention, manual/cycling equip, hero XP/leveling, manual coin level-up, equipped stat bonuses, save persistence, and invalid equipped hero repair. Done.
+- Run Unity EditMode tests with the documented temp-copy batch workflow. Done.
+- Run Unity PlayMode smoke tests to keep Base -> Minigame and Base -> Heroes scene loading covered. Done.
 
 ## Phase 4: Online Design Only
 
@@ -248,14 +252,17 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 ### Acceptance Criteria
 
-- Backend design document exists.
+- Backend design document exists. Done in `docs/BACKEND_DESIGN.md`.
 - No production backend code is added.
 - No client networking dependency is required for local gameplay.
 
 ## Near-Term Next Step
 
-Continue Phase 3 with the next small hero progression slice:
+Local Phases 1 through 3 now have the requested final local roadmap slices represented:
 
-1. Add a dedicated Hero screen instead of relying on the compact Base panel.
-2. Add a small resource cost to intentionally level a hero using local coins or earned training tokens.
-3. Keep rewards gameplay-only and local-only.
+1. Dedicated Hero screen. Done.
+2. Manual local hero leveling with a coin cost. Done.
+3. Second minigame layout unlocked by HQ progression. Done.
+4. Shot feedback and end-screen spacing polish. Done.
+5. Stability pass with expanded tests and iOS smoke build entry point. Done.
+6. Phase 4 backend design doc. Done.

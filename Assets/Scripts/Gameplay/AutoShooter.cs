@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -5,6 +6,8 @@ namespace LaneSurvivor.Gameplay
 {
     public sealed class AutoShooter : MonoBehaviour
     {
+        public event Action<Vector3, Vector3, float> ShotFired;
+
         [SerializeField]
         private PlayerSquad playerSquad;
 
@@ -58,7 +61,10 @@ namespace LaneSurvivor.Gameplay
             Zombie target = FindNearestTargetAhead();
             if (target != null)
             {
-                target.TakeDamage(playerSquad.GetTotalDamage());
+                // Capture damage once so visual feedback matches the gameplay mutation.
+                float damage = playerSquad.GetTotalDamage();
+                target.TakeDamage(damage);
+                ShotFired?.Invoke(playerSquad.transform.position + Vector3.up * 0.5f, target.transform.position + Vector3.up * 0.5f, damage);
             }
         }
 

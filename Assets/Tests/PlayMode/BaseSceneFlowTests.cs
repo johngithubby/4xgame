@@ -75,5 +75,32 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(GameObject.Find("Level Manager"));
             Assert.IsNotNull(GameObject.Find("Player Squad"));
         }
+
+        [UnityTest]
+        public IEnumerator BaseScene_HeroesButtonLoadsHeroesSceneAndBackButtonReturns()
+        {
+            // Wait one frame so BaseSceneBootstrap can build runtime UI and world objects.
+            yield return null;
+
+            // Invoke the Heroes button path from the Base HUD.
+            Button heroesButton = GameObject.Find("Heroes Button")?.GetComponent<Button>();
+            Assert.IsNotNull(heroesButton);
+            heroesButton.onClick.Invoke();
+            yield return null;
+
+            // The dedicated Hero scene should build its runtime HUD.
+            Assert.AreEqual("Heroes", SceneManager.GetActiveScene().name);
+            Assert.IsNotNull(GameObject.Find("Hero HUD Canvas"));
+
+            // Invoke the real Back button listener to verify return navigation.
+            Button backButton = GameObject.Find("Back Button")?.GetComponent<Button>();
+            Assert.IsNotNull(backButton);
+            backButton.onClick.Invoke();
+            yield return null;
+
+            // Returning to Base should rebuild the base HUD.
+            Assert.AreEqual("Base", SceneManager.GetActiveScene().name);
+            Assert.IsNotNull(GameObject.Find("Base HUD Canvas"));
+        }
     }
 }

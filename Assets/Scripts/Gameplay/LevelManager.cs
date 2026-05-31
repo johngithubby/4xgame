@@ -82,6 +82,7 @@ namespace LaneSurvivor.Gameplay
             playerSquad.Defeated += HandlePlayerDefeated;
 
             autoShooter.Initialize(playerSquad, levelDefinition.shootRange, levelDefinition.shotInterval, levelDefinition.laneMatchTolerance);
+            autoShooter.ShotFired += HandleShotFired;
 
             hudController.Initialize(this, playerSquad, levelDefinition.finishDistance);
             endScreenController.Initialize(RestartLevel, ReturnToBase);
@@ -147,6 +148,15 @@ namespace LaneSurvivor.Gameplay
         private void HandlePlayerDefeated()
         {
             SetState(LevelState.Lost);
+        }
+
+        private void HandleShotFired(Vector3 origin, Vector3 target, float damage)
+        {
+            // A short tracer makes automatic shooting visible without adding art assets.
+            SpawnShotTracer(origin, target);
+
+            // Damage text helps explain why tougher zombies take several shots.
+            SpawnFeedback($"-{damage:0.#}", target + Vector3.up * 0.55f, new Color(1f, 0.92f, 0.35f));
         }
 
         private void SetState(LevelState nextState)
@@ -245,6 +255,7 @@ namespace LaneSurvivor.Gameplay
             finish.transform.localScale = new Vector3(7f, 0.12f, 0.4f);
             SetPrimitiveColor(finish, new Color(0.25f, 0.95f, 0.42f));
             CreateWorldLabel("FINISH", new Vector3(0f, 0.5f, levelDefinition.finishDistance + 0.25f), Color.white, 0.45f);
+            CreateWorldLabel($"LEVEL {levelDefinition.levelNumber}", new Vector3(0f, 0.55f, 2f), Color.white, 0.38f);
 
             foreach (float laneX in levelDefinition.lanePositions)
             {
@@ -322,6 +333,25 @@ namespace LaneSurvivor.Gameplay
                     SpawnFeedback(message, zombie.transform.position + Vector3.up * 1.4f, color);
                 }
             }
+        }
+
+        private void SpawnShotTracer(Vector3 origin, Vector3 target)
+        {
+            // Midpoint, length, and rotation turn a cube into a temporary laser-like line.
+            Vector3 direction = target - origin;
+            float distance = direction.magnitude;
+            if (distance <= 0.01f)
+            {
+                return;
+            }
+
+            GameObject tracer = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            tracer.name = "Shot Tracer";
+            tracer.transform.position = origin + direction * 0.5f;
+            tracer.transform.rotation = Quaternion.LookRotation(direction.normalized);
+            tracer.transform.localScale = new Vector3(0.08f, 0.08f, distance);
+            SetPrimitiveColor(tracer, new Color(1f, 0.82f, 0.16f));
+            Destroy(tracer, 0.08f);
         }
 
         private static void SetPrimitiveColor(GameObject primitive, Color color)

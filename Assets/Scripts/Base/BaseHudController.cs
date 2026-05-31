@@ -52,6 +52,9 @@ namespace LaneSurvivor.Base
         [SerializeField]
         private Button equipHeroButton;
 
+        [SerializeField]
+        private Button heroesButton;
+
         public void Configure(
             Text title,
             Text coins,
@@ -66,7 +69,8 @@ namespace LaneSurvivor.Base
             Button upgrade,
             Button play,
             Button reset,
-            Button equipHero)
+            Button equipHero,
+            Button heroes)
         {
             titleText = title;
             coinsText = coins;
@@ -82,9 +86,10 @@ namespace LaneSurvivor.Base
             playButton = play;
             resetButton = reset;
             equipHeroButton = equipHero;
+            heroesButton = heroes;
         }
 
-        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action resetAction, Action equipHeroAction)
+        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action resetAction, Action equipHeroAction, Action heroesAction)
         {
             // Replace listeners so scene rebuilds or test setup cannot accidentally duplicate clicks.
             collectButton.onClick.RemoveAllListeners();
@@ -92,6 +97,7 @@ namespace LaneSurvivor.Base
             playButton.onClick.RemoveAllListeners();
             resetButton.onClick.RemoveAllListeners();
             equipHeroButton.onClick.RemoveAllListeners();
+            heroesButton.onClick.RemoveAllListeners();
 
             // Button listeners stay tiny and delegate all state changes to the bootstrap.
             collectButton.onClick.AddListener(() => collectAction?.Invoke());
@@ -99,6 +105,7 @@ namespace LaneSurvivor.Base
             playButton.onClick.AddListener(() => playAction?.Invoke());
             resetButton.onClick.AddListener(() => resetAction?.Invoke());
             equipHeroButton.onClick.AddListener(() => equipHeroAction?.Invoke());
+            heroesButton.onClick.AddListener(() => heroesAction?.Invoke());
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             // Keep the reset affordance available in editor and development builds for fast iteration.
@@ -151,6 +158,7 @@ namespace LaneSurvivor.Base
             upgradeButton.interactable = !upgradeRunning && canAffordUpgrade;
             playButton.interactable = true;
             equipHeroButton.interactable = HasUnequippedOwnedHero(ownedHeroes, equippedHero);
+            heroesButton.interactable = true;
         }
 
         private static string BuildHeroPanelText(SaveGameData saveData, IReadOnlyList<HeroDefinition> ownedHeroes, HeroDefinition equippedHero)

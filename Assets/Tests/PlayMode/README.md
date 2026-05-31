@@ -3,7 +3,7 @@
 ## Files
 
 - `LaneSurvivor.Tests.PlayMode.asmdef`: Declares the PlayMode test assembly so Unity Test Runner can run scene smoke tests.
-- `BaseSceneFlowTests.cs`: Loads the Base scene, verifies its runtime-built objects, invokes the Play button, and confirms the Minigame scene loads.
+- `BaseSceneFlowTests.cs`: Loads the Base scene, verifies its runtime-built objects, invokes the Play and Heroes buttons, confirms Minigame and Heroes scenes load, and verifies Back returns from Heroes to Base.
 
 ## Compile
 

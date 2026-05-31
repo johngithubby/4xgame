@@ -3,7 +3,7 @@
 ## Files
 
 - `GateModifierType.cs`: Defines the available gate operations for squad count and damage changes.
-- `LevelDefinition.cs`: Stores the tunable Phase 1 level data, including squad defaults, lane positions, gate placements, zombie placements, and pacing values.
+- `LevelDefinition.cs`: Stores the tunable Phase 1 level data, including level number, squad defaults, lane positions, gate placements, zombie placements, and pacing values.
 
 ## Compile
 

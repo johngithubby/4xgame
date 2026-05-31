@@ -1,5 +1,6 @@
 using LaneSurvivor.Data;
 using LaneSurvivor.Gameplay;
+using LaneSurvivor.Save;
 using NUnit.Framework;
 using UnityEngine;
 
@@ -109,6 +110,21 @@ namespace LaneSurvivor.Tests.EditMode
             LevelState state = LevelStateEvaluator.Evaluate(10f, 48f, 0, LevelState.Playing);
 
             Assert.AreEqual(LevelState.Lost, state);
+        }
+
+        [Test]
+        public void LevelDefinitionFactory_UsesUnlockedSecondLevel()
+        {
+            SaveGameData saveData = new()
+            {
+                unlockedMinigameLevel = 2
+            };
+
+            LevelDefinition levelDefinition = LevelDefinitionFactory.CreateForSave(saveData);
+
+            Assert.AreEqual(2, levelDefinition.levelNumber);
+            Assert.Greater(levelDefinition.finishDistance, 48f);
+            Assert.AreEqual(4, levelDefinition.zombies.Length);
         }
 
         private static PlayerSquad CreateSquad(int startingCount, float startingDamage)

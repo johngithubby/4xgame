@@ -2,10 +2,11 @@
 
 ## Files
 
-- `AutoShooter.cs`: Selects the nearest zombie ahead of the squad and applies automatic damage on a timer.
+- `AutoShooter.cs`: Selects the nearest zombie ahead of the squad, applies automatic damage on a timer, and emits shot events for visual feedback.
 - `FloatingFeedback.cs`: Animates short world-space text feedback for gate and zombie outcomes.
 - `Gate.cs`: Applies a configured gate modifier once when the player squad reaches the gate position.
-- `LevelManager.cs`: Owns the Phase 1 level flow, runtime level spawning, win/loss state, local coin, hero unlock, hero XP win reward claim, scene restart, and base return.
+- `LevelDefinitionFactory.cs`: Creates the small runtime level definitions from local save progress, including the HQ-unlocked second level.
+- `LevelManager.cs`: Owns the Phase 1 level flow, runtime level spawning, shot tracer feedback, win/loss state, local coin, hero unlock, hero XP win reward claim, scene restart, and base return.
 - `LevelState.cs`: Defines the minigame states used by gameplay and UI.
 - `LevelStateEvaluator.cs`: Contains small testable rules for win/loss evaluation.
 - `PhaseOneRuntimeBootstrap.cs`: Builds the playable Phase 1 prototype from a minimal scene at runtime and applies HQ/hero save bonuses.
@@ -20,4 +21,4 @@ Unity compiles these files automatically as part of the main runtime assembly.
 
 ## Behavior
 
-The gameplay loop is intentionally small: the squad starts, moves forward, lane input chooses which gates and zombies matter, automatic shooting defeats zombies in the current lane, visible feedback explains outcomes, and the level ends when the squad reaches the finish or reaches zero members. A win grants one local coin reward for that run, can grant the first hero, awards equipped-hero XP, and saves before the player returns to Base.
+The gameplay loop is intentionally small: the squad starts, moves forward, lane input chooses which gates and zombies matter, automatic shooting defeats zombies in the current lane, shot tracers and floating text explain damage, and the level ends when the squad reaches the finish or reaches zero members. A win grants one local coin reward for that run, can grant the first hero, awards equipped-hero XP, and saves before the player returns to Base. HQ progression can unlock a second small minigame layout.

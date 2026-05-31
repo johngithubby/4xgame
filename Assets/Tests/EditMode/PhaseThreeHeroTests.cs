@@ -118,6 +118,39 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void HeroProgression_ManualLevelUpSpendsCoinsAndLevelsEquippedHero()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = HeroProgression.GetManualLevelUpCoinCost(1)
+            };
+
+            HeroRewardSystem.TryGrantFirstWinHero(saveData);
+            HeroLevelUpResult result = HeroProgression.TryLevelUpEquippedHeroWithCoins(saveData);
+
+            Assert.IsTrue(result.success);
+            Assert.AreEqual(0, saveData.coins);
+            Assert.AreEqual(2, HeroInventory.GetHeroLevel(saveData, HeroCatalog.FirstWinHeroId));
+            Assert.AreEqual(0, HeroInventory.GetHeroXp(saveData, HeroCatalog.FirstWinHeroId));
+        }
+
+        [Test]
+        public void HeroProgression_ManualLevelUpFailsWhenCoinsAreInsufficient()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = HeroProgression.GetManualLevelUpCoinCost(1) - 1
+            };
+
+            HeroRewardSystem.TryGrantFirstWinHero(saveData);
+            HeroLevelUpResult result = HeroProgression.TryLevelUpEquippedHeroWithCoins(saveData);
+
+            Assert.IsFalse(result.success);
+            Assert.AreEqual(HeroProgression.GetManualLevelUpCoinCost(1) - 1, saveData.coins);
+            Assert.AreEqual(1, HeroInventory.GetHeroLevel(saveData, HeroCatalog.FirstWinHeroId));
+        }
+
+        [Test]
         public void Normalize_ClampsHeroLevelToProgressionMaximum()
         {
             SaveGameData saveData = new();

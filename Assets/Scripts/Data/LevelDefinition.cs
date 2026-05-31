@@ -7,6 +7,9 @@ namespace LaneSurvivor.Data
     public sealed class LevelDefinition : ScriptableObject
     {
         [Min(1)]
+        public int levelNumber = 1;
+
+        [Min(1)]
         public int startingSquadCount = 5;
 
         [Min(0.1f)]

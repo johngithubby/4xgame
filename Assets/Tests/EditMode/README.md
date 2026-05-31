@@ -3,8 +3,8 @@
 ## Files
 
 - `LaneSurvivor.Tests.EditMode.asmdef`: Declares the EditMode test assembly so Unity Test Runner can discover these tests from the command line.
-- `PhaseOneGameplayTests.cs`: Verifies gate modifiers, lane selection rules, zombie defeat, and basic win/loss state evaluation.
-- `PhaseThreeHeroTests.cs`: Verifies gameplay hero rewards, hero XP/level progression, manual hero equip state, hero stat bonuses, save persistence, and invalid equipped hero repair.
+- `PhaseOneGameplayTests.cs`: Verifies gate modifiers, lane selection rules, zombie defeat, basic win/loss state evaluation, and level unlock definition selection.
+- `PhaseThreeHeroTests.cs`: Verifies gameplay hero rewards, hero XP/level progression, manual coin level-up, manual hero equip state, hero stat bonuses, save persistence, and invalid equipped hero repair.
 - `PhaseTwoProgressionTests.cs`: Verifies local coin collection, minigame win rewards, HQ upgrade costs and timers, HQ completion, invalid timer repair, minigame bonuses, save reset, and save/load persistence.
 
 ## Compile

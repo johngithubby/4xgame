@@ -45,7 +45,7 @@ namespace LaneSurvivor.Base
             CreateGround(groundMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ResetSave, EquipNextOwnedHero);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ResetSave, EquipNextOwnedHero, LaunchHeroes);
 
             RefreshScene();
         }
@@ -136,6 +136,13 @@ namespace LaneSurvivor.Base
             // Save before leaving the base scene so the minigame sees the latest HQ bonus.
             SaveGameManager.Save(saveData);
             SceneManager.LoadScene("Minigame");
+        }
+
+        private void LaunchHeroes()
+        {
+            // Save before leaving the base scene so the Hero screen sees the latest local state.
+            SaveGameManager.Save(saveData);
+            SceneManager.LoadScene("Heroes");
         }
 
         private void RefreshScene()
@@ -236,10 +243,11 @@ namespace LaneSurvivor.Base
             Button upgradeButton = CreateButton(canvas.transform, "Upgrade Button", "UPGRADE", font, new Vector2(0f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button playButton = CreateButton(canvas.transform, "Play Button", "PLAY", font, new Vector2(126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-58f, -18f), new Vector2(1f, 1f), new Vector2(72f, 34f));
-            Button equipHeroButton = CreateButton(canvas.transform, "Equip Hero Button", "EQUIP", font, new Vector2(0f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
+            Button equipHeroButton = CreateButton(canvas.transform, "Equip Hero Button", "EQUIP", font, new Vector2(-56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
+            Button heroesButton = CreateButton(canvas.transform, "Heroes Button", "HEROES", font, new Vector2(56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, heroText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, resetButton, equipHeroButton);
+            hud.Configure(titleText, coinsText, hqText, timerText, heroText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, resetButton, equipHeroButton, heroesButton);
             return hud;
         }
 

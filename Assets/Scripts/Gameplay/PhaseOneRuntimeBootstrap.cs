@@ -40,7 +40,6 @@ namespace LaneSurvivor.Gameplay
 
         private static LevelDefinition CreateLevelDefinition()
         {
-            LevelDefinition levelDefinition = ScriptableObject.CreateInstance<LevelDefinition>();
             SaveGameData saveData = SaveGameManager.Load();
             bool saveNeeded = false;
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
@@ -59,70 +58,8 @@ namespace LaneSurvivor.Gameplay
                 SaveGameManager.Save(saveData);
             }
 
-            levelDefinition.startingSquadCount = 6
-                + PlayerProgression.GetStartingSquadBonus(saveData)
-                + HeroInventory.GetStartingSquadBonus(saveData);
-            levelDefinition.startingDamagePerMember = 1f + HeroInventory.GetDamageBonus(saveData);
-            levelDefinition.finishDistance = 48f;
-            levelDefinition.squadMoveSpeed = 4.2f;
-            levelDefinition.laneChangeSpeed = 8f;
-            levelDefinition.laneMatchTolerance = 0.85f;
-            levelDefinition.lanePositions = new[] { -2f, 0f, 2f };
-            levelDefinition.shootRange = 8f;
-            levelDefinition.shotInterval = 0.35f;
-            levelDefinition.gates = new[]
-            {
-                new GateSpawnDefinition
-                {
-                    modifierType = GateModifierType.AddSquad,
-                    squadValue = 4,
-                    damageValue = 0f,
-                    position = new Vector3(-2f, 1.1f, 9f)
-                },
-                new GateSpawnDefinition
-                {
-                    modifierType = GateModifierType.MultiplySquad,
-                    squadValue = 2,
-                    damageValue = 0f,
-                    position = new Vector3(2f, 1.1f, 9f)
-                },
-                new GateSpawnDefinition
-                {
-                    modifierType = GateModifierType.AddDamage,
-                    squadValue = 0,
-                    damageValue = 0.5f,
-                    position = new Vector3(0f, 1.1f, 22f)
-                },
-                new GateSpawnDefinition
-                {
-                    modifierType = GateModifierType.SubtractSquad,
-                    squadValue = 5,
-                    damageValue = 0f,
-                    position = new Vector3(-2f, 1.1f, 36f)
-                }
-            };
-            levelDefinition.zombies = new[]
-            {
-                new ZombieSpawnDefinition
-                {
-                    health = 8f,
-                    breachPenalty = 2,
-                    position = new Vector3(0f, 1f, 15f)
-                },
-                new ZombieSpawnDefinition
-                {
-                    health = 18f,
-                    breachPenalty = 4,
-                    position = new Vector3(2f, 1f, 27f)
-                },
-                new ZombieSpawnDefinition
-                {
-                    health = 24f,
-                    breachPenalty = 6,
-                    position = new Vector3(-2f, 1f, 41f)
-                }
-            };
-            return levelDefinition;
+            // Level selection is data-derived so HQ unlocks can switch to level 2 without scene edits.
+            return LevelDefinitionFactory.CreateForSave(saveData);
         }
 
         private static PlayerSquad CreatePlayerSquad(Material playerMaterial)

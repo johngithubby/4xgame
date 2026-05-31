@@ -15,6 +15,8 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Press Play.
 - The squad auto-starts after a short delay, moves forward, changes lanes with left/right input, applies gates in the matching lane, shoots zombies in the current lane, and reaches a win or loss state.
 - Lane input works with the on-screen arrow buttons, keyboard `A/D`, keyboard arrow keys, or tapping/clicking the left or right third of the screen.
+- HQ level 2 unlocks a second small minigame layout with tougher zombies.
+- Automatic shots now show placeholder tracers and damage text.
 
 ## Phase 2
 
@@ -37,6 +39,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Reaching HQ level 2 can grant the second local hero, `Dax Medic`.
 - The first hero is auto-equipped and shown in the Base hero panel.
 - The Base hero panel lists owned heroes and includes an `EQUIP` button path to cycle equipped heroes.
+- The dedicated `Assets/Scenes/Heroes.unity` screen lists owned heroes, cycles equipment, and levels the equipped hero with local coins.
 - Minigame wins award XP to the equipped hero, and the Base panel shows hero level/XP.
 - Equipped heroes modify minigame starting squad size and damage.
 - Hero ownership and equipment persist in the local save.
@@ -47,9 +50,12 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - EditMode tests live in `Assets/Tests/EditMode`.
 - PlayMode scene smoke tests live in `Assets/Tests/PlayMode`.
 - Current EditMode test coverage includes Phase 1 gameplay rules, Phase 2 progression/save rules, and Phase 3 hero inventory rules.
+- Current PlayMode test coverage includes Base-to-Minigame and Base-to-Heroes scene flow.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
+- A batch-mode iOS smoke build entry point exists at `LaneSurvivor.Editor.IosSmokeBuild.Run`.
 
 ## Notes
 
 - See `PLAN.md` for the phased prototype roadmap and next implementation slices.
 - See `LESSONS_LEARNED.md` for Unity batch-mode, Test Runner, autoreview, and Phase 1 implementation lessons from this prototype.
+- See `docs/BACKEND_DESIGN.md` for the Phase 4 online design draft.
