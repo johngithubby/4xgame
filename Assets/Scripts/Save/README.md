@@ -2,7 +2,7 @@
 
 ## Files
 
-- `SaveGameData.cs`: Stores local prototype progress such as coins, HQ level, active HQ upgrade timer, unlocked minigame level, owned heroes, and equipped hero; it also normalizes corrupted timer and hero data after load.
+- `SaveGameData.cs`: Stores local prototype progress such as coins, HQ level, active HQ upgrade timer, unlocked minigame level, owned heroes, equipped hero, and per-hero level/XP; it also normalizes corrupted timer and hero data after load.
 - `SaveGameManager.cs`: Loads, saves, and resets `SaveGameData` as local JSON in Unity's persistent data path, with a test-only custom path override.
 
 ## Compile

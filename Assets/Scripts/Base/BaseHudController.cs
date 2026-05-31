@@ -131,10 +131,10 @@ namespace LaneSurvivor.Base
             hqText.text = $"HQ Level: {hqLevel}";
             timerText.text = upgradeRunning ? $"Upgrade: {remainingSeconds}s" : "Upgrade: Ready";
             heroText.text = equippedHero != null
-                ? $"Hero: {equippedHero.displayName} (+{equippedHero.startingSquadBonus} squad)"
+                ? $"Hero: {equippedHero.displayName} Lv {HeroInventory.GetHeroLevel(saveData, equippedHero.id)} (+{equippedHero.startingSquadBonus} squad)"
                 : "Hero: None";
             heroPanelTitleText.text = "Owned Heroes";
-            heroPanelText.text = BuildHeroPanelText(ownedHeroes, equippedHero);
+            heroPanelText.text = BuildHeroPanelText(saveData, ownedHeroes, equippedHero);
             statusText.text = !string.IsNullOrWhiteSpace(statusOverride)
                 ? statusOverride
                 : fallbackStatus;
@@ -153,7 +153,7 @@ namespace LaneSurvivor.Base
             equipHeroButton.interactable = HasUnequippedOwnedHero(ownedHeroes, equippedHero);
         }
 
-        private static string BuildHeroPanelText(IReadOnlyList<HeroDefinition> ownedHeroes, HeroDefinition equippedHero)
+        private static string BuildHeroPanelText(SaveGameData saveData, IReadOnlyList<HeroDefinition> ownedHeroes, HeroDefinition equippedHero)
         {
             // Empty ownership should be explicit because the panel exists before the first win reward.
             if (ownedHeroes == null || ownedHeroes.Count == 0)
@@ -165,8 +165,13 @@ namespace LaneSurvivor.Base
             List<string> heroLines = new();
             foreach (HeroDefinition hero in ownedHeroes)
             {
+                // Each row shows the current local progression state for that owned hero.
+                int heroLevel = HeroInventory.GetHeroLevel(saveData, hero.id);
+                int heroXp = HeroInventory.GetHeroXp(saveData, hero.id);
+                int xpToNextLevel = HeroProgression.GetXpRequiredForNextLevel(heroLevel);
                 string equippedLabel = equippedHero != null && equippedHero.id == hero.id ? " EQ" : string.Empty;
-                heroLines.Add($"{hero.displayName} [{hero.rarity}]{equippedLabel} +{hero.startingSquadBonus}/+{hero.damageBonus:0.##}");
+                string xpLabel = xpToNextLevel > 0 ? $"{heroXp}/{xpToNextLevel}XP" : "MAX";
+                heroLines.Add($"{hero.displayName} Lv{heroLevel} [{hero.rarity}]{equippedLabel} {xpLabel}");
             }
 
             return string.Join("\n", heroLines);

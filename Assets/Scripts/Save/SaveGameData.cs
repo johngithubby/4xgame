@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LaneSurvivor.Heroes;
 using UnityEngine;
 
 namespace LaneSurvivor.Save
@@ -22,6 +23,8 @@ namespace LaneSurvivor.Save
         public List<string> ownedHeroIds = new();
 
         public string equippedHeroId = string.Empty;
+
+        public List<HeroProgressData> heroProgress = new();
 
         public void Normalize()
         {
@@ -87,6 +90,7 @@ namespace LaneSurvivor.Save
         {
             // Older saves do not have hero lists, so create one before inventory code reads it.
             ownedHeroIds ??= new List<string>();
+            heroProgress ??= new List<HeroProgressData>();
 
             // Remove empty ids and duplicates so corrupted saves cannot display phantom hero entries.
             HashSet<string> seenHeroIds = new();
@@ -99,11 +103,60 @@ namespace LaneSurvivor.Save
                 }
             }
 
+            // Keep hero progress aligned with the repaired ownership list.
+            NormalizeHeroProgress();
+
             // Equipped heroes must also be owned; otherwise clear the invalid equipped id.
             if (string.IsNullOrWhiteSpace(equippedHeroId) || !ownedHeroIds.Contains(equippedHeroId))
             {
                 equippedHeroId = string.Empty;
             }
         }
+
+        private void NormalizeHeroProgress()
+        {
+            // Progress is meaningful only for currently owned hero ids.
+            HashSet<string> ownedHeroIdSet = new(ownedHeroIds);
+
+            // Track retained ids so duplicate progress entries from corrupt saves can be removed.
+            HashSet<string> seenProgressIds = new();
+            for (int index = heroProgress.Count - 1; index >= 0; index -= 1)
+            {
+                HeroProgressData progress = heroProgress[index];
+                if (progress == null || string.IsNullOrWhiteSpace(progress.heroId) || !ownedHeroIdSet.Contains(progress.heroId) || !seenProgressIds.Add(progress.heroId))
+                {
+                    heroProgress.RemoveAt(index);
+                    continue;
+                }
+
+                // Level one is the baseline, max level is enforced before stats read the save, and XP cannot be negative.
+                progress.level = Mathf.Clamp(progress.level, 1, HeroProgression.MaxHeroLevel);
+                progress.xp = Mathf.Max(0, progress.xp);
+            }
+
+            // Every owned hero should have a progress record so UI/stat code can read one shape.
+            foreach (string heroId in ownedHeroIds)
+            {
+                if (!seenProgressIds.Contains(heroId))
+                {
+                    heroProgress.Add(new HeroProgressData
+                    {
+                        heroId = heroId,
+                        level = 1,
+                        xp = 0
+                    });
+                }
+            }
+        }
+    }
+
+    [Serializable]
+    public sealed class HeroProgressData
+    {
+        public string heroId;
+
+        public int level = 1;
+
+        public int xp;
     }
 }

@@ -185,11 +185,36 @@ namespace LaneSurvivor.Gameplay
             // The first gameplay win also grants the first local hero, then auto-equips it.
             HeroDefinition heroReward = HeroRewardSystem.TryGrantFirstWinHero(saveData);
 
+            // Award hero XP after first-win hero grants so the new hero can progress immediately.
+            HeroXpRewardResult heroXpReward = HeroProgression.TryGrantMinigameWinXp(saveData);
+
             // Persist the reward immediately so returning to Base shows the updated coin balance.
             SaveGameManager.Save(saveData);
-            return heroReward != null
-                ? $"+{rewardCoins} coins\nHero: {heroReward.displayName}"
-                : $"+{rewardCoins} coins";
+            return BuildRewardText(rewardCoins, heroReward, heroXpReward);
+        }
+
+        private static string BuildRewardText(int rewardCoins, HeroDefinition heroReward, HeroXpRewardResult heroXpReward)
+        {
+            // Coins are always the first reward line for a successful minigame win.
+            List<string> rewardLines = new()
+            {
+                $"+{rewardCoins} coins"
+            };
+
+            // First-win hero unlocks remain visible even when XP is also awarded.
+            if (heroReward != null)
+            {
+                rewardLines.Add($"Hero: {heroReward.displayName}");
+            }
+
+            // Hero XP text names the receiving hero and level so progression is visible immediately.
+            if (heroXpReward != null && heroXpReward.HasReward)
+            {
+                string levelUpText = heroXpReward.levelsGained > 0 ? " LEVEL UP" : string.Empty;
+                rewardLines.Add($"{heroXpReward.hero.displayName}: +{heroXpReward.xpAdded} XP Lv {heroXpReward.level}{levelUpText}");
+            }
+
+            return string.Join("\n", rewardLines);
         }
 
         private void BuildRuntimeLevel()

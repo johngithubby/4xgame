@@ -31,6 +31,9 @@ namespace LaneSurvivor.Heroes
 
             // Store only ids in the save so definitions can remain data-driven later.
             data.ownedHeroIds.Add(heroId);
+
+            // Normalization creates the matching level/XP record for the newly owned hero.
+            data.Normalize();
             return true;
         }
 
@@ -101,6 +104,32 @@ namespace LaneSurvivor.Heroes
                 : null;
         }
 
+        public static HeroProgressData GetProgressForOwnedHero(SaveGameData data, string heroId)
+        {
+            // Progress is readable only for valid owned heroes.
+            if (!OwnsHero(data, heroId))
+            {
+                return null;
+            }
+
+            // OwnsHero normalizes the save, so each owned hero should now have one progress row.
+            return data.heroProgress.FirstOrDefault(progress => progress.heroId == heroId);
+        }
+
+        public static int GetHeroLevel(SaveGameData data, string heroId)
+        {
+            // Level zero represents a hero that is not owned or has no valid progress row.
+            HeroProgressData progress = GetProgressForOwnedHero(data, heroId);
+            return Mathf.Max(0, progress?.level ?? 0);
+        }
+
+        public static int GetHeroXp(SaveGameData data, string heroId)
+        {
+            // Unknown heroes should not display stale or negative XP values.
+            HeroProgressData progress = GetProgressForOwnedHero(data, heroId);
+            return Mathf.Max(0, progress?.xp ?? 0);
+        }
+
         public static int GetStartingSquadBonus(SaveGameData data)
         {
             // Starting squad bonuses are additive with the HQ bonus.
@@ -112,7 +141,14 @@ namespace LaneSurvivor.Heroes
         {
             // Damage bonuses are flat additions to the level's starting damage per squad member.
             HeroDefinition hero = GetEquippedHero(data);
-            return Mathf.Max(0f, hero?.damageBonus ?? 0f);
+            if (hero == null)
+            {
+                return 0f;
+            }
+
+            // Hero levels add a small extra damage bonus on top of the catalog baseline.
+            int heroLevel = GetHeroLevel(data, hero.id);
+            return Mathf.Max(0f, hero.damageBonus + HeroProgression.GetDamageBonusForLevel(heroLevel));
         }
     }
 }

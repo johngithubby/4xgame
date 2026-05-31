@@ -133,6 +133,9 @@ SaveGameData
 - hqUpgradeDurationSeconds
 - hqUpgradeInProgress
 - unlockedMinigameLevel
+- ownedHeroIds
+- equippedHeroId
+- heroProgress
 ```
 
 ### Acceptance Criteria
@@ -177,16 +180,19 @@ The first Phase 3 hero slices are implemented:
 - Base HUD shows the equipped hero.
 - Base HUD includes a small owned hero panel and manual `EQUIP` button path that cycles owned heroes.
 - Equipped hero grants a visible starting squad and damage bonus in the minigame.
-- Hero ownership and equipped state persist in local save data.
-- Hero inventory and reward rules have EditMode coverage.
+- Minigame wins award XP to the equipped hero.
+- Hero level increases add a small damage bonus.
+- Base HUD shows owned hero level and XP progress.
+- Hero ownership, equipped state, and hero level/XP persist in local save data.
+- Hero inventory, reward, and progression rules have EditMode coverage.
 
 ### Features
 
 - Hero definitions with rarity: Common, Rare, Epic, Legendary.
-- Hero levels. Not started.
+- Hero levels. First local XP/level slice done.
 - Hero inventory. Two local heroes and Base owned-hero panel done.
 - Equipped hero selection. First hero auto-equip and Base cycling equip path done.
-- Heroes modify minigame stats, such as starting squad size, squad damage, or survivability. First stat bonuses done.
+- Heroes modify minigame stats, such as starting squad size, squad damage, or survivability. Starting bonuses and level-scaled damage done.
 - Hero rewards come from gameplay only. Done for first win and HQ level 2 milestone heroes.
 - No paid gacha.
 - No paid loot boxes.
@@ -197,6 +203,7 @@ The first Phase 3 hero slices are implemented:
 - `Assets/Scripts/Heroes/HeroCatalog.cs`
 - `Assets/Scripts/Heroes/HeroRarity.cs`
 - `Assets/Scripts/Heroes/HeroInventory.cs`
+- `Assets/Scripts/Heroes/HeroProgression.cs`
 - `Assets/Scripts/Heroes/HeroRewardSystem.cs`
 - `Assets/Scripts/Heroes/HeroSelectionState.cs`
 - `Assets/Scripts/Heroes/HeroStatsApplier.cs`
@@ -209,11 +216,11 @@ The first Phase 3 hero slices are implemented:
 - Player can view owned heroes. Done through Base panel.
 - Player can select or equip a hero. Done through Base cycling equip button.
 - Equipped hero changes minigame gameplay in a visible way. Done through starting squad and damage bonuses.
-- Hero state persists locally. Done.
+- Hero state persists locally. Done, including level/XP.
 
 ### Validation
 
-- Add EditMode tests for first hero reward, HQ milestone hero reward, duplicate prevention, manual/cycling equip, equipped stat bonuses, save persistence, and invalid equipped hero repair. Done.
+- Add EditMode tests for first hero reward, HQ milestone hero reward, duplicate prevention, manual/cycling equip, hero XP/leveling, equipped stat bonuses, save persistence, and invalid equipped hero repair. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done for first slice.
 - Run Unity PlayMode smoke tests to keep Base -> Minigame scene loading covered.
 
@@ -249,6 +256,6 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 Continue Phase 3 with the next small hero progression slice:
 
-1. Add hero levels for owned heroes.
-2. Add a small resource cost to level a hero using local coins.
+1. Add a dedicated Hero screen instead of relying on the compact Base panel.
+2. Add a small resource cost to intentionally level a hero using local coins or earned training tokens.
 3. Keep rewards gameplay-only and local-only.

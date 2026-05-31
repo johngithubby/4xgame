@@ -40,6 +40,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(HeroCatalog.FirstWinHeroId, grantedHero.id);
             Assert.IsTrue(HeroInventory.OwnsHero(saveData, HeroCatalog.FirstWinHeroId));
             Assert.AreEqual(HeroCatalog.FirstWinHeroId, saveData.equippedHeroId);
+            Assert.AreEqual(1, HeroInventory.GetHeroLevel(saveData, HeroCatalog.FirstWinHeroId));
+            Assert.AreEqual(0, HeroInventory.GetHeroXp(saveData, HeroCatalog.FirstWinHeroId));
         }
 
         [Test]
@@ -64,6 +66,68 @@ namespace LaneSurvivor.Tests.EditMode
 
             Assert.AreEqual(2, HeroInventory.GetStartingSquadBonus(saveData));
             Assert.AreEqual(0.15f, HeroInventory.GetDamageBonus(saveData));
+        }
+
+        [Test]
+        public void HeroProgression_WinXpAddsToEquippedHero()
+        {
+            SaveGameData saveData = new();
+
+            HeroRewardSystem.TryGrantFirstWinHero(saveData);
+            HeroXpRewardResult xpReward = HeroProgression.TryGrantMinigameWinXp(saveData);
+
+            Assert.IsTrue(xpReward.HasReward);
+            Assert.AreEqual(HeroCatalog.FirstWinHeroId, xpReward.hero.id);
+            Assert.AreEqual(HeroProgression.MinigameWinXp, HeroInventory.GetHeroXp(saveData, HeroCatalog.FirstWinHeroId));
+            Assert.AreEqual(1, HeroInventory.GetHeroLevel(saveData, HeroCatalog.FirstWinHeroId));
+        }
+
+        [Test]
+        public void HeroProgression_LevelsUpAtThreshold()
+        {
+            SaveGameData saveData = new();
+
+            HeroRewardSystem.TryGrantFirstWinHero(saveData);
+            HeroProgression.AddXpToEquippedHero(saveData, 40);
+
+            Assert.AreEqual(2, HeroInventory.GetHeroLevel(saveData, HeroCatalog.FirstWinHeroId));
+            Assert.AreEqual(0, HeroInventory.GetHeroXp(saveData, HeroCatalog.FirstWinHeroId));
+        }
+
+        [Test]
+        public void HeroProgression_IgnoresMissingEquippedHero()
+        {
+            SaveGameData saveData = new();
+
+            HeroXpRewardResult xpReward = HeroProgression.TryGrantMinigameWinXp(saveData);
+
+            Assert.IsFalse(xpReward.HasReward);
+            Assert.IsEmpty(saveData.ownedHeroIds);
+            Assert.IsEmpty(saveData.heroProgress);
+        }
+
+        [Test]
+        public void HeroProgression_LevelDamageBonusIsApplied()
+        {
+            SaveGameData saveData = new();
+
+            HeroRewardSystem.TryGrantFirstWinHero(saveData);
+            HeroProgression.AddXpToEquippedHero(saveData, 40);
+
+            Assert.AreEqual(0.20f, HeroInventory.GetDamageBonus(saveData));
+        }
+
+        [Test]
+        public void Normalize_ClampsHeroLevelToProgressionMaximum()
+        {
+            SaveGameData saveData = new();
+
+            HeroRewardSystem.TryGrantFirstWinHero(saveData);
+            saveData.heroProgress[0].level = 999;
+            saveData.Normalize();
+
+            Assert.AreEqual(HeroProgression.MaxHeroLevel, HeroInventory.GetHeroLevel(saveData, HeroCatalog.FirstWinHeroId));
+            Assert.AreEqual(0.60f, HeroInventory.GetDamageBonus(saveData));
         }
 
         [Test]
@@ -148,6 +212,7 @@ namespace LaneSurvivor.Tests.EditMode
 
             Assert.AreEqual(1, HeroInventory.GetStartingSquadBonus(saveData));
             Assert.AreEqual(0.35f, HeroInventory.GetDamageBonus(saveData));
+            Assert.AreEqual(1, HeroInventory.GetHeroLevel(saveData, HeroCatalog.HqLevelTwoHeroId));
         }
 
         [Test]
@@ -160,6 +225,7 @@ namespace LaneSurvivor.Tests.EditMode
 
             // Grant and save the first hero through the same path gameplay uses.
             HeroRewardSystem.TryGrantFirstWinHero(saveData);
+            HeroProgression.AddXpToEquippedHero(saveData, 40);
             SaveGameManager.Save(saveData);
 
             // Reload from disk so this proves JSON persistence keeps ownership and equipment.
@@ -168,6 +234,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsTrue(HeroInventory.OwnsHero(loadedData, HeroCatalog.FirstWinHeroId));
             Assert.AreEqual(HeroCatalog.FirstWinHeroId, loadedData.equippedHeroId);
             Assert.AreEqual(2, HeroInventory.GetStartingSquadBonus(loadedData));
+            Assert.AreEqual(2, HeroInventory.GetHeroLevel(loadedData, HeroCatalog.FirstWinHeroId));
+            Assert.AreEqual(0, HeroInventory.GetHeroXp(loadedData, HeroCatalog.FirstWinHeroId));
         }
 
         [Test]
@@ -182,6 +250,7 @@ namespace LaneSurvivor.Tests.EditMode
 
             Assert.IsEmpty(saveData.equippedHeroId);
             Assert.IsEmpty(saveData.ownedHeroIds);
+            Assert.IsEmpty(saveData.heroProgress);
         }
     }
 }
