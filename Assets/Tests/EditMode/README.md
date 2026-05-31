@@ -13,3 +13,5 @@ Unity compiles and runs these tests through the `LaneSurvivor.Tests.EditMode` Un
 ## Behavior
 
 The tests focus on small deterministic gameplay and progression rules that do not require entering Play Mode.
+
+For scene-level flow checks, see `Assets/Tests/PlayMode`.

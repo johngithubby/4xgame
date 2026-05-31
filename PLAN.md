@@ -86,7 +86,9 @@ The first tiny Phase 2 slice is implemented:
 - Minigame wins grant a fixed local coin reward and show it on the completion screen.
 - Base shows a visible feedback message when HQ upgrades complete.
 - Editor and development builds expose a local save reset button for prototype iteration.
+- Base HUD spacing has been tightened around a phone-sized reference layout.
 - Save, wallet, timer, and progression rules have EditMode coverage.
+- Base-to-Minigame scene navigation has PlayMode smoke coverage.
 
 ### Smallest Useful Slice
 
@@ -105,6 +107,8 @@ The first tiny Phase 2 slice is implemented:
 13. Add visible minigame win coin rewards. Done.
 14. Add upgrade-complete Base feedback. Done.
 15. Add a development-only local save reset button. Done.
+16. Add PlayMode smoke coverage for Base -> Minigame navigation. Done.
+17. Tighten Base HUD spacing for mobile-like screens. Done.
 
 ### Proposed Files
 
@@ -144,14 +148,16 @@ SaveGameData
 - Winning the minigame grants coins once per run and persists them locally. Done.
 - Player gets visible Base feedback when an HQ upgrade completes. Done.
 - Development builds can reset local save progress from the Base scene. Done.
+- Base scene can load Minigame through the Play button in a PlayMode smoke test. Done.
 - No server is required.
 - No monetization is added.
 
 ### Validation
 
 - Add EditMode tests for resource spending, insufficient funds, timer completion, minigame win rewards, save reset, and save/load persistence. Done.
-- Run Unity EditMode tests with the documented temp-copy batch workflow. Done for the first Phase 2 slice.
-- Manually press Play through Base -> Minigame -> win/loss -> Base.
+- Run Unity EditMode tests with the documented temp-copy batch workflow. Done.
+- Run Unity PlayMode smoke tests for Base -> Minigame scene loading. Done.
+- Manual Play Mode pass remains useful for visual polish, but the scene-loading path now has automated smoke coverage.
 
 ## Phase 3: Heroes
 
@@ -219,9 +225,8 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 ## Near-Term Next Step
 
-Continue Phase 2 with a small usability pass:
+Phase 2 local loop is stable enough to move into Phase 3 after any desired manual visual pass:
 
-1. Add a PlayMode smoke test for Base -> Minigame scene loading if practical.
-2. Add a second small level definition unlocked by HQ level 2.
-3. Improve Base UI spacing and mobile safe-area handling.
-4. Then start Phase 3 heroes once the local Base/minigame loop feels stable.
+1. Start Phase 3 heroes with a tiny hero data/inventory slice.
+2. Later, add a second small level definition unlocked by HQ level 2.
+3. Later, improve full mobile safe-area handling once the UI stops being placeholder-only.

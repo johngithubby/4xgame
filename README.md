@@ -20,6 +20,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 
 - Open `Assets/Scenes/Base.unity` to try the first base-building slice.
 - The base scene shows a placeholder HQ building, local coins, collect, HQ upgrade, and play controls.
+- The Base HUD uses a narrow mobile reference layout for the placeholder controls.
 - HQ starts at level 1.
 - Collect grants local coins.
 - Upgrade HQ spends coins and starts a persisted local timer.
@@ -33,6 +34,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 ## Validation
 
 - EditMode tests live in `Assets/Tests/EditMode`.
+- PlayMode scene smoke tests live in `Assets/Tests/PlayMode`.
 - Current EditMode test coverage includes Phase 1 gameplay rules and Phase 2 progression/save rules.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
 
