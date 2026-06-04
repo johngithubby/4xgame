@@ -1,6 +1,7 @@
 using LaneSurvivor.Data;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
+using LaneSurvivor.Rendering;
 using LaneSurvivor.Save;
 using LaneSurvivor.UI;
 using System.Collections.Generic;
@@ -11,6 +12,12 @@ namespace LaneSurvivor.Gameplay
 {
     public sealed class LevelManager : MonoBehaviour
     {
+        // World-space TextMesh feedback is disabled until it is replaced with a depth-safe HUD overlay.
+        public const bool WorldSpaceFeedbackEnabled = false;
+
+        // World-space shot tracers are disabled because they can read as morphing gates in the chase camera.
+        public const bool WorldSpaceShotTracersEnabled = false;
+
         [SerializeField]
         private LevelDefinition levelDefinition;
 
@@ -152,8 +159,11 @@ namespace LaneSurvivor.Gameplay
 
         private void HandleShotFired(Vector3 origin, Vector3 target, float damage)
         {
-            // A short tracer makes automatic shooting visible without adding art assets.
-            SpawnShotTracer(origin, target);
+            if (WorldSpaceShotTracersEnabled)
+            {
+                // A short tracer makes automatic shooting visible without adding art assets.
+                SpawnShotTracer(origin, target);
+            }
 
             // Damage text helps explain why tougher zombies take several shots.
             SpawnFeedback($"-{damage:0.#}", target + Vector3.up * 0.55f, new Color(1f, 0.92f, 0.35f));
@@ -238,32 +248,21 @@ namespace LaneSurvivor.Gameplay
 
         private void BuildTrack()
         {
-            GameObject track = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            track.name = "Runtime Track";
-            track.transform.position = new Vector3(0f, -0.08f, levelDefinition.finishDistance * 0.5f);
-            track.transform.localScale = new Vector3(7f, 0.1f, levelDefinition.finishDistance + 8f);
+            // The track is a collider-free flat plane so it cannot occlude squad, gate, or zombie placeholders.
+            PrototypeGeometryFactory.CreateHorizontalPlane("Runtime Track", new Vector3(0f, GameplayVisuals.TrackSurfaceY, levelDefinition.finishDistance * 0.5f), new Vector2(GameplayVisuals.TrackWidth, levelDefinition.finishDistance + 8f), trackMaterial);
 
-            Renderer trackRenderer = track.GetComponent<Renderer>();
-            if (trackRenderer != null)
-            {
-                trackRenderer.sharedMaterial = trackMaterial;
-            }
+            // The finish strip is a flat decal so it cannot show a raised side face at the road edge.
+            Material finishMaterial = PrototypeMaterialFactory.Create(new Color(0.25f, 0.95f, 0.42f));
+            PrototypeGeometryFactory.CreateHorizontalPlane("Finish Line", new Vector3(0f, GameplayVisuals.FinishLineY, levelDefinition.finishDistance), new Vector2(GameplayVisuals.TrackWidth, GameplayVisuals.FinishLineDepth), finishMaterial);
+            CreateWorldLabel("FINISH", new Vector3(0f, GameplayVisuals.WorldLabelY, levelDefinition.finishDistance + 0.25f), Color.white, 0.45f);
+            CreateWorldLabel($"LEVEL {levelDefinition.levelNumber}", new Vector3(0f, GameplayVisuals.WorldLabelY, 2f), Color.white, 0.38f);
 
-            GameObject finish = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            finish.name = "Finish Line";
-            finish.transform.position = new Vector3(0f, 0.05f, levelDefinition.finishDistance);
-            finish.transform.localScale = new Vector3(7f, 0.12f, 0.4f);
-            SetPrimitiveColor(finish, new Color(0.25f, 0.95f, 0.42f));
-            CreateWorldLabel("FINISH", new Vector3(0f, 0.5f, levelDefinition.finishDistance + 0.25f), Color.white, 0.45f);
-            CreateWorldLabel($"LEVEL {levelDefinition.levelNumber}", new Vector3(0f, 0.55f, 2f), Color.white, 0.38f);
-
+            // Lane markers share one pale material because they are repeated static guide strips.
+            Material laneMaterial = PrototypeMaterialFactory.Create(new Color(0.82f, 0.86f, 0.88f));
             foreach (float laneX in levelDefinition.lanePositions)
             {
-                GameObject laneMarker = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                laneMarker.name = "Lane Marker";
-                laneMarker.transform.position = new Vector3(laneX, 0.02f, levelDefinition.finishDistance * 0.5f);
-                laneMarker.transform.localScale = new Vector3(0.08f, 0.04f, levelDefinition.finishDistance + 8f);
-                SetPrimitiveColor(laneMarker, new Color(0.82f, 0.86f, 0.88f));
+                // Each marker spans the course to show the three-lane play space.
+                PrototypeGeometryFactory.CreateCube("Lane Marker", new Vector3(laneX, GameplayVisuals.TrackTopY + 0.03f, levelDefinition.finishDistance * 0.5f), new Vector3(0.08f, 0.04f, levelDefinition.finishDistance + 8f), laneMaterial);
             }
         }
 
@@ -271,15 +270,18 @@ namespace LaneSurvivor.Gameplay
         {
             foreach (GateSpawnDefinition gateDefinition in levelDefinition.gates)
             {
-                GameObject gateObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                gateObject.name = $"Gate {gateDefinition.modifierType}";
-                gateObject.transform.localScale = new Vector3(2.8f, 2.2f, 0.35f);
+                // Gate roots stay at lane/distance positions while high children provide stable visible markers.
+                Vector3 gatePosition = GameplayVisuals.WithVisualY(gateDefinition.position, GameplayVisuals.GateRootY);
+                GateSpawnDefinition visualGateDefinition = gateDefinition;
+                visualGateDefinition.position = gatePosition;
+                GameObject gateObject = CreateGateMarker($"Gate {gateDefinition.modifierType}", gatePosition, gateMaterial);
 
                 GameObject labelObject = new("Gate Label");
                 labelObject.transform.SetParent(gateObject.transform, false);
-                labelObject.transform.localPosition = new Vector3(0f, 0.8f, -0.22f);
-                labelObject.transform.localRotation = Quaternion.Euler(70f, 0f, 0f);
-                labelObject.transform.localScale = Vector3.one * 0.28f;
+                // The label rides on the high card face so it cannot appear before or after the marker body.
+                labelObject.transform.localPosition = new Vector3(0f, GameplayVisuals.GateCardCenterY - GameplayVisuals.GateRootY, GameplayVisuals.GateFaceOffsetZ - GameplayVisuals.GateCardDepth * 0.55f);
+                labelObject.transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                labelObject.transform.localScale = Vector3.one * 0.22f;
 
                 TextMesh label = labelObject.AddComponent<TextMesh>();
                 label.anchor = TextAnchor.MiddleCenter;
@@ -288,19 +290,41 @@ namespace LaneSurvivor.Gameplay
                 label.color = Color.white;
 
                 Gate gate = gateObject.AddComponent<Gate>();
-                gate.Configure(gateDefinition, gateMaterial, label);
+                gate.Configure(visualGateDefinition, gateMaterial, label);
                 gates.Add(gate);
             }
+        }
+
+        private static GameObject CreateGateMarker(string name, Vector3 position, Material material)
+        {
+            // An empty root keeps gate logic at the lane center while child meshes form a readable marker.
+            GameObject root = new(name);
+            root.transform.position = position;
+
+            // Visuals stay in the gameplay lane; low road pieces are limited to flat decals.
+            Vector3 visualPosition = position;
+
+            if (GameplayVisuals.GateFootprintEnabled)
+            {
+                // The footprint is decorative only; the high card is the always-visible gameplay marker.
+                GameObject footprint = PrototypeGeometryFactory.CreateHorizontalPlane("Gate Footprint", visualPosition + new Vector3(0f, GameplayVisuals.GateFootprintY - GameplayVisuals.GateRootY, 0f), new Vector2(GameplayVisuals.GateFootprintWidth, GameplayVisuals.GateFootprintDepth), material);
+                footprint.transform.SetParent(root.transform, true);
+            }
+
+            // The card sits fully above the road horizon so it scales consistently instead of revealing legs later.
+            GameObject card = PrototypeGeometryFactory.CreateCube("Gate Card", visualPosition + new Vector3(0f, GameplayVisuals.GateCardCenterY - GameplayVisuals.GateRootY, GameplayVisuals.GateFaceOffsetZ), new Vector3(GameplayVisuals.GateCardWidth, GameplayVisuals.GateCardHeight, GameplayVisuals.GateCardDepth), material);
+            card.transform.SetParent(root.transform, true);
+
+            return root;
         }
 
         private void BuildZombies()
         {
             foreach (ZombieSpawnDefinition zombieDefinition in levelDefinition.zombies)
             {
-                GameObject zombieObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                zombieObject.name = "Zombie";
-                zombieObject.transform.position = zombieDefinition.position;
-                zombieObject.transform.localScale = new Vector3(0.8f, 1.1f, 0.8f);
+                // Zombies use high cards so they do not pop from below the road horizon near the player.
+                Vector3 zombiePosition = GameplayVisuals.WithVisualY(zombieDefinition.position, GameplayVisuals.ZombieCenterY);
+                GameObject zombieObject = PrototypeGeometryFactory.CreateCube("Zombie", zombiePosition, new Vector3(GameplayVisuals.ZombieCardWidth, GameplayVisuals.ZombieCardHeight, GameplayVisuals.ZombieCardDepth), zombieMaterial);
 
                 Zombie zombie = zombieObject.AddComponent<Zombie>();
                 zombie.Configure(zombieDefinition.health, zombieDefinition.breachPenalty, zombieMaterial);
@@ -345,23 +369,11 @@ namespace LaneSurvivor.Gameplay
                 return;
             }
 
-            GameObject tracer = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            tracer.name = "Shot Tracer";
-            tracer.transform.position = origin + direction * 0.5f;
+            // Tracers are short-lived generated cubes stretched along the shot direction.
+            Material tracerMaterial = PrototypeMaterialFactory.Create(new Color(1f, 0.82f, 0.16f));
+            GameObject tracer = PrototypeGeometryFactory.CreateCube("Shot Tracer", origin + direction * 0.5f, new Vector3(0.08f, 0.08f, distance), tracerMaterial);
             tracer.transform.rotation = Quaternion.LookRotation(direction.normalized);
-            tracer.transform.localScale = new Vector3(0.08f, 0.08f, distance);
-            SetPrimitiveColor(tracer, new Color(1f, 0.82f, 0.16f));
             Destroy(tracer, 0.08f);
-        }
-
-        private static void SetPrimitiveColor(GameObject primitive, Color color)
-        {
-            // Runtime primitives each receive their own material instance when using renderer.material.
-            Renderer renderer = primitive.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.material.color = color;
-            }
         }
 
         private static TextMesh CreateWorldLabel(string text, Vector3 position, Color color, float scale)
@@ -383,6 +395,12 @@ namespace LaneSurvivor.Gameplay
 
         private static void SpawnFeedback(string message, Vector3 position, Color color)
         {
+            if (!WorldSpaceFeedbackEnabled)
+            {
+                // TextMesh feedback can depth-occlude the squad in the portrait chase camera, so Phase 1 uses HUD state and tracers instead.
+                return;
+            }
+
             // Feedback labels float upward and self-destroy, so no manager bookkeeping is needed.
             TextMesh label = CreateWorldLabel(message, position, color, 0.32f);
             label.gameObject.AddComponent<FloatingFeedback>().Configure(message, color, 1.1f);

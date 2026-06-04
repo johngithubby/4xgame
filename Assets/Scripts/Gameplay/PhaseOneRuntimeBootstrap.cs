@@ -1,6 +1,7 @@
 using LaneSurvivor.Data;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
+using LaneSurvivor.Rendering;
 using LaneSurvivor.Save;
 using LaneSurvivor.UI;
 using System;
@@ -17,18 +18,19 @@ namespace LaneSurvivor.Gameplay
             Material trackMaterial = CreateMaterial(new Color(0.20f, 0.24f, 0.22f));
             Material gateMaterial = CreateMaterial(new Color(0.10f, 0.45f, 0.95f));
             Material zombieMaterial = CreateMaterial(new Color(0.18f, 0.55f, 0.18f));
-            Material playerMaterial = CreateMaterial(new Color(0.95f, 0.80f, 0.20f));
+            Material playerMaterial = CreateMaterial(new Color(0.12f, 0.88f, 0.98f));
+            Material playerBeaconMaterial = CreateMaterial(new Color(1f, 0.1f, 0.8f));
 
             LevelDefinition levelDefinition = CreateLevelDefinition();
-            PlayerSquad playerSquad = CreatePlayerSquad(playerMaterial);
+            PlayerSquad playerSquad = CreatePlayerSquad(playerMaterial, playerBeaconMaterial);
             AutoShooter autoShooter = playerSquad.gameObject.AddComponent<AutoShooter>();
             SquadLaneInput laneInput = playerSquad.gameObject.AddComponent<SquadLaneInput>();
 
-            CreateCamera(playerSquad.transform);
+            Camera gameplayCamera = CreateCamera(playerSquad.transform);
             CreateLight();
             CreateEventSystem();
 
-            MinigameHudController hudController = CreateHud();
+            MinigameHudController hudController = CreateHud(playerSquad.transform, gameplayCamera);
             EndScreenController endScreenController = CreateEndScreen();
             laneInput.Configure(playerSquad, hudController.LeftLaneButton, hudController.RightLaneButton);
 
@@ -62,28 +64,48 @@ namespace LaneSurvivor.Gameplay
             return LevelDefinitionFactory.CreateForSave(saveData);
         }
 
-        private static PlayerSquad CreatePlayerSquad(Material playerMaterial)
+        private static PlayerSquad CreatePlayerSquad(Material playerMaterial, Material beaconMaterial)
         {
-            GameObject playerObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            playerObject.name = "Player Squad";
-            playerObject.transform.position = new Vector3(0f, 1f, 0f);
-            playerObject.transform.localScale = new Vector3(1.2f, 1f, 1.2f);
+            // A collider-free cube avoids pulling physics modules into the simulator prototype.
+            GameObject playerObject = PrototypeGeometryFactory.CreateCube("Player Squad", new Vector3(0f, GameplayVisuals.PlayerCenterY, 0f), new Vector3(GameplayVisuals.PlayerFootprint, GameplayVisuals.PlayerHeight, GameplayVisuals.PlayerFootprint), playerMaterial);
 
-            Renderer playerRenderer = playerObject.GetComponent<Renderer>();
-            playerRenderer.sharedMaterial = playerMaterial;
+            // A trailing marker avoids the center lane stripe and remains readable immediately after gate overlaps.
+            GameObject beaconObject = PrototypeGeometryFactory.CreateCube("Player Squad Beacon", playerObject.transform.position + new Vector3(0f, GameplayVisuals.PlayerBeaconOffsetY, GameplayVisuals.PlayerBeaconBackOffsetZ), new Vector3(GameplayVisuals.PlayerBeaconFootprint, GameplayVisuals.PlayerBeaconHeight, GameplayVisuals.PlayerBeaconFootprint), beaconMaterial);
+            beaconObject.transform.SetParent(playerObject.transform, true);
+
+            // A thin mast keeps the squad position visible during the full run without making the squad body oversized.
+            GameObject mastObject = PrototypeGeometryFactory.CreateCube("Player Squad Visibility Mast", playerObject.transform.position + new Vector3(0f, GameplayVisuals.PlayerMastOffsetY, 0f), new Vector3(GameplayVisuals.PlayerMastWidth, GameplayVisuals.PlayerMastHeight, GameplayVisuals.PlayerMastWidth), beaconMaterial);
+            mastObject.transform.SetParent(playerObject.transform, true);
+
+            // The gameplay object still drives rules and camera motion, while the HUD marker owns visibility.
+            SetWorldPlayerRendererVisibility(playerObject, GameplayVisuals.WorldPlayerMeshRenderersEnabled);
 
             return playerObject.AddComponent<PlayerSquad>();
         }
 
-        private static void CreateCamera(Transform target)
+        private static void SetWorldPlayerRendererVisibility(GameObject playerRoot, bool isVisible)
+        {
+            // Hide every world-space player renderer so the simulator cannot intermittently depth-cull the squad.
+            foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
+            {
+                renderer.enabled = isVisible;
+            }
+        }
+
+        private static Camera CreateCamera(Transform target)
         {
             GameObject cameraObject = new("Main Camera");
             Camera camera = cameraObject.AddComponent<Camera>();
-            camera.fieldOfView = 55f;
+            // Perspective framing preserves a forward chase angle instead of a top-down board view.
+            camera.orthographic = false;
+            camera.fieldOfView = GameplayVisuals.CameraFieldOfView;
+            camera.nearClipPlane = 0.05f;
             camera.tag = "MainCamera";
 
             SimpleCameraFollow follow = cameraObject.AddComponent<SimpleCameraFollow>();
-            follow.Initialize(target, new Vector3(0f, 8f, -10f));
+            // Shared camera constants keep runtime scenes aligned with editor-regenerated scenes.
+            follow.Initialize(target, GameplayVisuals.CameraOffset, GameplayVisuals.CameraLookAtOffset, false);
+            return camera;
         }
 
         private static void CreateLight()
@@ -95,7 +117,7 @@ namespace LaneSurvivor.Gameplay
             lightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         }
 
-        private static MinigameHudController CreateHud()
+        private static MinigameHudController CreateHud(Transform playerTarget, Camera gameplayCamera)
         {
             Canvas canvas = CreateCanvas("HUD Canvas");
             Font font = GetUiFont();
@@ -106,6 +128,12 @@ namespace LaneSurvivor.Gameplay
             Button startButton = CreateButton(canvas.transform, "Start Button", "START", font, new Vector2(0f, -95f));
             Button leftButton = CreateButton(canvas.transform, "Left Lane Button", "<", font, new Vector2(-120f, 60f), new Vector2(0.5f, 0f));
             Button rightButton = CreateButton(canvas.transform, "Right Lane Button", ">", font, new Vector2(120f, 60f), new Vector2(0.5f, 0f));
+
+            if (GameplayVisuals.UseScreenSpacePlayerMarker)
+            {
+                // The overlay marker follows the same player transform used by gameplay and camera logic.
+                PlayerSquadScreenMarker.Create(canvas.GetComponent<RectTransform>(), playerTarget, gameplayCamera);
+            }
 
             MinigameHudController hudController = canvas.gameObject.AddComponent<MinigameHudController>();
             hudController.Configure(squadText, progressText, stateText, startButton, leftButton, rightButton);
@@ -227,10 +255,7 @@ namespace LaneSurvivor.Gameplay
 
         private static Material CreateMaterial(Color color)
         {
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            Material material = new(shader);
-            material.color = color;
-            return material;
+            return PrototypeMaterialFactory.Create(color);
         }
 
         private static Font GetUiFont()

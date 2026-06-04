@@ -100,6 +100,8 @@ namespace LaneSurvivor.Gameplay
             float nextX = Mathf.MoveTowards(transform.position.x, targetX, laneChangeSpeed * Time.deltaTime);
             Vector3 nextPosition = transform.position;
             nextPosition.x = nextX;
+            // Keep the placeholder squad locked above the road even if later scene edits add physics or animated effects.
+            nextPosition.y = GameplayVisuals.PlayerCenterY;
 
             if (IsMoving)
             {
@@ -116,6 +118,7 @@ namespace LaneSurvivor.Gameplay
                 : new[] { 0f };
 
             CurrentLaneIndex = Mathf.Clamp(lanePositions.Length / 2, 0, lanePositions.Length - 1);
+            // Preserve the authored prototype height while snapping the squad onto the starting lane.
             transform.position = new Vector3(lanePositions[CurrentLaneIndex], transform.position.y, transform.position.z);
         }
 

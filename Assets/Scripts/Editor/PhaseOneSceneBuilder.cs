@@ -1,5 +1,6 @@
 using LaneSurvivor.Data;
 using LaneSurvivor.Gameplay;
+using LaneSurvivor.Rendering;
 using LaneSurvivor.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -26,21 +27,22 @@ namespace LaneSurvivor.EditorTools
             Material trackMaterial = CreateMaterial("Assets/Materials/Track.mat", new Color(0.20f, 0.24f, 0.22f));
             Material gateMaterial = CreateMaterial("Assets/Materials/Gate.mat", new Color(0.10f, 0.45f, 0.95f));
             Material zombieMaterial = CreateMaterial("Assets/Materials/Zombie.mat", new Color(0.18f, 0.55f, 0.18f));
-            Material playerMaterial = CreateMaterial("Assets/Materials/PlayerSquad.mat", new Color(0.95f, 0.80f, 0.20f));
+            Material playerMaterial = CreateMaterial("Assets/Materials/PlayerSquad.mat", new Color(0.12f, 0.88f, 0.98f));
+            Material playerBeaconMaterial = CreateMaterial("Assets/Materials/PlayerSquadBeacon.mat", new Color(1f, 0.1f, 0.8f));
 
             LevelDefinition levelDefinition = CreateLevelDefinition();
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             scene.name = "Minigame";
 
-            PlayerSquad playerSquad = CreatePlayerSquad(playerMaterial);
+            PlayerSquad playerSquad = CreatePlayerSquad(playerMaterial, playerBeaconMaterial);
             AutoShooter autoShooter = playerSquad.gameObject.AddComponent<AutoShooter>();
             SquadLaneInput laneInput = playerSquad.gameObject.AddComponent<SquadLaneInput>();
 
             Camera camera = CreateCamera(playerSquad.transform);
             CreateLight();
 
-            MinigameHudController hudController = CreateHud();
+            MinigameHudController hudController = CreateHud(playerSquad.transform, camera);
             EndScreenController endScreenController = CreateEndScreen();
             laneInput.Configure(playerSquad, hudController.LeftLaneButton, hudController.RightLaneButton);
             CreateEventSystem();
@@ -71,7 +73,7 @@ namespace LaneSurvivor.EditorTools
 
             levelDefinition.startingSquadCount = 6;
             levelDefinition.startingDamagePerMember = 1f;
-            levelDefinition.finishDistance = 48f;
+            levelDefinition.finishDistance = 42.5f;
             levelDefinition.squadMoveSpeed = 4.2f;
             levelDefinition.laneChangeSpeed = 8f;
             levelDefinition.laneMatchTolerance = 0.85f;
@@ -135,28 +137,47 @@ namespace LaneSurvivor.EditorTools
             return levelDefinition;
         }
 
-        private static PlayerSquad CreatePlayerSquad(Material playerMaterial)
+        private static PlayerSquad CreatePlayerSquad(Material playerMaterial, Material beaconMaterial)
         {
-            GameObject playerObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            playerObject.name = "Player Squad";
-            playerObject.transform.position = new Vector3(0f, 1f, 0f);
-            playerObject.transform.localScale = new Vector3(1.2f, 1f, 1.2f);
+            // Match runtime-generated geometry so editor rebuilds reproduce simulator visibility.
+            GameObject playerObject = PrototypeGeometryFactory.CreateCube("Player Squad", new Vector3(0f, GameplayVisuals.PlayerCenterY, 0f), new Vector3(GameplayVisuals.PlayerFootprint, GameplayVisuals.PlayerHeight, GameplayVisuals.PlayerFootprint), playerMaterial);
 
-            Renderer playerRenderer = playerObject.GetComponent<Renderer>();
-            playerRenderer.sharedMaterial = playerMaterial;
+            // The trailing marker stays out of the road centerline while the body remains compact.
+            GameObject beaconObject = PrototypeGeometryFactory.CreateCube("Player Squad Beacon", playerObject.transform.position + new Vector3(0f, GameplayVisuals.PlayerBeaconOffsetY, GameplayVisuals.PlayerBeaconBackOffsetZ), new Vector3(GameplayVisuals.PlayerBeaconFootprint, GameplayVisuals.PlayerBeaconHeight, GameplayVisuals.PlayerBeaconFootprint), beaconMaterial);
+            beaconObject.transform.SetParent(playerObject.transform, true);
+
+            // The thin mast is a visibility aid, not a larger squad body, and mirrors runtime generation.
+            GameObject mastObject = PrototypeGeometryFactory.CreateCube("Player Squad Visibility Mast", playerObject.transform.position + new Vector3(0f, GameplayVisuals.PlayerMastOffsetY, 0f), new Vector3(GameplayVisuals.PlayerMastWidth, GameplayVisuals.PlayerMastHeight, GameplayVisuals.PlayerMastWidth), beaconMaterial);
+            mastObject.transform.SetParent(playerObject.transform, true);
+
+            // The generated scene mirrors runtime: the gameplay transform exists, but the HUD marker is visible.
+            SetWorldPlayerRendererVisibility(playerObject, GameplayVisuals.WorldPlayerMeshRenderersEnabled);
 
             return playerObject.AddComponent<PlayerSquad>();
+        }
+
+        private static void SetWorldPlayerRendererVisibility(GameObject playerRoot, bool isVisible)
+        {
+            // Keeping this helper local makes editor scene output match runtime bootstrap output.
+            foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
+            {
+                renderer.enabled = isVisible;
+            }
         }
 
         private static Camera CreateCamera(Transform target)
         {
             GameObject cameraObject = new("Main Camera");
             Camera camera = cameraObject.AddComponent<Camera>();
-            camera.fieldOfView = 55f;
+            // Match the runtime bootstrap so editor-generated scenes reproduce simulator framing.
+            camera.orthographic = false;
+            camera.fieldOfView = GameplayVisuals.CameraFieldOfView;
+            camera.nearClipPlane = 0.05f;
             camera.clearFlags = CameraClearFlags.Skybox;
 
             SimpleCameraFollow follow = cameraObject.AddComponent<SimpleCameraFollow>();
-            follow.Initialize(target, new Vector3(0f, 8f, -10f));
+            // The generated scene uses the same centered chase framing as the runtime bootstrap.
+            follow.Initialize(target, GameplayVisuals.CameraOffset, GameplayVisuals.CameraLookAtOffset, false);
 
             return camera;
         }
@@ -170,7 +191,7 @@ namespace LaneSurvivor.EditorTools
             lightObject.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
         }
 
-        private static MinigameHudController CreateHud()
+        private static MinigameHudController CreateHud(Transform playerTarget, Camera gameplayCamera)
         {
             Canvas canvas = CreateCanvas("HUD Canvas");
             Font font = GetUiFont();
@@ -181,6 +202,12 @@ namespace LaneSurvivor.EditorTools
             Button startButton = CreateButton(canvas.transform, "Start Button", "START", font, new Vector2(0f, -95f));
             Button leftButton = CreateButton(canvas.transform, "Left Lane Button", "<", font, new Vector2(-120f, 60f), new Vector2(0.5f, 0f));
             Button rightButton = CreateButton(canvas.transform, "Right Lane Button", ">", font, new Vector2(120f, 60f), new Vector2(0.5f, 0f));
+
+            if (GameplayVisuals.UseScreenSpacePlayerMarker)
+            {
+                // The overlay marker follows the real gameplay transform without relying on world depth.
+                PlayerSquadScreenMarker.Create(canvas.GetComponent<RectTransform>(), playerTarget, gameplayCamera);
+            }
 
             MinigameHudController hudController = canvas.gameObject.AddComponent<MinigameHudController>();
             hudController.Configure(squadText, progressText, stateText, startButton, leftButton, rightButton);

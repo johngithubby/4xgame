@@ -1,3 +1,4 @@
+using LaneSurvivor.Rendering;
 using LaneSurvivor.Save;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -118,11 +119,7 @@ namespace LaneSurvivor.Heroes
         private static void CreateBackdrop(Material material)
         {
             // A simple slab gives the dedicated Hero screen a distinct placeholder space.
-            GameObject backdrop = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            backdrop.name = "Hero Screen Backdrop";
-            backdrop.transform.position = new Vector3(0f, -0.1f, 0f);
-            backdrop.transform.localScale = new Vector3(8f, 0.12f, 8f);
-            backdrop.GetComponent<Renderer>().sharedMaterial = material;
+            PrototypeGeometryFactory.CreateCube("Hero Screen Backdrop", new Vector3(0f, -0.1f, 0f), new Vector3(8f, 0.12f, 8f), material);
         }
 
         private static HeroHudController CreateHud()
@@ -224,11 +221,8 @@ namespace LaneSurvivor.Heroes
 
         private static Material CreateMaterial(Color color)
         {
-            // Prefer URP Lit when available, falling back to the built-in Standard shader.
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            Material material = new(shader);
-            material.color = color;
-            return material;
+            // Use the shared prototype factory so iOS players survive stripped or unavailable named shaders.
+            return PrototypeMaterialFactory.Create(color);
         }
 
         private static Font GetUiFont()

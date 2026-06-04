@@ -11,12 +11,27 @@ namespace LaneSurvivor.Gameplay
         private Vector3 offset = new(0f, 8f, -8f);
 
         [SerializeField]
-        private float followSharpness = 8f;
+        private Vector3 lookAtOffset = new(0f, 1f, 0f);
+
+        [SerializeField]
+        private bool followTargetX;
 
         public void Initialize(Transform followTarget, Vector3 followOffset)
         {
+            Initialize(followTarget, followOffset, lookAtOffset, followTargetX);
+        }
+
+        public void Initialize(Transform followTarget, Vector3 followOffset, Vector3 followLookAtOffset)
+        {
+            Initialize(followTarget, followOffset, followLookAtOffset, followTargetX);
+        }
+
+        public void Initialize(Transform followTarget, Vector3 followOffset, Vector3 followLookAtOffset, bool trackTargetX)
+        {
             target = followTarget;
             offset = followOffset;
+            lookAtOffset = followLookAtOffset;
+            followTargetX = trackTargetX;
             SnapToTarget();
         }
 
@@ -28,9 +43,11 @@ namespace LaneSurvivor.Gameplay
             }
 
             Vector3 desiredPosition = target.position + offset;
-            float blend = 1f - Mathf.Exp(-followSharpness * Time.deltaTime);
-            transform.position = Vector3.Lerp(transform.position, desiredPosition, blend);
-            transform.LookAt(target.position + Vector3.forward * 4f);
+            desiredPosition.x = GetCameraCenterX();
+
+            // This prototype uses a locked chase camera so fast lane/finish motion cannot leave the squad off-screen.
+            transform.position = desiredPosition;
+            transform.LookAt(GetLookAtPoint());
         }
 
         private void SnapToTarget()
@@ -41,7 +58,22 @@ namespace LaneSurvivor.Gameplay
             }
 
             transform.position = target.position + offset;
-            transform.LookAt(target.position + Vector3.forward * 4f);
+            transform.position = new Vector3(GetCameraCenterX(), transform.position.y, transform.position.z);
+            transform.LookAt(GetLookAtPoint());
+        }
+
+        private Vector3 GetLookAtPoint()
+        {
+            // Matching the camera center keeps side-lane movement visible without creating a sideways look angle.
+            Vector3 lookAtPoint = target.position + lookAtOffset;
+            lookAtPoint.x = GetCameraCenterX();
+            return lookAtPoint;
+        }
+
+        private float GetCameraCenterX()
+        {
+            // Side-lane play needs optional X tracking so the squad cannot drift out of the narrow portrait frame.
+            return followTargetX && target != null ? target.position.x + offset.x : offset.x;
         }
     }
 }

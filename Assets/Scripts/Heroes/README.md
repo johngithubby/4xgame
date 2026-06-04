@@ -17,4 +17,4 @@ Unity compiles these files as part of the `LaneSurvivor.Runtime` assembly.
 
 ## Behavior
 
-Heroes are local-only in Phase 3. `Mira Vanguard` is earned from the first minigame win, `Dax Medic` is earned when HQ reaches level 2, owned heroes are saved locally, the Base panel and dedicated Hero scene can cycle equipment, minigame wins award equipped-hero XP, manual level-up spends local coins, and the equipped hero applies minigame starting squad size and level-scaled damage bonuses.
+Heroes are local-only in Phase 3. `Mira Vanguard` is earned from the first minigame win, `Dax Medic` is earned when HQ reaches level 2, owned heroes are saved locally, the Base panel and dedicated Hero scene can cycle equipment, minigame wins award equipped-hero XP, manual level-up spends local coins, and the equipped hero applies minigame starting squad size and level-scaled damage bonuses. The Hero screen backdrop uses shared material creation so iOS player builds do not depend on one specific shader name.

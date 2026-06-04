@@ -10,6 +10,7 @@
 - `Gameplay/`: Contains minigame controllers, player squad behavior, gates, zombies, shooting, and runtime bootstrap code.
 - `Heroes/`: Contains local hero definitions, inventory helpers, and gameplay reward rules.
 - `Progression/`: Contains HQ upgrade and timer rules that connect base progress to minigame bonuses.
+- `Rendering/`: Contains shared placeholder material and collider-free geometry helpers for runtime-generated scenes.
 - `Save/`: Contains local JSON save data and persistence helpers.
 - `UI/`: Contains HUD and end-screen controllers.
 

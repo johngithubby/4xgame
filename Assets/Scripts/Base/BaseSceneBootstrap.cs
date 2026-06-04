@@ -1,6 +1,7 @@
 using System;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
+using LaneSurvivor.Rendering;
 using LaneSurvivor.Save;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -190,21 +191,13 @@ namespace LaneSurvivor.Base
         private static void CreateGround(Material groundMaterial)
         {
             // A single flat cube is enough to establish the base area.
-            GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            ground.name = "Base Ground";
-            ground.transform.position = new Vector3(0f, -0.1f, 0f);
-            ground.transform.localScale = new Vector3(8f, 0.12f, 8f);
-            ground.GetComponent<Renderer>().sharedMaterial = groundMaterial;
+            PrototypeGeometryFactory.CreateCube("Base Ground", new Vector3(0f, -0.1f, 0f), new Vector3(8f, 0.12f, 8f), groundMaterial);
         }
 
         private static HQBuilding CreateHqBuilding(Material hqMaterial)
         {
             // The HQ is represented by a simple cube for the first base-building slice.
-            GameObject hqObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            hqObject.name = "HQ Building";
-            hqObject.transform.position = new Vector3(0f, 1f, 0f);
-            hqObject.transform.localScale = new Vector3(2f, 2f, 2f);
-            hqObject.GetComponent<Renderer>().sharedMaterial = hqMaterial;
+            GameObject hqObject = PrototypeGeometryFactory.CreateCube("HQ Building", new Vector3(0f, 1f, 0f), new Vector3(2f, 2f, 2f), hqMaterial);
 
             // A world-space TextMesh labels the placeholder building without needing UI layout.
             GameObject labelObject = new("HQ Label");
@@ -341,11 +334,8 @@ namespace LaneSurvivor.Base
 
         private static Material CreateMaterial(Color color)
         {
-            // Prefer URP Lit when available, falling back to the built-in Standard shader.
-            Shader shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
-            Material material = new(shader);
-            material.color = color;
-            return material;
+            // Use the shared prototype factory so iOS players survive stripped or unavailable named shaders.
+            return PrototypeMaterialFactory.Create(color);
         }
 
         private static Font GetUiFont()

@@ -24,8 +24,12 @@ namespace LaneSurvivor.Gameplay
         {
             // Level one stays tiny and familiar for the first advertised minigame loop.
             LevelDefinition levelDefinition = CreateBaseDefinition(saveData, 1);
-            levelDefinition.finishDistance = 48f;
+            levelDefinition.finishDistance = 50f;
             levelDefinition.squadMoveSpeed = 4.2f;
+            // Lane aliases keep gate and zombie definitions tied to the shared portrait-safe lane spacing.
+            float leftLane = -GameplayVisuals.SideLaneX;
+            float rightLane = GameplayVisuals.SideLaneX;
+
             levelDefinition.gates = new[]
             {
                 new GateSpawnDefinition
@@ -33,14 +37,14 @@ namespace LaneSurvivor.Gameplay
                     modifierType = GateModifierType.AddSquad,
                     squadValue = 4,
                     damageValue = 0f,
-                    position = new Vector3(-2f, 1.1f, 9f)
+                    position = new Vector3(leftLane, 1.1f, 9f)
                 },
                 new GateSpawnDefinition
                 {
                     modifierType = GateModifierType.MultiplySquad,
                     squadValue = 2,
                     damageValue = 0f,
-                    position = new Vector3(2f, 1.1f, 9f)
+                    position = new Vector3(rightLane, 1.1f, 9f)
                 },
                 new GateSpawnDefinition
                 {
@@ -54,7 +58,7 @@ namespace LaneSurvivor.Gameplay
                     modifierType = GateModifierType.SubtractSquad,
                     squadValue = 5,
                     damageValue = 0f,
-                    position = new Vector3(-2f, 1.1f, 36f)
+                    position = new Vector3(leftLane, 1.1f, 36f)
                 }
             };
             levelDefinition.zombies = new[]
@@ -69,13 +73,13 @@ namespace LaneSurvivor.Gameplay
                 {
                     health = 18f,
                     breachPenalty = 4,
-                    position = new Vector3(2f, 1f, 27f)
+                    position = new Vector3(rightLane, 1f, 27f)
                 },
                 new ZombieSpawnDefinition
                 {
                     health = 24f,
                     breachPenalty = 6,
-                    position = new Vector3(-2f, 1f, 41f)
+                    position = new Vector3(leftLane, 1f, 42f)
                 }
             };
             return levelDefinition;
@@ -85,8 +89,12 @@ namespace LaneSurvivor.Gameplay
         {
             // Level two is a small unlocked variant with longer distance and tougher lane choices.
             LevelDefinition levelDefinition = CreateBaseDefinition(saveData, 2);
-            levelDefinition.finishDistance = 62f;
+            levelDefinition.finishDistance = 58.5f;
             levelDefinition.squadMoveSpeed = 4.6f;
+            // Lane aliases keep the unlocked layout using the same gameplay-visible side lanes.
+            float leftLane = -GameplayVisuals.SideLaneX;
+            float rightLane = GameplayVisuals.SideLaneX;
+
             levelDefinition.gates = new[]
             {
                 new GateSpawnDefinition
@@ -101,14 +109,14 @@ namespace LaneSurvivor.Gameplay
                     modifierType = GateModifierType.AddSquad,
                     squadValue = 6,
                     damageValue = 0f,
-                    position = new Vector3(-2f, 1.1f, 20f)
+                    position = new Vector3(leftLane, 1.1f, 20f)
                 },
                 new GateSpawnDefinition
                 {
                     modifierType = GateModifierType.MultiplySquad,
                     squadValue = 2,
                     damageValue = 0f,
-                    position = new Vector3(2f, 1.1f, 32f)
+                    position = new Vector3(rightLane, 1.1f, 32f)
                 },
                 new GateSpawnDefinition
                 {
@@ -124,7 +132,7 @@ namespace LaneSurvivor.Gameplay
                 {
                     health = 12f,
                     breachPenalty = 3,
-                    position = new Vector3(-2f, 1f, 14f)
+                    position = new Vector3(leftLane, 1f, 14f)
                 },
                 new ZombieSpawnDefinition
                 {
@@ -136,7 +144,7 @@ namespace LaneSurvivor.Gameplay
                 {
                     health = 34f,
                     breachPenalty = 7,
-                    position = new Vector3(2f, 1f, 44f)
+                    position = new Vector3(rightLane, 1f, 44f)
                 },
                 new ZombieSpawnDefinition
                 {
@@ -158,8 +166,8 @@ namespace LaneSurvivor.Gameplay
                 + HeroInventory.GetStartingSquadBonus(saveData);
             levelDefinition.startingDamagePerMember = 1f + HeroInventory.GetDamageBonus(saveData);
             levelDefinition.laneChangeSpeed = 8f;
-            levelDefinition.laneMatchTolerance = 0.85f;
-            levelDefinition.lanePositions = new[] { -2f, 0f, 2f };
+            levelDefinition.laneMatchTolerance = GameplayVisuals.LaneMatchTolerance;
+            levelDefinition.lanePositions = new[] { -GameplayVisuals.SideLaneX, 0f, GameplayVisuals.SideLaneX };
             levelDefinition.shootRange = 8f;
             levelDefinition.shotInterval = 0.35f;
             return levelDefinition;
