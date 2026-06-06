@@ -50,7 +50,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - EditMode tests live in `Assets/Tests/EditMode`.
 - PlayMode scene smoke tests live in `Assets/Tests/PlayMode`.
 - Current EditMode test coverage includes Phase 1 gameplay rules, Phase 2 progression/save rules, and Phase 3 hero inventory rules.
-- Current PlayMode test coverage includes Base-to-Minigame and Base-to-Heroes scene flow.
+- Current PlayMode test coverage includes Base collect/upgrade persistence, completed-upgrade feedback, Base-to-Minigame flow, Minigame start movement, lane-button movement, restart, rewards, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
 - A batch-mode iOS smoke build entry point exists at `LaneSurvivor.Editor.IosSmokeBuild.Run`.
 

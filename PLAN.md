@@ -57,7 +57,8 @@ Phase 1 is implemented and pushed on `develop`.
 ### Validation
 
 - EditMode tests pass with the temp-copy Unity batch workflow documented in `LESSONS_LEARNED.md`.
-- Current proof: `7/7` EditMode tests passed.
+- Current proof: `23/23` Phase 1 EditMode tests passed as part of the full `52/52` EditMode Unity run.
+- Current PlayMode proof includes Minigame start movement, lane-button movement, restart, rewards, and return-to-Base scene flow as part of the full `9/9` PlayMode Unity run.
 - Autoreview was run on the Phase 1 polish diff and reported no accepted/actionable findings.
 
 ### Remaining Phase 1 Polish Ideas
@@ -65,7 +66,7 @@ Phase 1 is implemented and pushed on `develop`.
 - Add a simple sound-free hit flash or projectile placeholder. Done with shot tracers.
 - Add a second small level definition. Done through the HQ level 2 unlock.
 - Improve camera framing for different device aspect ratios.
-- Add a PlayMode smoke test once PlayMode test setup is worthwhile.
+- Expand PlayMode smoke coverage for longer full-run visual/gameplay passes when worthwhile.
 
 ## Phase 2: Light Base-Building
 
@@ -91,7 +92,7 @@ The first tiny Phase 2 slice is implemented:
 - Editor and development builds expose a local save reset button for prototype iteration.
 - Base HUD spacing has been tightened around a phone-sized reference layout.
 - Save, wallet, timer, and progression rules have EditMode coverage.
-- Base-to-Minigame and Base-to-Heroes scene navigation have PlayMode smoke coverage.
+- Base collection/upgrade, completed-upgrade feedback, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
 
 ### Smallest Useful Slice
 
@@ -110,7 +111,7 @@ The first tiny Phase 2 slice is implemented:
 13. Add visible minigame win coin rewards. Done.
 14. Add upgrade-complete Base feedback. Done.
 15. Add a development-only local save reset button. Done.
-16. Add PlayMode smoke coverage for Base -> Minigame navigation. Done.
+16. Add PlayMode smoke coverage for Base -> Minigame navigation and core Base UI actions. Done.
 17. Tighten Base HUD spacing for mobile-like screens. Done.
 
 ### Proposed Files
@@ -162,8 +163,8 @@ SaveGameData
 
 - Add EditMode tests for resource spending, insufficient funds, timer completion, minigame win rewards, save reset, and save/load persistence. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done.
-- Run Unity PlayMode smoke tests for Base -> Minigame scene loading. Done.
-- Manual Play Mode pass remains useful for visual polish, but the scene-loading path now has automated smoke coverage.
+- Run Unity PlayMode smoke tests for Base collect/upgrade persistence, completed-upgrade feedback, Base -> Minigame scene loading, minigame win rewards, and Minigame end-screen -> Base return. Done.
+- Manual Play Mode pass remains useful for visual polish, but the key Base and Minigame UI paths now have automated smoke coverage.
 
 ## Phase 3: Heroes
 
@@ -226,7 +227,7 @@ The first Phase 3 hero slices are implemented:
 
 - Add EditMode tests for first hero reward, HQ milestone hero reward, duplicate prevention, manual/cycling equip, hero XP/leveling, manual coin level-up, equipped stat bonuses, save persistence, and invalid equipped hero repair. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done.
-- Run Unity PlayMode smoke tests to keep Base -> Minigame and Base -> Heroes scene loading covered. Done.
+- Run Unity PlayMode smoke tests to keep first-win hero rewards, HQ milestone hero rewards, Base -> Minigame, Base -> Heroes, Hero screen level-up/equip, and return navigation covered. Done.
 
 ## Phase 4: Online Design Only
 
@@ -256,6 +257,12 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 - No production backend code is added.
 - No client networking dependency is required for local gameplay.
 
+### Validation
+
+- Confirm `docs/BACKEND_DESIGN.md` exists. Done.
+- Search runtime source and package manifest for client networking, backend, ads, IAP, guild, PvP, gacha, and loot-box dependencies. Done; only plan/design-document references are present.
+- Run Unity iOS smoke export after local gameplay validation. Done; the export succeeds without a backend dependency.
+
 ## Near-Term Next Step
 
 Local Phases 1 through 3 now have the requested final local roadmap slices represented:
@@ -264,5 +271,5 @@ Local Phases 1 through 3 now have the requested final local roadmap slices repre
 2. Manual local hero leveling with a coin cost. Done.
 3. Second minigame layout unlocked by HQ progression. Done.
 4. Shot feedback and end-screen spacing polish. Done.
-5. Stability pass with expanded tests and iOS smoke build entry point. Done.
+5. Stability pass with expanded tests and iOS smoke build entry point. Done and verified with Unity EditMode, PlayMode, and iOS smoke export.
 6. Phase 4 backend design doc. Done.

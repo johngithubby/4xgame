@@ -127,8 +127,11 @@ namespace LaneSurvivor.Base
                 return false;
             }
 
-            // Surface the reward in Base immediately after the HQ milestone is reached.
-            statusMessage = $"{heroReward.displayName} joined";
+            // Surface the reward without hiding any upgrade-complete feedback already prepared by the caller.
+            string heroMessage = $"{heroReward.displayName} joined";
+            statusMessage = string.IsNullOrWhiteSpace(statusMessage)
+                ? heroMessage
+                : $"{statusMessage} - {heroMessage}";
             return true;
         }
 

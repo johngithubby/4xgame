@@ -4,6 +4,7 @@ using LaneSurvivor.Rendering;
 using LaneSurvivor.Save;
 using LaneSurvivor.UI;
 using NUnit.Framework;
+using System.Reflection;
 using UnityEngine;
 
 namespace LaneSurvivor.Tests.EditMode
@@ -200,6 +201,70 @@ namespace LaneSurvivor.Tests.EditMode
 
             // World-space tracers previously read as shape-shifting gate pieces in full-run video proof.
             Assert.IsFalse(LevelManager.WorldSpaceShotTracersEnabled);
+        }
+
+        [Test]
+        public void AutoShooter_DamagesZombieAheadInSameLane()
+        {
+            // Create a moving squad so the shooter follows its normal runtime guard conditions.
+            PlayerSquad squad = CreateSquad(5, 1f);
+            AutoShooter shooter = squad.gameObject.AddComponent<AutoShooter>();
+            Zombie zombie = CreateZombie(new Vector3(0f, GameplayVisuals.ZombieCenterY, 4f), 1);
+            bool shotFired = false;
+
+            try
+            {
+                // The registered target is ahead, in range, and in the squad lane.
+                shooter.Initialize(squad, 8f, 0.35f, 0.5f);
+                shooter.RegisterZombie(zombie);
+                shooter.ShotFired += (_, _, _) => shotFired = true;
+                squad.SetMoving(true);
+
+                // Reflection invokes the Unity Update callback without requiring a PlayMode frame.
+                InvokeAutoShooterUpdate(shooter);
+
+                // Five squad members at one damage each should defeat the five-health target in one volley.
+                Assert.IsTrue(shotFired);
+                Assert.IsTrue(zombie.IsDefeated);
+            }
+            finally
+            {
+                // Destroy generated Unity objects explicitly so EditMode tests stay isolated.
+                UnityEngine.Object.DestroyImmediate(squad.gameObject);
+                UnityEngine.Object.DestroyImmediate(zombie.gameObject);
+            }
+        }
+
+        [Test]
+        public void AutoShooter_IgnoresZombieAheadInDifferentLane()
+        {
+            // Create a moving squad so the shooter is allowed to search for targets.
+            PlayerSquad squad = CreateSquad(5, 1f);
+            AutoShooter shooter = squad.gameObject.AddComponent<AutoShooter>();
+            Zombie zombie = CreateZombie(new Vector3(GameplayVisuals.SideLaneX, GameplayVisuals.ZombieCenterY, 4f), 1);
+            bool shotFired = false;
+
+            try
+            {
+                // The target is ahead and in range, but the strict tolerance keeps it outside the center lane.
+                shooter.Initialize(squad, 8f, 0.35f, 0.1f);
+                shooter.RegisterZombie(zombie);
+                shooter.ShotFired += (_, _, _) => shotFired = true;
+                squad.SetMoving(true);
+
+                // Reflection invokes the same private Update method Unity calls every frame.
+                InvokeAutoShooterUpdate(shooter);
+
+                // Cross-lane targets should survive until the player switches lanes.
+                Assert.IsFalse(shotFired);
+                Assert.IsFalse(zombie.IsDefeated);
+            }
+            finally
+            {
+                // Destroy generated Unity objects explicitly so EditMode tests stay isolated.
+                UnityEngine.Object.DestroyImmediate(squad.gameObject);
+                UnityEngine.Object.DestroyImmediate(zombie.gameObject);
+            }
         }
 
         [Test]
@@ -551,6 +616,18 @@ namespace LaneSurvivor.Tests.EditMode
 
             // The factory test should prevent this path, but keep a readable fallback for diagnostics.
             return material.color;
+        }
+
+        private static void InvokeAutoShooterUpdate(AutoShooter shooter)
+        {
+            // The shooter update is intentionally private in runtime code, so tests reflect it by exact name.
+            MethodInfo updateMethod = typeof(AutoShooter).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            // A missing method should fail with a clear test assertion instead of a NullReferenceException.
+            Assert.IsNotNull(updateMethod);
+
+            // Invoke once to simulate the first frame where the shot timer is ready.
+            updateMethod.Invoke(shooter, null);
         }
 
         private static Zombie CreateZombie(Vector3 position, int breachPenalty)
