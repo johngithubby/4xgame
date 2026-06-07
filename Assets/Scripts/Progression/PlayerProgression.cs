@@ -86,7 +86,7 @@ namespace LaneSurvivor.Progression
 
         public static int GetHighestUnlockedMissionLevel(SaveGameData data)
         {
-            // The highest unlocked value drives the Base next button and post-win unlock checks.
+            // The highest unlocked value drives Base mission availability and post-win unlock checks.
             data?.Normalize();
             return Mathf.Clamp(data?.highestUnlockedMissionLevel ?? 1, 1, MaxMissionLevel);
         }
@@ -102,6 +102,94 @@ namespace LaneSurvivor.Progression
                 4 => "Last Block",
                 _ => "Outskirts"
             };
+        }
+
+        public static bool IsMissionUnlocked(SaveGameData data, int missionLevel)
+        {
+            // Unknown mission ids should not become interactable even if corrupted UI calls into progression.
+            if (data == null || missionLevel < 1 || missionLevel > MaxMissionLevel)
+            {
+                return false;
+            }
+
+            // Normalize first so legacy unlock mirrors and repaired ranges are honored by direct mission buttons.
+            data.Normalize();
+            return missionLevel <= data.highestUnlockedMissionLevel;
+        }
+
+        public static bool IsMissionCompleted(SaveGameData data, int missionLevel)
+        {
+            // Completion can only be true for authored mission ids on a real save object.
+            if (data == null || missionLevel < 1 || missionLevel > MaxMissionLevel)
+            {
+                return false;
+            }
+
+            // Normalize fills sequential predecessor completions for saves created before this field existed.
+            data.Normalize();
+            return data.completedMissionLevels.Contains(missionLevel);
+        }
+
+        public static string GetMissionStatusLabel(SaveGameData data, int missionLevel)
+        {
+            // Locked missions need the clearest label because the buttons are visible before they are available.
+            if (!IsMissionUnlocked(data, missionLevel))
+            {
+                return "LOCKED";
+            }
+
+            // A selected completed mission should show both that it is playable and already cleared.
+            bool isSelectedMission = GetSelectedMissionLevel(data) == missionLevel;
+            bool isCompletedMission = IsMissionCompleted(data, missionLevel);
+            if (isSelectedMission && isCompletedMission)
+            {
+                return "DONE SELECTED";
+            }
+
+            // The selected frontier mission is the one the Play button will launch.
+            if (isSelectedMission)
+            {
+                return "SELECTED";
+            }
+
+            // Completed missions remain replayable for coins, but no longer unlock new missions.
+            if (isCompletedMission)
+            {
+                return "DONE";
+            }
+
+            // Unlocked, uncleared missions are ready to become the active selection.
+            return "READY";
+        }
+
+        public static string GetMissionRewardHint(SaveGameData data, int missionLevel)
+        {
+            // Invalid rows should never appear in the Base panel, but keep the helper total for tests and callers.
+            if (missionLevel < 1 || missionLevel > MaxMissionLevel)
+            {
+                return "Unavailable";
+            }
+
+            // Locked rows name the previous mission that gates progress.
+            if (!IsMissionUnlocked(data, missionLevel))
+            {
+                return missionLevel <= 1 ? "Locked" : $"Unlock: clear M{missionLevel - 1}";
+            }
+
+            // Completed missions can still be replayed for the standard local coin reward.
+            if (IsMissionCompleted(data, missionLevel))
+            {
+                return $"Replay: +{MinigameWinCoins}c";
+            }
+
+            // Clearing the current frontier mission previews the next local mission unlock.
+            if (missionLevel >= GetHighestUnlockedMissionLevel(data) && missionLevel < MaxMissionLevel)
+            {
+                return $"Win: +{MinigameWinCoins}c + M{missionLevel + 1}";
+            }
+
+            // Non-frontier unlocked missions pay coins without advancing the local mission cap.
+            return $"Win: +{MinigameWinCoins}c";
         }
 
         public static bool TrySelectMission(SaveGameData data, int missionLevel)
@@ -155,10 +243,20 @@ namespace LaneSurvivor.Progression
 
             // Normalize before checking unlock state so legacy saves progress from their migrated mission level.
             data.Normalize();
+
+            // Locked mission ids should not be accepted as completed through corrupted scene state.
+            if (missionLevel > data.highestUnlockedMissionLevel)
+            {
+                data.unlockedMinigameLevel = data.highestUnlockedMissionLevel;
+                return new MissionCompletionResult(missionLevel, 0, false, false);
+            }
+
+            // Track completion separately from the highest unlocked mission so the Base panel can show done rows.
+            bool completedFirstTime = TryMarkMissionCompleted(data, missionLevel);
             if (missionLevel != data.highestUnlockedMissionLevel || data.highestUnlockedMissionLevel >= MaxMissionLevel)
             {
                 data.unlockedMinigameLevel = data.highestUnlockedMissionLevel;
-                return new MissionCompletionResult(missionLevel, 0, false);
+                return new MissionCompletionResult(missionLevel, 0, false, completedFirstTime);
             }
 
             // Completing the frontier mission unlocks exactly one next mission and auto-selects it for Base return.
@@ -166,7 +264,7 @@ namespace LaneSurvivor.Progression
             data.highestUnlockedMissionLevel = unlockedMissionLevel;
             data.currentMissionLevel = unlockedMissionLevel;
             data.unlockedMinigameLevel = unlockedMissionLevel;
-            return new MissionCompletionResult(missionLevel, unlockedMissionLevel, true);
+            return new MissionCompletionResult(missionLevel, unlockedMissionLevel, true, completedFirstTime);
         }
 
         public static int GetStartingSquadBonus(SaveGameData data)
@@ -180,11 +278,26 @@ namespace LaneSurvivor.Progression
             // Expose timer formatting data without making UI depend on timer internals.
             return UpgradeTimer.GetRemainingSeconds(data, utcNow);
         }
+
+        private static bool TryMarkMissionCompleted(SaveGameData data, int missionLevel)
+        {
+            // Normalize guarantees the list exists before adding the newly completed mission.
+            data.completedMissionLevels ??= new System.Collections.Generic.List<int>();
+            if (data.completedMissionLevels.Contains(missionLevel))
+            {
+                return false;
+            }
+
+            // Store the mission id immediately so callers can inspect the save before it is persisted.
+            data.completedMissionLevels.Add(missionLevel);
+            data.completedMissionLevels.Sort();
+            return true;
+        }
     }
 
     public readonly struct MissionCompletionResult
     {
-        public MissionCompletionResult(int completedMissionLevel, int unlockedMissionLevel, bool unlockedNewMission)
+        public MissionCompletionResult(int completedMissionLevel, int unlockedMissionLevel, bool unlockedNewMission, bool completedFirstTime)
         {
             // Store the completed mission so reward UI can describe the result without re-reading mutable save data.
             this.completedMissionLevel = completedMissionLevel;
@@ -194,6 +307,9 @@ namespace LaneSurvivor.Progression
 
             // A separate boolean keeps the reward text clear when unlockedMissionLevel is the default zero value.
             this.unlockedNewMission = unlockedNewMission;
+
+            // The Base mission panel uses this indirectly to distinguish first clears from replays.
+            this.completedFirstTime = completedFirstTime;
         }
 
         public readonly int completedMissionLevel;
@@ -201,5 +317,7 @@ namespace LaneSurvivor.Progression
         public readonly int unlockedMissionLevel;
 
         public readonly bool unlockedNewMission;
+
+        public readonly bool completedFirstTime;
     }
 }

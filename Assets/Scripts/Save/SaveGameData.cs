@@ -25,6 +25,8 @@ namespace LaneSurvivor.Save
 
         public int highestUnlockedMissionLevel = 1;
 
+        public List<int> completedMissionLevels = new();
+
         public List<string> ownedHeroIds = new();
 
         public string equippedHeroId = string.Empty;
@@ -174,6 +176,38 @@ namespace LaneSurvivor.Save
 
             // Keep the old field as a compatibility mirror for tests, docs, and older local JSON saves.
             unlockedMinigameLevel = highestUnlockedMissionLevel;
+
+            // Older saves did not persist completion rows, so repair or create the list before mission UI reads it.
+            NormalizeCompletedMissions();
+        }
+
+        private void NormalizeCompletedMissions()
+        {
+            // Unity JsonUtility can load missing list fields as null when older JSON is read.
+            completedMissionLevels ??= new List<int>();
+
+            // Mission unlocks are sequential, so every predecessor of the highest unlocked mission is complete.
+            for (int missionLevel = 1; missionLevel < highestUnlockedMissionLevel; missionLevel += 1)
+            {
+                if (!completedMissionLevels.Contains(missionLevel))
+                {
+                    completedMissionLevels.Add(missionLevel);
+                }
+            }
+
+            // Remove duplicates and unsupported ids so corrupted saves cannot show phantom mission rows as done.
+            HashSet<int> seenMissionLevels = new();
+            for (int index = completedMissionLevels.Count - 1; index >= 0; index -= 1)
+            {
+                int missionLevel = completedMissionLevels[index];
+                if (missionLevel < 1 || missionLevel > highestUnlockedMissionLevel || missionLevel > PlayerProgression.MaxMissionLevel || !seenMissionLevels.Add(missionLevel))
+                {
+                    completedMissionLevels.RemoveAt(index);
+                }
+            }
+
+            // Sorting keeps JSON diffs and mission panel status checks deterministic.
+            completedMissionLevels.Sort();
         }
     }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Save;
@@ -134,6 +135,7 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(1, saveData.currentMissionLevel);
             Assert.AreEqual(1, saveData.highestUnlockedMissionLevel);
             Assert.AreEqual(1, saveData.unlockedMinigameLevel);
+            Assert.AreEqual(0, saveData.completedMissionLevels.Count);
         }
 
         [Test]
@@ -151,6 +153,25 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(3, saveData.currentMissionLevel);
             Assert.AreEqual(3, saveData.highestUnlockedMissionLevel);
             Assert.AreEqual(3, saveData.unlockedMinigameLevel);
+            CollectionAssert.AreEqual(new[] { 1, 2 }, saveData.completedMissionLevels);
+        }
+
+        [Test]
+        public void Normalize_RepairsCompletedMissionList()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = 2,
+                highestUnlockedMissionLevel = 3,
+                unlockedMinigameLevel = 3,
+                completedMissionLevels = new List<int> { 2, 99, 2, 0, 1 }
+            };
+
+            saveData.Normalize();
+
+            Assert.AreEqual(2, saveData.currentMissionLevel);
+            Assert.AreEqual(3, saveData.highestUnlockedMissionLevel);
+            CollectionAssert.AreEqual(new[] { 1, 2 }, saveData.completedMissionLevels);
         }
 
         [Test]
@@ -199,11 +220,16 @@ namespace LaneSurvivor.Tests.EditMode
 
             Assert.IsTrue(firstCompletion.unlockedNewMission);
             Assert.AreEqual(2, firstCompletion.unlockedMissionLevel);
+            Assert.IsTrue(firstCompletion.completedFirstTime);
+            Assert.AreEqual(1, firstCompletion.completedMissionLevel);
             Assert.AreEqual(2, saveData.currentMissionLevel);
             Assert.AreEqual(2, saveData.highestUnlockedMissionLevel);
             Assert.AreEqual(2, saveData.unlockedMinigameLevel);
+            CollectionAssert.AreEqual(new[] { 1 }, saveData.completedMissionLevels);
             Assert.IsFalse(replayCompletion.unlockedNewMission);
+            Assert.IsFalse(replayCompletion.completedFirstTime);
             Assert.AreEqual(2, saveData.highestUnlockedMissionLevel);
+            CollectionAssert.AreEqual(new[] { 1 }, saveData.completedMissionLevels);
         }
 
         [Test]
@@ -218,9 +244,45 @@ namespace LaneSurvivor.Tests.EditMode
             MissionCompletionResult completion = PlayerProgression.TryCompleteMission(saveData, PlayerProgression.MaxMissionLevel);
 
             Assert.IsFalse(completion.unlockedNewMission);
+            Assert.IsTrue(completion.completedFirstTime);
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.currentMissionLevel);
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.highestUnlockedMissionLevel);
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.unlockedMinigameLevel);
+            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4 }, saveData.completedMissionLevels);
+        }
+
+        [Test]
+        public void MissionStatusAndRewardHints_DescribeSelectedDoneLockedAndCapRows()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = 2,
+                highestUnlockedMissionLevel = 2,
+                completedMissionLevels = new List<int> { 1 }
+            };
+
+            Assert.AreEqual("DONE", PlayerProgression.GetMissionStatusLabel(saveData, 1));
+            Assert.AreEqual("Replay: +50c", PlayerProgression.GetMissionRewardHint(saveData, 1));
+            Assert.AreEqual("SELECTED", PlayerProgression.GetMissionStatusLabel(saveData, 2));
+            Assert.AreEqual("Win: +50c + M3", PlayerProgression.GetMissionRewardHint(saveData, 2));
+            Assert.AreEqual("LOCKED", PlayerProgression.GetMissionStatusLabel(saveData, 3));
+            Assert.AreEqual("Unlock: clear M2", PlayerProgression.GetMissionRewardHint(saveData, 3));
+
+            PlayerProgression.TryCompleteMission(saveData, 2);
+            PlayerProgression.TrySelectMission(saveData, 2);
+
+            Assert.AreEqual("DONE SELECTED", PlayerProgression.GetMissionStatusLabel(saveData, 2));
+            Assert.AreEqual("Replay: +50c", PlayerProgression.GetMissionRewardHint(saveData, 2));
+
+            SaveGameData cappedData = new()
+            {
+                currentMissionLevel = PlayerProgression.MaxMissionLevel,
+                highestUnlockedMissionLevel = PlayerProgression.MaxMissionLevel,
+                completedMissionLevels = new List<int> { 1, 2, 3, 4 }
+            };
+
+            Assert.AreEqual("DONE SELECTED", PlayerProgression.GetMissionStatusLabel(cappedData, PlayerProgression.MaxMissionLevel));
+            Assert.AreEqual("Replay: +50c", PlayerProgression.GetMissionRewardHint(cappedData, PlayerProgression.MaxMissionLevel));
         }
 
         [Test]
@@ -295,7 +357,8 @@ namespace LaneSurvivor.Tests.EditMode
                 hqUpgradeDurationSeconds = 20,
                 unlockedMinigameLevel = 3,
                 currentMissionLevel = 2,
-                highestUnlockedMissionLevel = 3
+                highestUnlockedMissionLevel = 3,
+                completedMissionLevels = new List<int> { 1, 2 }
             };
 
             SaveGameManager.Save(saveData);
@@ -309,6 +372,7 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(3, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(2, loadedData.currentMissionLevel);
             Assert.AreEqual(3, loadedData.highestUnlockedMissionLevel);
+            CollectionAssert.AreEqual(new[] { 1, 2 }, loadedData.completedMissionLevels);
         }
 
         [Test]
@@ -326,6 +390,7 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(1, loadedData.currentMissionLevel);
             Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);
+            Assert.AreEqual(0, loadedData.completedMissionLevels.Count);
         }
 
         [Test]
@@ -342,7 +407,8 @@ namespace LaneSurvivor.Tests.EditMode
                 hqLevel = 4,
                 unlockedMinigameLevel = 4,
                 currentMissionLevel = 3,
-                highestUnlockedMissionLevel = 4
+                highestUnlockedMissionLevel = 4,
+                completedMissionLevels = new List<int> { 1, 2, 3 }
             });
 
             // Reset writes fresh data immediately, and a later load should read the same defaults.
@@ -355,11 +421,13 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(1, resetData.unlockedMinigameLevel);
             Assert.AreEqual(1, resetData.currentMissionLevel);
             Assert.AreEqual(1, resetData.highestUnlockedMissionLevel);
+            Assert.AreEqual(0, resetData.completedMissionLevels.Count);
             Assert.AreEqual(0, loadedData.coins);
             Assert.AreEqual(1, loadedData.hqLevel);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(1, loadedData.currentMissionLevel);
             Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);
+            Assert.AreEqual(0, loadedData.completedMissionLevels.Count);
         }
     }
 }

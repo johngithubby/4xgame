@@ -57,8 +57,8 @@ Phase 1 is implemented and pushed on `develop`.
 ### Validation
 
 - EditMode tests pass with the temp-copy Unity batch workflow documented in `LESSONS_LEARNED.md`.
-- Current proof: `25/25` Phase 1 EditMode tests passed as part of the full `60/60` EditMode Unity run.
-- Current PlayMode proof includes Minigame start movement, lane-button movement, restart, rewards, mission unlocks, and return-to-Base scene flow as part of the full `10/10` PlayMode Unity run.
+- Current proof: `25/25` Phase 1 EditMode tests passed as part of the full `62/62` EditMode Unity run.
+- Current PlayMode proof includes Minigame start movement, lane-button movement, restart, rewards, mission unlocks, and return-to-Base scene flow as part of the full `14/14` PlayMode Unity run.
 - Autoreview was run on the Phase 1 polish diff and reported no accepted/actionable findings.
 
 ### Remaining Phase 1 Polish Ideas
@@ -84,7 +84,7 @@ The first tiny Phase 2 slice is implemented:
 - HQ upgrade spends coins and starts a local persisted timer.
 - Ready upgrades complete from scene load or while the base scene is open.
 - HQ level grants a starting squad bonus in the minigame.
-- Base shows the selected mission and allows previous/next selection among unlocked missions.
+- Base shows a four-row mission panel and allows direct button selection among unlocked missions.
 - Base scene can launch Minigame.
 - Base scene can launch the dedicated Heroes screen.
 - Minigame win/loss screen can return to Base.
@@ -94,7 +94,7 @@ The first tiny Phase 2 slice is implemented:
 - Editor and development builds expose a local save reset button for prototype iteration.
 - Base HUD spacing has been tightened around a phone-sized reference layout.
 - Save, wallet, timer, and progression rules have EditMode coverage.
-- Base collection/upgrade, mission selection, completed-upgrade feedback, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
+- Base collection/upgrade, mission panel selection, locked mission rejection, completed-upgrade feedback, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
 
 ### Smallest Useful Slice
 
@@ -140,6 +140,7 @@ SaveGameData
 - hqUpgradeInProgress
 - currentMissionLevel
 - highestUnlockedMissionLevel
+- completedMissionLevels
 - unlockedMinigameLevel (legacy compatibility mirror)
 - ownedHeroIds
 - equippedHeroId
@@ -156,8 +157,8 @@ SaveGameData
 - Closing and reopening preserves coins, HQ level, and active timer state. Covered by save/timer implementation and EditMode tests.
 - Finished timer upgrades HQ level. Done.
 - HQ level affects minigame stats in a visible way. Done.
-- Base scene can select previously unlocked missions. Done.
-- Winning the highest unlocked minigame mission unlocks the next mission. Done through mission 4.
+- Base scene can select previously unlocked missions. Done through direct mission buttons.
+- Winning a minigame mission marks it complete, and winning the highest unlocked minigame mission unlocks the next mission. Done through mission 4.
 - Winning the minigame grants coins once per run and persists them locally. Done.
 - Player gets visible Base feedback when an HQ upgrade completes. Done.
 - Development builds can reset local save progress from the Base scene. Done.
@@ -169,7 +170,7 @@ SaveGameData
 
 - Add EditMode tests for resource spending, insufficient funds, timer completion, mission selection/unlocks, minigame win rewards, save reset, and save/load persistence. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done.
-- Run Unity PlayMode smoke tests for Base collect/upgrade persistence, mission selection, completed-upgrade feedback, Base -> Minigame scene loading, minigame win rewards/unlocks, and Minigame end-screen -> Base return. Done.
+- Run Unity PlayMode smoke tests for Base collect/upgrade persistence, mission panel selection, locked mission rejection, completed-upgrade feedback, Base -> Minigame scene loading, minigame win rewards/unlocks/completion, mission cap behavior, and Minigame end-screen -> Base return. Done.
 - Manual Play Mode pass remains useful for visual polish, but the key Base and Minigame UI paths now have automated smoke coverage.
 
 ## Phase 3: Heroes
@@ -243,22 +244,27 @@ Add a small local mission progression layer that makes the completed Base, Heroe
 
 ### Current Status
 
-The first local v2 mission slice is implemented:
+The mission select v2 slice is implemented:
 
 - Save data tracks selected mission and highest unlocked mission.
+- Save data tracks completed mission levels separately from the highest unlocked mission.
 - The legacy `unlockedMinigameLevel` field is retained as a compatibility mirror.
-- Base HUD shows the selected mission and highest unlocked mission count.
-- Base HUD previous/next buttons select among unlocked missions and persist immediately.
+- Older sequential mission progress backfills completed predecessor missions after load.
+- Base HUD shows a four-row mission panel with selected, done, ready, and locked states.
+- Base HUD direct mission buttons select among unlocked missions and persist immediately.
+- Base mission rows show per-mission reward or unlock hints.
 - Minigame launches the selected mission from local save data.
 - Four local mission layouts exist with distinct gate/zombie pacing.
 - Clearing the highest unlocked mission unlocks the next mission up to mission 4 and auto-selects it for the Base return.
+- Clearing mission 4 marks it complete without advertising a nonexistent mission 5.
 - Win reward text shows mission unlocks alongside coins, hero unlocks, and hero XP.
 
 ### Validation
 
-- EditMode tests cover mission defaults, legacy migration, locked selection rejection, unlocked selection persistence, frontier mission unlocks, replay behavior, mission cap behavior, and level definition selection for missions 3 and 4 as part of the full `60/60` EditMode Unity run.
-- PlayMode smoke tests cover Base mission UI display, previous/next mission selection, Minigame win mission unlocks, save persistence, and Base return showing the newly selected mission as part of the full `10/10` PlayMode Unity run.
+- EditMode tests cover mission defaults, legacy migration, completed mission repair, status/reward labels, locked selection rejection, unlocked selection persistence, frontier mission unlocks, replay behavior, mission cap behavior, save persistence, and level definition selection for missions 3 and 4 as part of the full `62/62` EditMode Unity run.
+- PlayMode smoke tests cover Base mission panel display, direct mission selection, locked mission rejection, Minigame win mission unlocks, completed mission persistence, mission 4 cap completion, save persistence, and Base return showing the newly selected/completed mission as part of the full `14/14` PlayMode Unity run.
 - iOS smoke export succeeds and produces an Xcode project without adding backend or networking dependencies.
+- iOS Simulator SDK export builds, installs, and launches on a booted iPhone 17 simulator through XcodeBuildMCP; the Base mission panel screenshot was captured successfully.
 
 ## Phase 4: Online Design Only
 
@@ -296,11 +302,11 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 ## Near-Term Next Step
 
-Local Phases 1 through 3 and the first local v2 mission slice now have the requested roadmap slices represented:
+Local Phases 1 through 3 and the mission select v2 slice now have the requested roadmap slices represented:
 
 1. Dedicated Hero screen. Done.
 2. Manual local hero leveling with a coin cost. Done.
-3. Mission selection and four local minigame layouts unlocked through mission wins. Done.
+3. Mission selection, completed mission tracking, and four local minigame layouts unlocked through mission wins. Done.
 4. Shot feedback and end-screen spacing polish. Done.
-5. Stability pass with expanded tests and iOS smoke build entry point. Done and verified with Unity EditMode, PlayMode, and iOS smoke export.
+5. Stability pass with expanded tests, iOS smoke export, and iOS Simulator launch proof. Done and verified with Unity EditMode, PlayMode, iOS export, and Simulator screenshot.
 6. Phase 4 backend design doc. Done.

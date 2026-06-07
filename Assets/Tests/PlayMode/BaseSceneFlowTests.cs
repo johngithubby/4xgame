@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using LaneSurvivor.Gameplay;
 using LaneSurvivor.Heroes;
@@ -64,9 +65,10 @@ namespace LaneSurvivor.Tests.PlayMode
             // Runtime-built objects prove the bootstrap ran successfully.
             Assert.IsNotNull(GameObject.Find("Base HUD Canvas"));
             Assert.IsNotNull(GameObject.Find("HQ Building"));
-            Text missionText = GameObject.Find("Mission Text")?.GetComponent<Text>();
-            Assert.IsNotNull(missionText);
-            StringAssert.Contains("Mission 1: Outskirts", missionText.text);
+            Text missionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
+            Assert.IsNotNull(missionPanelText);
+            StringAssert.Contains("> M1 Outskirts [SELECTED] Win: +50c + M2", missionPanelText.text);
+            StringAssert.Contains("M2 Market Run [LOCKED] Unlock: clear M1", missionPanelText.text);
 
             // Invoke the real UI button listener so this verifies the same navigation path as a tap.
             Button playButton = GameObject.Find("Play Button")?.GetComponent<Button>();
@@ -102,7 +104,8 @@ namespace LaneSurvivor.Tests.PlayMode
                 "HQ Text",
                 "Timer Text",
                 "Hero Text",
-                "Mission Text"
+                "Mission Panel Title Text",
+                "Mission Panel Text"
             };
 
             foreach (string labelName in topLeftHudLabels)
@@ -119,44 +122,49 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator BaseScene_MissionButtonsPersistUnlockedSelection()
+        public IEnumerator BaseScene_MissionPanelButtonsPersistUnlockedSelectionAndRejectLockedRows()
         {
-            // Seed three unlocked missions so the Base HUD can move selection both forward and backward.
+            // Seed mission two as unlocked so the Base HUD can select it while mission three remains locked.
             SaveGameManager.Save(new SaveGameData
             {
                 currentMissionLevel = 1,
-                highestUnlockedMissionLevel = 3,
-                unlockedMinigameLevel = 3
+                highestUnlockedMissionLevel = 2,
+                unlockedMinigameLevel = 2,
+                completedMissionLevels = new List<int> { 1 }
             });
 
             // Reload Base after seeding so the bootstrap reads the prepared mission state.
             SceneManager.LoadScene("Base");
             yield return null;
 
-            // The next button should be usable because mission 2 is already unlocked.
-            Button nextMissionButton = GameObject.Find("Next Mission Button")?.GetComponent<Button>();
-            Assert.IsNotNull(nextMissionButton);
-            Assert.IsTrue(nextMissionButton.interactable);
-            nextMissionButton.onClick.Invoke();
+            // The mission two button should be usable because mission two is already unlocked.
+            Button missionTwoButton = GameObject.Find("Mission 2 Button")?.GetComponent<Button>();
+            Assert.IsNotNull(missionTwoButton);
+            Assert.IsTrue(missionTwoButton.interactable);
+            missionTwoButton.onClick.Invoke();
             yield return null;
 
             // Selecting mission 2 should save immediately and update the visible mission panel.
             SaveGameData missionTwoData = SaveGameManager.Load();
             Assert.AreEqual(2, missionTwoData.currentMissionLevel);
-            Text missionText = GameObject.Find("Mission Text")?.GetComponent<Text>();
-            Assert.IsNotNull(missionText);
-            StringAssert.Contains("Mission 2: Market Run", missionText.text);
+            Text missionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
+            Assert.IsNotNull(missionPanelText);
+            StringAssert.Contains("M1 Outskirts [DONE] Replay: +50c", missionPanelText.text);
+            StringAssert.Contains("> M2 Market Run [SELECTED] Win: +50c + M3", missionPanelText.text);
 
-            // The previous button should move back to mission 1 through the real UI listener.
-            Button previousMissionButton = GameObject.Find("Previous Mission Button")?.GetComponent<Button>();
-            Assert.IsNotNull(previousMissionButton);
-            Assert.IsTrue(previousMissionButton.interactable);
-            previousMissionButton.onClick.Invoke();
+            // Mission three should be visible but disabled until mission two is completed.
+            Button missionThreeButton = GameObject.Find("Mission 3 Button")?.GetComponent<Button>();
+            Assert.IsNotNull(missionThreeButton);
+            Assert.IsFalse(missionThreeButton.interactable);
+            missionThreeButton.onClick.Invoke();
             yield return null;
 
-            // Reload from disk so the assertion proves selection persistence, not just in-memory UI state.
-            SaveGameData missionOneData = SaveGameManager.Load();
-            Assert.AreEqual(1, missionOneData.currentMissionLevel);
+            // A direct listener invoke should still fail safely through the progression guard and leave selection alone.
+            SaveGameData lockedAttemptData = SaveGameManager.Load();
+            Assert.AreEqual(2, lockedAttemptData.currentMissionLevel);
+            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
+            Assert.IsNotNull(statusText);
+            StringAssert.Contains("Mission 3 locked", statusText.text);
         }
 
         [UnityTest]
@@ -390,6 +398,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(2, rewardedData.currentMissionLevel);
             Assert.AreEqual(2, rewardedData.highestUnlockedMissionLevel);
             Assert.AreEqual(2, rewardedData.unlockedMinigameLevel);
+            CollectionAssert.AreEqual(new[] { 1 }, rewardedData.completedMissionLevels);
             Assert.IsTrue(HeroInventory.OwnsHero(rewardedData, HeroCatalog.FirstWinHeroId));
 
             Button baseButton = GameObject.Find("Base Button")?.GetComponent<Button>();
@@ -401,9 +410,66 @@ namespace LaneSurvivor.Tests.PlayMode
             // Returning to Base should rebuild the local hub instead of leaving the player in the minigame.
             Assert.AreEqual("Base", SceneManager.GetActiveScene().name);
             Assert.IsNotNull(GameObject.Find("Base HUD Canvas"));
-            Text returnedMissionText = GameObject.Find("Mission Text")?.GetComponent<Text>();
-            Assert.IsNotNull(returnedMissionText);
-            StringAssert.Contains("Mission 2: Market Run", returnedMissionText.text);
+            Text returnedMissionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
+            Assert.IsNotNull(returnedMissionPanelText);
+            StringAssert.Contains("M1 Outskirts [DONE] Replay: +50c", returnedMissionPanelText.text);
+            StringAssert.Contains("> M2 Market Run [SELECTED] Win: +50c + M3", returnedMissionPanelText.text);
+        }
+
+        [UnityTest]
+        public IEnumerator MinigameScene_MaxMissionCompletionMarksDoneWithoutUnlockingPastCap()
+        {
+            // Seed the final authored mission so the win path exercises the local progression cap.
+            SaveGameManager.Save(new SaveGameData
+            {
+                // A large HQ bonus lets the teleported squad survive center-lane breaches on the final layout.
+                hqLevel = 30,
+                currentMissionLevel = PlayerProgression.MaxMissionLevel,
+                highestUnlockedMissionLevel = PlayerProgression.MaxMissionLevel,
+                unlockedMinigameLevel = PlayerProgression.MaxMissionLevel,
+                completedMissionLevels = new List<int> { 1, 2, 3 }
+            });
+
+            // Load the minigame directly so the selected final mission is used by the runtime bootstrap.
+            SceneManager.LoadScene("Minigame");
+            yield return null;
+
+            // Wait a second frame so LevelManager.Start initializes gameplay dependencies.
+            yield return null;
+
+            // Force a win on the final mission through the same state transition used by normal gameplay.
+            LevelManager levelManager = GameObject.Find("Level Manager")?.GetComponent<LevelManager>();
+            PlayerSquad playerSquad = GameObject.Find("Player Squad")?.GetComponent<PlayerSquad>();
+            Assert.IsNotNull(levelManager);
+            Assert.IsNotNull(playerSquad);
+            levelManager.BeginLevel();
+            playerSquad.transform.position = new Vector3(playerSquad.transform.position.x, playerSquad.transform.position.y, 999f);
+            yield return null;
+
+            // The reward text should not advertise an impossible mission five unlock.
+            Text rewardText = GameObject.Find("Reward Text")?.GetComponent<Text>();
+            Assert.IsNotNull(rewardText);
+            StringAssert.Contains($"+{PlayerProgression.MinigameWinCoins} coins", rewardText.text);
+            Assert.IsFalse(rewardText.text.Contains("Mission 5"), rewardText.text);
+            Assert.IsFalse(rewardText.text.Contains("unlocked"), rewardText.text);
+
+            // The saved state should mark mission four complete while preserving the authored mission cap.
+            SaveGameData rewardedData = SaveGameManager.Load();
+            Assert.AreEqual(PlayerProgression.MaxMissionLevel, rewardedData.currentMissionLevel);
+            Assert.AreEqual(PlayerProgression.MaxMissionLevel, rewardedData.highestUnlockedMissionLevel);
+            Assert.AreEqual(PlayerProgression.MaxMissionLevel, rewardedData.unlockedMinigameLevel);
+            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4 }, rewardedData.completedMissionLevels);
+
+            // Returning to Base should show the final mission as selected and replayable rather than locked.
+            Button baseButton = GameObject.Find("Base Button")?.GetComponent<Button>();
+            Assert.IsNotNull(baseButton);
+            baseButton.onClick.Invoke();
+            yield return null;
+
+            Assert.AreEqual("Base", SceneManager.GetActiveScene().name);
+            Text returnedMissionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
+            Assert.IsNotNull(returnedMissionPanelText);
+            StringAssert.Contains("> M4 Last Block [DONE SELECTED] Replay: +50c", returnedMissionPanelText.text);
         }
 
         [UnityTest]

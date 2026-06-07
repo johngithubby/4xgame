@@ -46,7 +46,7 @@ namespace LaneSurvivor.Base
             CreateGround(groundMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, SelectPreviousMission, SelectNextMission, ResetSave, EquipNextOwnedHero, LaunchHeroes);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes);
 
             RefreshScene();
         }
@@ -98,32 +98,21 @@ namespace LaneSurvivor.Base
             RefreshScene();
         }
 
-        private void SelectPreviousMission()
+        private void SelectMission(int missionLevel)
         {
-            // Previous selection uses the same helper as the next button so locking rules stay centralized.
-            SelectMissionOffset(-1);
-        }
-
-        private void SelectNextMission()
-        {
-            // Next selection can only move through missions already unlocked by local minigame wins.
-            SelectMissionOffset(1);
-        }
-
-        private void SelectMissionOffset(int missionOffset)
-        {
-            // Derive the target from the normalized saved selection instead of trusting stale HUD labels.
-            int targetMissionLevel = PlayerProgression.GetSelectedMissionLevel(saveData) + missionOffset;
-            if (!PlayerProgression.TrySelectMission(saveData, targetMissionLevel))
+            // Direct mission buttons still route through progression so locked or corrupted targets are rejected.
+            if (!PlayerProgression.TrySelectMission(saveData, missionLevel))
             {
-                statusMessage = "Mission locked";
+                statusMessage = $"Mission {missionLevel} locked";
                 RefreshScene();
                 return;
             }
 
             // Save immediately so launching the minigame or closing the app preserves the selected mission.
             SaveGameManager.Save(saveData);
-            statusMessage = $"Mission {targetMissionLevel}: {PlayerProgression.GetMissionName(targetMissionLevel)}";
+            statusMessage = PlayerProgression.IsMissionCompleted(saveData, missionLevel)
+                ? $"Mission {missionLevel} replay ready"
+                : $"Mission {missionLevel}: {PlayerProgression.GetMissionName(missionLevel)}";
             RefreshScene();
         }
 
@@ -260,7 +249,12 @@ namespace LaneSurvivor.Base
             Text hqText = CreateText(canvas.transform, "HQ Text", "HQ Level: 1", font, new Vector2(16f, -90f), TextAnchor.UpperLeft, new Vector2(240f, 34f));
             Text timerText = CreateText(canvas.transform, "Timer Text", "Upgrade: Ready", font, new Vector2(16f, -122f), TextAnchor.UpperLeft, new Vector2(280f, 34f));
             Text heroText = CreateText(canvas.transform, "Hero Text", "Hero: None", font, new Vector2(16f, -154f), TextAnchor.UpperLeft, new Vector2(340f, 34f));
-            Text missionText = CreateText(canvas.transform, "Mission Text", "Mission 1: Outskirts", font, new Vector2(16f, -204f), TextAnchor.UpperLeft, new Vector2(232f, 58f));
+            Text missionPanelTitleText = CreateText(canvas.transform, "Mission Panel Title Text", "Missions", font, new Vector2(16f, -190f), TextAnchor.UpperLeft, new Vector2(184f, 28f));
+            Text missionPanelText = CreateText(canvas.transform, "Mission Panel Text", "M1 Outskirts", font, new Vector2(16f, -224f), TextAnchor.UpperLeft, new Vector2(358f, 96f));
+            // Four mission rows need smaller type than the top summary labels to fit a phone-sized panel.
+            missionPanelTitleText.fontSize = 22;
+            missionPanelText.fontSize = 15;
+            missionPanelText.lineSpacing = 0.95f;
             Text heroPanelTitleText = CreateText(canvas.transform, "Hero Panel Title Text", "Owned Heroes", font, new Vector2(0f, 260f), TextAnchor.LowerCenter, new Vector2(360f, 30f));
             Text heroPanelText = CreateText(canvas.transform, "Hero Panel Text", "None earned yet", font, new Vector2(0f, 214f), TextAnchor.LowerCenter, new Vector2(360f, 58f));
             Text statusText = CreateText(canvas.transform, "Status Text", "Next HQ upgrade", font, new Vector2(0f, 92f), TextAnchor.LowerCenter, new Vector2(360f, 34f));
@@ -268,14 +262,20 @@ namespace LaneSurvivor.Base
             Button collectButton = CreateButton(canvas.transform, "Collect Button", "COLLECT", font, new Vector2(-126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button upgradeButton = CreateButton(canvas.transform, "Upgrade Button", "UPGRADE", font, new Vector2(0f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button playButton = CreateButton(canvas.transform, "Play Button", "PLAY", font, new Vector2(126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
-            Button previousMissionButton = CreateButton(canvas.transform, "Previous Mission Button", "<", font, new Vector2(-94f, -222f), new Vector2(1f, 1f), new Vector2(48f, 36f));
-            Button nextMissionButton = CreateButton(canvas.transform, "Next Mission Button", ">", font, new Vector2(-38f, -222f), new Vector2(1f, 1f), new Vector2(48f, 36f));
+            Button missionOneButton = CreateButton(canvas.transform, "Mission 1 Button", "M1", font, new Vector2(-168f, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
+            Button missionTwoButton = CreateButton(canvas.transform, "Mission 2 Button", "M2", font, new Vector2(-126f, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
+            Button missionThreeButton = CreateButton(canvas.transform, "Mission 3 Button", "M3", font, new Vector2(-84f, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
+            Button missionFourButton = CreateButton(canvas.transform, "Mission 4 Button", "M4", font, new Vector2(-42f, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
+            ConfigureCompactButtonLabel(missionOneButton);
+            ConfigureCompactButtonLabel(missionTwoButton);
+            ConfigureCompactButtonLabel(missionThreeButton);
+            ConfigureCompactButtonLabel(missionFourButton);
             Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-58f, -18f), new Vector2(1f, 1f), new Vector2(72f, 34f));
             Button equipHeroButton = CreateButton(canvas.transform, "Equip Hero Button", "EQUIP", font, new Vector2(-56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
             Button heroesButton = CreateButton(canvas.transform, "Heroes Button", "HEROES", font, new Vector2(56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, heroText, missionText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, previousMissionButton, nextMissionButton, resetButton, equipHeroButton, heroesButton);
+            hud.Configure(titleText, coinsText, hqText, timerText, heroText, missionPanelTitleText, missionPanelText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, missionOneButton, missionTwoButton, missionThreeButton, missionFourButton, resetButton, equipHeroButton, heroesButton);
             return hud;
         }
 
@@ -355,6 +355,22 @@ namespace LaneSurvivor.Base
             labelRect.offsetMax = Vector2.zero;
             label.color = Color.black;
             return button;
+        }
+
+        private static void ConfigureCompactButtonLabel(Button button)
+        {
+            // Mission buttons are intentionally narrow, so allow their selected marker to shrink instead of clipping.
+            Text label = button.GetComponentInChildren<Text>();
+            if (label == null)
+            {
+                return;
+            }
+
+            // Best-fit keeps the four-button row stable while still naming the selected mission.
+            label.fontSize = 18;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 12;
+            label.resizeTextMaxSize = 18;
         }
 
         private static Vector2 AnchorFromTextAnchor(TextAnchor anchor)
