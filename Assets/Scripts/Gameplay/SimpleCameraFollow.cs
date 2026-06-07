@@ -16,6 +16,13 @@ namespace LaneSurvivor.Gameplay
         [SerializeField]
         private bool followTargetX;
 
+        [SerializeField]
+        private bool useResponsiveFieldOfView = true;
+
+        private Camera followCamera;
+
+        private float lastAppliedAspect = -1f;
+
         public void Initialize(Transform followTarget, Vector3 followOffset)
         {
             Initialize(followTarget, followOffset, lookAtOffset, followTargetX);
@@ -32,11 +39,15 @@ namespace LaneSurvivor.Gameplay
             offset = followOffset;
             lookAtOffset = followLookAtOffset;
             followTargetX = trackTargetX;
+            followCamera = GetComponent<Camera>();
+            ApplyResponsiveFieldOfView();
             SnapToTarget();
         }
 
         private void LateUpdate()
         {
+            ApplyResponsiveFieldOfView();
+
             if (target == null)
             {
                 return;
@@ -74,6 +85,38 @@ namespace LaneSurvivor.Gameplay
         {
             // Side-lane play needs optional X tracking so the squad cannot drift out of the narrow portrait frame.
             return followTargetX && target != null ? target.position.x + offset.x : offset.x;
+        }
+
+        private void ApplyResponsiveFieldOfView()
+        {
+            if (!useResponsiveFieldOfView)
+            {
+                return;
+            }
+
+            if (followCamera == null)
+            {
+                // Cache the camera lazily because tests and generated scenes can add components in either order.
+                followCamera = GetComponent<Camera>();
+            }
+
+            if (followCamera == null || followCamera.orthographic)
+            {
+                return;
+            }
+
+            // Unity reports the active render target aspect, which changes with device and Game view shape.
+            float currentAspect = followCamera.aspect;
+
+            // Avoid rewriting the Camera every frame when no aspect or FOV change is needed.
+            if (Mathf.Approximately(currentAspect, lastAppliedAspect))
+            {
+                return;
+            }
+
+            // The shared visual rule keeps side lanes visible on narrow portrait devices.
+            followCamera.fieldOfView = GameplayVisuals.GetCameraFieldOfViewForAspect(currentAspect);
+            lastAppliedAspect = currentAspect;
         }
     }
 }

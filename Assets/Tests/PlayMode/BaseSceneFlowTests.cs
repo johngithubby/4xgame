@@ -302,18 +302,20 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator MinigameScene_TopLeftHudLabelsStayInsideCanvas()
+        public IEnumerator MinigameScene_HudEdgeLabelsStayInsideCanvas()
         {
             // Load the minigame directly so this test inspects the runtime HUD generated for actual play.
             SceneManager.LoadScene("Minigame");
             yield return null;
 
-            // Canvas bounds define the visible overlay edge where the screenshot showed clipping.
+            // Canvas bounds define the visible overlay edges where simulator captures can reveal clipping.
             RectTransform canvasRect = GameObject.Find("HUD Canvas")?.GetComponent<RectTransform>();
             Assert.IsNotNull(canvasRect);
             Vector3[] canvasCorners = new Vector3[4];
             canvasRect.GetWorldCorners(canvasCorners);
             float canvasLeftEdge = canvasCorners[0].x;
+            float canvasTopEdge = canvasCorners[1].y;
+            float canvasRightEdge = canvasCorners[2].x;
 
             // These upper-left labels are the minigame text group that can hang offscreen with a centered pivot.
             string[] topLeftHudLabels =
@@ -332,7 +334,23 @@ namespace LaneSurvivor.Tests.PlayMode
 
                 // A tiny tolerance avoids float noise while still failing on visible left-edge clipping.
                 Assert.GreaterOrEqual(labelCorners[0].x, canvasLeftEdge - 0.5f, $"{labelName} left edge should stay inside the Minigame HUD canvas.");
+                Assert.LessOrEqual(labelCorners[1].y, canvasTopEdge + 0.5f, $"{labelName} top edge should stay inside the Minigame HUD canvas.");
             }
+
+            // The state label lives on the upper right so it stays out from under the iPhone Dynamic Island.
+            RectTransform stateRect = GameObject.Find("State Text")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(stateRect);
+            Vector3[] stateCorners = new Vector3[4];
+            stateRect.GetWorldCorners(stateCorners);
+
+            // The upper-right anchor and pivot make the state text grow inward from the right screen inset.
+            Assert.AreEqual(new Vector2(1f, 1f), stateRect.anchorMin);
+            Assert.AreEqual(new Vector2(1f, 1f), stateRect.anchorMax);
+            Assert.AreEqual(new Vector2(1f, 1f), stateRect.pivot);
+
+            // A tiny tolerance avoids float noise while still failing on visible top or right-edge clipping.
+            Assert.LessOrEqual(stateCorners[1].y, canvasTopEdge + 0.5f, "State Text top edge should stay inside the Minigame HUD canvas.");
+            Assert.LessOrEqual(stateCorners[2].x, canvasRightEdge + 0.5f, "State Text right edge should stay inside the Minigame HUD canvas.");
         }
 
         [UnityTest]

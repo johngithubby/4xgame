@@ -65,7 +65,7 @@ Phase 1 is implemented and pushed on `develop`.
 
 - Add a simple sound-free hit flash or projectile placeholder. Done with shot tracers.
 - Add a second small level definition. Done through mission progression.
-- Improve camera framing for different device aspect ratios.
+- Improve camera framing for different device aspect ratios. Done with aspect-responsive minigame camera FOV.
 - Expand PlayMode smoke coverage for longer full-run visual/gameplay passes when worthwhile.
 
 ## Phase 2: Light Base-Building
@@ -310,3 +310,4 @@ Local Phases 1 through 3 and the mission select v2 slice now have the requested 
 4. Shot feedback and end-screen spacing polish. Done.
 5. Stability pass with expanded tests, iOS smoke export, and iOS Simulator launch proof. Done and verified with Unity EditMode, PlayMode, iOS export, and Simulator screenshot.
 6. Phase 4 backend design doc. Done.
+7. Device-aspect camera framing polish. Done with responsive camera FOV, upper-right Minigame state text placement, and automated coverage.

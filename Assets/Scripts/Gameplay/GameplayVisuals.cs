@@ -73,6 +73,12 @@ namespace LaneSurvivor.Gameplay
         // Perspective FOV keeps the lane shooter readable without flattening it into a top-down board.
         public const float CameraFieldOfView = 66f;
 
+        // The camera was tuned against a modern portrait iPhone shape, so wider screens can keep the base view.
+        public const float CameraReferenceAspect = 9f / 19.5f;
+
+        // Ultra-tall phones need a wider vertical FOV, but this cap avoids a distorted action-camera look.
+        public const float CameraMaximumFieldOfView = 74f;
+
         // A wider chase view keeps all gameplay lanes visible while leaving room below the squad.
         public static readonly Vector3 CameraOffset = new(0f, 9.5f, -9.2f);
 
@@ -146,6 +152,24 @@ namespace LaneSurvivor.Gameplay
         {
             // Level data owns lane and distance, while this helper owns prototype vertical staging.
             return new Vector3(source.x, visualY, source.z);
+        }
+
+        public static float GetCameraFieldOfViewForAspect(float screenAspect)
+        {
+            // Invalid or uninitialized camera aspects should fall back to the tuned reference view.
+            float safeAspect = screenAspect > 0f ? screenAspect : CameraReferenceAspect;
+
+            // Preserve the reference horizontal viewing angle when the screen gets narrower than the tuned phone.
+            float referenceHalfFovRadians = CameraFieldOfView * 0.5f * Mathf.Deg2Rad;
+
+            // Horizontal coverage is represented as a tangent so it can be converted back to vertical FOV.
+            float referenceHorizontalTan = Mathf.Tan(referenceHalfFovRadians) * CameraReferenceAspect;
+
+            // Wider screens already show more lane width, so only narrow screens request a larger vertical FOV.
+            float requestedFieldOfView = Mathf.Atan(referenceHorizontalTan / safeAspect) * 2f * Mathf.Rad2Deg;
+
+            // Clamp keeps the base framing stable on tablets while giving tall phones controlled extra coverage.
+            return Mathf.Clamp(requestedFieldOfView, CameraFieldOfView, CameraMaximumFieldOfView);
         }
     }
 }

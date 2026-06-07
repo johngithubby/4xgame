@@ -581,6 +581,10 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.GreaterOrEqual(GameplayVisuals.CameraFieldOfView, 45f);
             Assert.LessOrEqual(GameplayVisuals.CameraFieldOfView, 68f);
 
+            // The responsive cap may widen tall-phone framing, but it should still avoid fisheye distortion.
+            Assert.GreaterOrEqual(GameplayVisuals.CameraMaximumFieldOfView, GameplayVisuals.CameraFieldOfView);
+            Assert.LessOrEqual(GameplayVisuals.CameraMaximumFieldOfView, 76f);
+
             // A negative Z offset keeps the camera behind the squad rather than letting it run toward the horizon.
             Assert.Less(GameplayVisuals.CameraOffset.z, 0f);
 
@@ -598,6 +602,69 @@ namespace LaneSurvivor.Tests.EditMode
             float downwardAngle = Mathf.Atan2(Mathf.Abs(cameraToLookAt.y), Mathf.Abs(cameraToLookAt.z)) * Mathf.Rad2Deg;
             Assert.GreaterOrEqual(downwardAngle, 36f);
             Assert.Less(downwardAngle, 50f);
+        }
+
+        [Test]
+        public void GameplayVisuals_WidensCameraFovOnlyForNarrowPortraitAspects()
+        {
+            // The reference aspect should keep the hand-tuned simulator framing unchanged.
+            float referenceFieldOfView = GameplayVisuals.GetCameraFieldOfViewForAspect(GameplayVisuals.CameraReferenceAspect);
+            Assert.AreEqual(GameplayVisuals.CameraFieldOfView, referenceFieldOfView, 0.001f);
+
+            // Tablet and wider phone shapes already show enough lane width, so they should not zoom out further.
+            float tabletPortraitFieldOfView = GameplayVisuals.GetCameraFieldOfViewForAspect(3f / 4f);
+            Assert.AreEqual(GameplayVisuals.CameraFieldOfView, tabletPortraitFieldOfView, 0.001f);
+
+            // Invalid camera aspects can occur before a render target is ready and should use the stable reference.
+            float fallbackFieldOfView = GameplayVisuals.GetCameraFieldOfViewForAspect(0f);
+            Assert.AreEqual(GameplayVisuals.CameraFieldOfView, fallbackFieldOfView, 0.001f);
+
+            // Very tall portrait phones need extra vertical FOV to preserve the same horizontal lane coverage.
+            float tallPhoneAspect = 9f / 21.5f;
+            float tallPhoneFieldOfView = GameplayVisuals.GetCameraFieldOfViewForAspect(tallPhoneAspect);
+            Assert.Greater(tallPhoneFieldOfView, GameplayVisuals.CameraFieldOfView);
+            Assert.LessOrEqual(tallPhoneFieldOfView, GameplayVisuals.CameraMaximumFieldOfView);
+
+            // The widened vertical FOV should preserve the reference horizontal angle for supported tall phones.
+            float referenceHorizontalFieldOfView = CalculateHorizontalFieldOfView(referenceFieldOfView, GameplayVisuals.CameraReferenceAspect);
+            float tallPhoneHorizontalFieldOfView = CalculateHorizontalFieldOfView(tallPhoneFieldOfView, tallPhoneAspect);
+            Assert.AreEqual(referenceHorizontalFieldOfView, tallPhoneHorizontalFieldOfView, 0.001f);
+        }
+
+        [Test]
+        public void SimpleCameraFollow_AppliesResponsiveFieldOfViewWhenAspectChanges()
+        {
+            GameObject cameraObject = new("Responsive Camera Under Test");
+            GameObject targetObject = new("Camera Target Under Test");
+
+            try
+            {
+                // A perspective camera is required because orthographic cameras ignore vertical FOV.
+                Camera camera = cameraObject.AddComponent<Camera>();
+                camera.orthographic = false;
+                camera.aspect = GameplayVisuals.CameraReferenceAspect;
+                camera.fieldOfView = 25f;
+
+                // The follow component should correct the initial FOV during initialization.
+                SimpleCameraFollow follow = cameraObject.AddComponent<SimpleCameraFollow>();
+                follow.Initialize(targetObject.transform, GameplayVisuals.CameraOffset, GameplayVisuals.CameraLookAtOffset, false);
+                Assert.AreEqual(GameplayVisuals.CameraFieldOfView, camera.fieldOfView, 0.001f);
+
+                // A later aspect change simulates rotating or resizing the Game view before the next frame.
+                float tallPhoneAspect = 9f / 21.5f;
+                camera.aspect = tallPhoneAspect;
+                InvokeSimpleCameraFollowLateUpdate(follow);
+
+                // LateUpdate should refresh the FOV to the same value as the shared visual rule.
+                float expectedTallFieldOfView = GameplayVisuals.GetCameraFieldOfViewForAspect(tallPhoneAspect);
+                Assert.AreEqual(expectedTallFieldOfView, camera.fieldOfView, 0.001f);
+            }
+            finally
+            {
+                // Destroy generated Unity objects explicitly so EditMode tests stay isolated.
+                UnityEngine.Object.DestroyImmediate(cameraObject);
+                UnityEngine.Object.DestroyImmediate(targetObject);
+            }
         }
 
         [Test]
@@ -697,6 +764,27 @@ namespace LaneSurvivor.Tests.EditMode
 
             // Invoke once to simulate the first frame where the shot timer is ready.
             updateMethod.Invoke(shooter, null);
+        }
+
+        private static void InvokeSimpleCameraFollowLateUpdate(SimpleCameraFollow follow)
+        {
+            // The camera follow update is private runtime code, so tests reflect it by exact Unity callback name.
+            MethodInfo lateUpdateMethod = typeof(SimpleCameraFollow).GetMethod("LateUpdate", BindingFlags.Instance | BindingFlags.NonPublic);
+
+            // A missing method should fail with a clear test assertion instead of a NullReferenceException.
+            Assert.IsNotNull(lateUpdateMethod);
+
+            // Invoke once to simulate the first frame after an aspect ratio change.
+            lateUpdateMethod.Invoke(follow, null);
+        }
+
+        private static float CalculateHorizontalFieldOfView(float verticalFieldOfView, float aspect)
+        {
+            // Unity stores vertical FOV, while lane visibility depends on the derived horizontal angle.
+            float halfVerticalRadians = verticalFieldOfView * 0.5f * Mathf.Deg2Rad;
+
+            // Perspective projection converts vertical coverage into horizontal coverage through the aspect ratio.
+            return Mathf.Atan(Mathf.Tan(halfVerticalRadians) * aspect) * 2f * Mathf.Rad2Deg;
         }
 
         private static Zombie CreateZombie(Vector3 position, int breachPenalty)

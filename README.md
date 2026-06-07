@@ -17,6 +17,8 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Lane input works with the on-screen arrow buttons, keyboard `A/D`, keyboard arrow keys, or tapping/clicking the left or right third of the screen.
 - Local mission progression unlocks additional minigame layouts with tougher lane pacing.
 - Automatic shots now show placeholder tracers and damage text.
+- The minigame chase camera widens its vertical FOV on extra-tall portrait devices so side lanes stay readable across iOS aspect ratios.
+- The minigame state label is anchored upper-right so simulator captures do not hide it under iPhone Dynamic Island overlays.
 
 ## Phase 2
 
@@ -51,7 +53,8 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - EditMode tests live in `Assets/Tests/EditMode`.
 - PlayMode scene smoke tests live in `Assets/Tests/PlayMode`.
 - Current EditMode test coverage includes Phase 1 gameplay rules, Phase 2 progression/save/mission completion rules, and Phase 3 hero inventory rules.
-- Current PlayMode test coverage includes Base collect/upgrade persistence, mission panel selection, locked mission rejection, completed-upgrade feedback, Base-to-Minigame flow, Minigame start movement, lane-button movement, restart, rewards, mission unlocks, mission cap completion, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
+- Current EditMode visual coverage includes compact placeholder geometry, disabled depth-unsafe world effects, and responsive minigame camera FOV rules for tall portrait devices.
+- Current PlayMode test coverage includes Base collect/upgrade persistence, mission panel selection, locked mission rejection, completed-upgrade feedback, Base-to-Minigame flow, Minigame HUD edge-label placement, Minigame start movement, lane-button movement, restart, rewards, mission unlocks, mission cap completion, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
 - A batch-mode iOS smoke build entry point exists at `LaneSurvivor.Editor.IosSmokeBuild.Run`, including optional simulator SDK export flags for local Simulator launch checks.
 

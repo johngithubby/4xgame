@@ -124,7 +124,8 @@ namespace LaneSurvivor.Gameplay
 
             Text squadText = CreateText(canvas.transform, "Squad Text", "Squad: 0", font, new Vector2(20f, -20f), TextAnchor.UpperLeft);
             Text progressText = CreateText(canvas.transform, "Progress Text", "Progress: 0%", font, new Vector2(20f, -55f), TextAnchor.UpperLeft);
-            Text stateText = CreateText(canvas.transform, "State Text", "Ready", font, new Vector2(0f, -20f), TextAnchor.UpperCenter);
+            // Move transient state text away from the iPhone Dynamic Island while preserving the top HUD group.
+            Text stateText = CreateText(canvas.transform, "State Text", "Ready", font, new Vector2(-20f, -20f), TextAnchor.UpperRight);
             Button startButton = CreateButton(canvas.transform, "Start Button", "START", font, new Vector2(0f, -95f));
             Button leftButton = CreateButton(canvas.transform, "Left Lane Button", "<", font, new Vector2(-120f, 60f), new Vector2(0.5f, 0f));
             Button rightButton = CreateButton(canvas.transform, "Right Lane Button", ">", font, new Vector2(120f, 60f), new Vector2(0.5f, 0f));
@@ -243,6 +244,7 @@ namespace LaneSurvivor.Gameplay
             return anchor switch
             {
                 TextAnchor.UpperLeft => new Vector2(0f, 1f),
+                TextAnchor.UpperRight => new Vector2(1f, 1f),
                 TextAnchor.UpperCenter => new Vector2(0.5f, 1f),
                 TextAnchor.MiddleCenter => new Vector2(0.5f, 0.5f),
                 _ => new Vector2(0.5f, 0.5f)
