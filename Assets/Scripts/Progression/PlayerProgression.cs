@@ -13,7 +13,7 @@ namespace LaneSurvivor.Progression
 
         public const int HqUpgradeDurationSeconds = 20;
 
-        public const int MaxMissionLevel = 4;
+        public const int MaxMissionLevel = 8;
 
         public static void CollectCoins(SaveGameData data)
         {
@@ -100,6 +100,10 @@ namespace LaneSurvivor.Progression
                 2 => "Market Run",
                 3 => "Overpass",
                 4 => "Last Block",
+                5 => "Armory Cut",
+                6 => "Depot Push",
+                7 => "Crossfire",
+                8 => "Final Hold",
                 _ => "Outskirts"
             };
         }

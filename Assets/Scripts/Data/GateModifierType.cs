@@ -5,6 +5,7 @@ namespace LaneSurvivor.Data
         AddSquad,
         MultiplySquad,
         SubtractSquad,
-        AddDamage
+        AddDamage,
+        MultiplyDamage
     }
 }

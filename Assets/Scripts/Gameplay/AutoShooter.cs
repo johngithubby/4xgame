@@ -63,8 +63,8 @@ namespace LaneSurvivor.Gameplay
             {
                 // Capture damage once so visual feedback matches the gameplay mutation.
                 float damage = playerSquad.GetTotalDamage();
-                target.TakeDamage(damage);
-                ShotFired?.Invoke(playerSquad.transform.position + Vector3.up * 0.5f, target.transform.position + Vector3.up * 0.5f, damage);
+                float appliedDamage = target.TakeDamage(damage);
+                ShotFired?.Invoke(playerSquad.transform.position + Vector3.up * 0.5f, target.transform.position + Vector3.up * 0.5f, appliedDamage);
             }
         }
 

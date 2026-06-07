@@ -2,6 +2,7 @@ using System;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Rendering;
+using LaneSurvivor.Retention;
 using LaneSurvivor.Save;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -24,6 +25,7 @@ namespace LaneSurvivor.Base
         {
             // Load local progress before building UI so the first frame reflects persisted state.
             saveData = SaveGameManager.Load();
+            bool saveDirty = DailyObjectiveProgression.EnsureCurrentObjective(saveData, DateTime.UtcNow);
 
             // Complete any timer that finished while the app was closed.
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
@@ -31,9 +33,16 @@ namespace LaneSurvivor.Base
                 statusMessage = "HQ upgrade complete";
                 GrantHqMilestoneRewards();
                 SaveGameManager.Save(saveData);
+                saveDirty = false;
             }
             else if (GrantHqMilestoneRewards())
             {
+                SaveGameManager.Save(saveData);
+                saveDirty = false;
+            }
+            else if (saveDirty)
+            {
+                // Persist a UTC-day objective rollover even when no upgrade or milestone reward also changes the save.
                 SaveGameManager.Save(saveData);
             }
 
@@ -46,7 +55,7 @@ namespace LaneSurvivor.Base
             CreateGround(groundMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ClaimDailyObjective, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes);
 
             RefreshScene();
         }
@@ -113,6 +122,22 @@ namespace LaneSurvivor.Base
             statusMessage = PlayerProgression.IsMissionCompleted(saveData, missionLevel)
                 ? $"Mission {missionLevel} replay ready"
                 : $"Mission {missionLevel}: {PlayerProgression.GetMissionName(missionLevel)}";
+            RefreshScene();
+        }
+
+        private void ClaimDailyObjective()
+        {
+            // Claim through the retention system so day rollover, eligibility, and coin reward stay centralized.
+            if (!DailyObjectiveProgression.TryClaimReward(saveData, DateTime.UtcNow))
+            {
+                statusMessage = "Daily objective not ready";
+                RefreshScene();
+                return;
+            }
+
+            // Save immediately so the once-per-day claim cannot be repeated after returning from another scene.
+            SaveGameManager.Save(saveData);
+            statusMessage = $"+{DailyObjectiveProgression.RewardCoins} daily coins claimed";
             RefreshScene();
         }
 
@@ -250,11 +275,13 @@ namespace LaneSurvivor.Base
             Text timerText = CreateText(canvas.transform, "Timer Text", "Upgrade: Ready", font, new Vector2(16f, -122f), TextAnchor.UpperLeft, new Vector2(280f, 34f));
             Text heroText = CreateText(canvas.transform, "Hero Text", "Hero: None", font, new Vector2(16f, -154f), TextAnchor.UpperLeft, new Vector2(340f, 34f));
             Text missionPanelTitleText = CreateText(canvas.transform, "Mission Panel Title Text", "Missions", font, new Vector2(16f, -190f), TextAnchor.UpperLeft, new Vector2(184f, 28f));
-            Text missionPanelText = CreateText(canvas.transform, "Mission Panel Text", "M1 Outskirts", font, new Vector2(16f, -224f), TextAnchor.UpperLeft, new Vector2(358f, 96f));
-            // Four mission rows need smaller type than the top summary labels to fit a phone-sized panel.
+            Text missionPanelText = CreateText(canvas.transform, "Mission Panel Text", "M1 Outskirts", font, new Vector2(16f, -224f), TextAnchor.UpperLeft, new Vector2(358f, 150f));
+            Text objectiveText = CreateText(canvas.transform, "Objective Text", "Daily: 0/2 wins", font, new Vector2(16f, -384f), TextAnchor.UpperLeft, new Vector2(268f, 34f));
+            // Eight mission rows need compact type so the panel still fits the phone-sized reference HUD.
             missionPanelTitleText.fontSize = 22;
-            missionPanelText.fontSize = 15;
-            missionPanelText.lineSpacing = 0.95f;
+            missionPanelText.fontSize = 12;
+            missionPanelText.lineSpacing = 0.86f;
+            objectiveText.fontSize = 15;
             Text heroPanelTitleText = CreateText(canvas.transform, "Hero Panel Title Text", "Owned Heroes", font, new Vector2(0f, 260f), TextAnchor.LowerCenter, new Vector2(360f, 30f));
             Text heroPanelText = CreateText(canvas.transform, "Hero Panel Text", "None earned yet", font, new Vector2(0f, 214f), TextAnchor.LowerCenter, new Vector2(360f, 58f));
             Text statusText = CreateText(canvas.transform, "Status Text", "Next HQ upgrade", font, new Vector2(0f, 92f), TextAnchor.LowerCenter, new Vector2(360f, 34f));
@@ -262,21 +289,32 @@ namespace LaneSurvivor.Base
             Button collectButton = CreateButton(canvas.transform, "Collect Button", "COLLECT", font, new Vector2(-126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button upgradeButton = CreateButton(canvas.transform, "Upgrade Button", "UPGRADE", font, new Vector2(0f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button playButton = CreateButton(canvas.transform, "Play Button", "PLAY", font, new Vector2(126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
-            Button missionOneButton = CreateButton(canvas.transform, "Mission 1 Button", "M1", font, new Vector2(-168f, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
-            Button missionTwoButton = CreateButton(canvas.transform, "Mission 2 Button", "M2", font, new Vector2(-126f, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
-            Button missionThreeButton = CreateButton(canvas.transform, "Mission 3 Button", "M3", font, new Vector2(-84f, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
-            Button missionFourButton = CreateButton(canvas.transform, "Mission 4 Button", "M4", font, new Vector2(-42f, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
-            ConfigureCompactButtonLabel(missionOneButton);
-            ConfigureCompactButtonLabel(missionTwoButton);
-            ConfigureCompactButtonLabel(missionThreeButton);
-            ConfigureCompactButtonLabel(missionFourButton);
+            Button claimObjectiveButton = CreateButton(canvas.transform, "Claim Objective Button", "CLAIM", font, new Vector2(-46f, -401f), new Vector2(1f, 1f), new Vector2(76f, 32f));
+            Button[] missionButtons = CreateMissionButtons(canvas.transform, font);
             Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-58f, -18f), new Vector2(1f, 1f), new Vector2(72f, 34f));
             Button equipHeroButton = CreateButton(canvas.transform, "Equip Hero Button", "EQUIP", font, new Vector2(-56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
             Button heroesButton = CreateButton(canvas.transform, "Heroes Button", "HEROES", font, new Vector2(56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, heroText, missionPanelTitleText, missionPanelText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, missionOneButton, missionTwoButton, missionThreeButton, missionFourButton, resetButton, equipHeroButton, heroesButton);
+            hud.Configure(titleText, coinsText, hqText, timerText, heroText, missionPanelTitleText, missionPanelText, objectiveText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, claimObjectiveButton, missionButtons, resetButton, equipHeroButton, heroesButton);
             return hud;
+        }
+
+        private static Button[] CreateMissionButtons(Transform parent, Font font)
+        {
+            // Build one compact direct-select button for each authored local mission.
+            Button[] buttons = new Button[PlayerProgression.MaxMissionLevel];
+            for (int index = 0; index < buttons.Length; index += 1)
+            {
+                // Buttons are anchored to the top-right so the row grows inward and stays visible on narrow screens.
+                int missionLevel = index + 1;
+                float xOffset = -326f + index * 42f;
+                Button missionButton = CreateButton(parent, $"Mission {missionLevel} Button", $"M{missionLevel}", font, new Vector2(xOffset, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
+                ConfigureCompactButtonLabel(missionButton);
+                buttons[index] = missionButton;
+            }
+
+            return buttons;
         }
 
         private static Canvas CreateCanvas(string name)
@@ -366,7 +404,7 @@ namespace LaneSurvivor.Base
                 return;
             }
 
-            // Best-fit keeps the four-button row stable while still naming the selected mission.
+            // Best-fit keeps the compact mission row stable while still naming the selected mission.
             label.fontSize = 18;
             label.resizeTextForBestFit = true;
             label.resizeTextMinSize = 12;

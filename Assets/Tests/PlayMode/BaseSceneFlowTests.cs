@@ -6,6 +6,7 @@ using System.Reflection;
 using LaneSurvivor.Gameplay;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
+using LaneSurvivor.Retention;
 using LaneSurvivor.Save;
 using NUnit.Framework;
 using UnityEngine;
@@ -106,7 +107,8 @@ namespace LaneSurvivor.Tests.PlayMode
                 "Timer Text",
                 "Hero Text",
                 "Mission Panel Title Text",
-                "Mission Panel Text"
+                "Mission Panel Text",
+                "Objective Text"
             };
 
             foreach (string labelName in topLeftHudLabels)
@@ -210,6 +212,40 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(timerText);
             StringAssert.StartsWith("Upgrade: ", timerText.text);
             Assert.AreNotEqual("Upgrade: Ready", timerText.text);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_DailyObjectiveClaimButtonPersistsReward()
+        {
+            DateTime now = DateTime.UtcNow;
+            SaveGameManager.Save(new SaveGameData
+            {
+                coins = 10,
+                dailyObjectiveUtcDayNumber = DailyObjectiveProgression.GetUtcDayNumber(now),
+                dailyObjectiveWins = DailyObjectiveProgression.WinsRequired,
+                dailyObjectiveRewardClaimed = false
+            });
+
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            Text objectiveText = GameObject.Find("Objective Text")?.GetComponent<Text>();
+            Assert.IsNotNull(objectiveText);
+            StringAssert.Contains("claim", objectiveText.text);
+
+            Button claimObjectiveButton = GameObject.Find("Claim Objective Button")?.GetComponent<Button>();
+            Assert.IsNotNull(claimObjectiveButton);
+            Assert.IsTrue(claimObjectiveButton.interactable);
+            claimObjectiveButton.onClick.Invoke();
+            yield return null;
+
+            SaveGameData claimedData = SaveGameManager.Load();
+            Assert.AreEqual(10 + DailyObjectiveProgression.RewardCoins, claimedData.coins);
+            Assert.IsTrue(claimedData.dailyObjectiveRewardClaimed);
+
+            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
+            Assert.IsNotNull(statusText);
+            StringAssert.Contains("daily coins claimed", statusText.text);
         }
 
         [UnityTest]
@@ -506,11 +542,11 @@ namespace LaneSurvivor.Tests.PlayMode
             SaveGameManager.Save(new SaveGameData
             {
                 // A large HQ bonus lets the teleported squad survive center-lane breaches on the final layout.
-                hqLevel = 30,
+                hqLevel = 80,
                 currentMissionLevel = PlayerProgression.MaxMissionLevel,
                 highestUnlockedMissionLevel = PlayerProgression.MaxMissionLevel,
                 unlockedMinigameLevel = PlayerProgression.MaxMissionLevel,
-                completedMissionLevels = new List<int> { 1, 2, 3 }
+                completedMissionLevels = new List<int> { 1, 2, 3, 4, 5, 6, 7 }
             });
 
             // Load the minigame directly so the selected final mission is used by the runtime bootstrap.
@@ -529,19 +565,19 @@ namespace LaneSurvivor.Tests.PlayMode
             playerSquad.transform.position = new Vector3(playerSquad.transform.position.x, playerSquad.transform.position.y, 999f);
             yield return null;
 
-            // The reward text should not advertise an impossible mission five unlock.
+            // The reward text should not advertise an impossible mission nine unlock.
             Text rewardText = GameObject.Find("Reward Text")?.GetComponent<Text>();
             Assert.IsNotNull(rewardText);
             StringAssert.Contains($"+{PlayerProgression.MinigameWinCoins} coins", rewardText.text);
-            Assert.IsFalse(rewardText.text.Contains("Mission 5"), rewardText.text);
+            Assert.IsFalse(rewardText.text.Contains("Mission 9"), rewardText.text);
             Assert.IsFalse(rewardText.text.Contains("unlocked"), rewardText.text);
 
-            // The saved state should mark mission four complete while preserving the authored mission cap.
+            // The saved state should mark mission eight complete while preserving the authored mission cap.
             SaveGameData rewardedData = SaveGameManager.Load();
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, rewardedData.currentMissionLevel);
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, rewardedData.highestUnlockedMissionLevel);
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, rewardedData.unlockedMinigameLevel);
-            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4 }, rewardedData.completedMissionLevels);
+            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4, 5, 6, 7, 8 }, rewardedData.completedMissionLevels);
 
             // Returning to Base should show the final mission as selected and replayable rather than locked.
             Button baseButton = GameObject.Find("Base Button")?.GetComponent<Button>();
@@ -552,7 +588,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual("Base", SceneManager.GetActiveScene().name);
             Text returnedMissionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
             Assert.IsNotNull(returnedMissionPanelText);
-            StringAssert.Contains("> M4 Last Block [DONE SELECTED] Replay: +50c", returnedMissionPanelText.text);
+            StringAssert.Contains("> M8 Final Hold [DONE SELECTED] Replay: +50c", returnedMissionPanelText.text);
         }
 
         [UnityTest]

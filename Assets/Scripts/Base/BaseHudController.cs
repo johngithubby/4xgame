@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
+using LaneSurvivor.Retention;
 using LaneSurvivor.Save;
 using UnityEngine;
 using UnityEngine.UI;
@@ -32,6 +33,9 @@ namespace LaneSurvivor.Base
         private Text missionPanelText;
 
         [SerializeField]
+        private Text objectiveText;
+
+        [SerializeField]
         private Text heroPanelTitleText;
 
         [SerializeField]
@@ -53,16 +57,10 @@ namespace LaneSurvivor.Base
         private Button playButton;
 
         [SerializeField]
-        private Button missionOneButton;
+        private Button claimObjectiveButton;
 
         [SerializeField]
-        private Button missionTwoButton;
-
-        [SerializeField]
-        private Button missionThreeButton;
-
-        [SerializeField]
-        private Button missionFourButton;
+        private Button[] missionButtons = Array.Empty<Button>();
 
         [SerializeField]
         private Button resetButton;
@@ -81,6 +79,7 @@ namespace LaneSurvivor.Base
             Text hero,
             Text missionPanelTitle,
             Text missionPanel,
+            Text objective,
             Text heroPanelTitle,
             Text heroPanel,
             Text status,
@@ -88,10 +87,8 @@ namespace LaneSurvivor.Base
             Button collect,
             Button upgrade,
             Button play,
-            Button missionOne,
-            Button missionTwo,
-            Button missionThree,
-            Button missionFour,
+            Button claimObjective,
+            Button[] missionSelectionButtons,
             Button reset,
             Button equipHero,
             Button heroes)
@@ -103,6 +100,7 @@ namespace LaneSurvivor.Base
             heroText = hero;
             missionPanelTitleText = missionPanelTitle;
             missionPanelText = missionPanel;
+            objectiveText = objective;
             heroPanelTitleText = heroPanelTitle;
             heroPanelText = heroPanel;
             statusText = status;
@@ -110,25 +108,25 @@ namespace LaneSurvivor.Base
             collectButton = collect;
             upgradeButton = upgrade;
             playButton = play;
-            missionOneButton = missionOne;
-            missionTwoButton = missionTwo;
-            missionThreeButton = missionThree;
-            missionFourButton = missionFour;
+            claimObjectiveButton = claimObjective;
+            missionButtons = missionSelectionButtons ?? Array.Empty<Button>();
             resetButton = reset;
             equipHeroButton = equipHero;
             heroesButton = heroes;
         }
 
-        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action<int> selectMissionAction, Action resetAction, Action equipHeroAction, Action heroesAction)
+        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action claimObjectiveAction, Action<int> selectMissionAction, Action resetAction, Action equipHeroAction, Action heroesAction)
         {
             // Replace listeners so scene rebuilds or test setup cannot accidentally duplicate clicks.
             collectButton.onClick.RemoveAllListeners();
             upgradeButton.onClick.RemoveAllListeners();
             playButton.onClick.RemoveAllListeners();
-            missionOneButton.onClick.RemoveAllListeners();
-            missionTwoButton.onClick.RemoveAllListeners();
-            missionThreeButton.onClick.RemoveAllListeners();
-            missionFourButton.onClick.RemoveAllListeners();
+            claimObjectiveButton.onClick.RemoveAllListeners();
+            foreach (Button missionButton in missionButtons)
+            {
+                // Null guards keep generated HUD tests readable if a future layout omits a mission button.
+                missionButton?.onClick.RemoveAllListeners();
+            }
             resetButton.onClick.RemoveAllListeners();
             equipHeroButton.onClick.RemoveAllListeners();
             heroesButton.onClick.RemoveAllListeners();
@@ -137,10 +135,13 @@ namespace LaneSurvivor.Base
             collectButton.onClick.AddListener(() => collectAction?.Invoke());
             upgradeButton.onClick.AddListener(() => upgradeAction?.Invoke());
             playButton.onClick.AddListener(() => playAction?.Invoke());
-            missionOneButton.onClick.AddListener(() => selectMissionAction?.Invoke(1));
-            missionTwoButton.onClick.AddListener(() => selectMissionAction?.Invoke(2));
-            missionThreeButton.onClick.AddListener(() => selectMissionAction?.Invoke(3));
-            missionFourButton.onClick.AddListener(() => selectMissionAction?.Invoke(4));
+            claimObjectiveButton.onClick.AddListener(() => claimObjectiveAction?.Invoke());
+            for (int index = 0; index < missionButtons.Length; index += 1)
+            {
+                // Capture the authored mission level so every generated button selects its own row.
+                int missionLevel = index + 1;
+                missionButtons[index]?.onClick.AddListener(() => selectMissionAction?.Invoke(missionLevel));
+            }
             resetButton.onClick.AddListener(() => resetAction?.Invoke());
             equipHeroButton.onClick.AddListener(() => equipHeroAction?.Invoke());
             heroesButton.onClick.AddListener(() => heroesAction?.Invoke());
@@ -167,6 +168,7 @@ namespace LaneSurvivor.Base
             HeroDefinition equippedHero = HeroInventory.GetEquippedHero(saveData);
             IReadOnlyList<HeroDefinition> ownedHeroes = HeroInventory.GetOwnedHeroes(saveData);
             bool firstHeroOwned = HeroInventory.OwnsHero(saveData, HeroCatalog.FirstWinHeroId);
+            DailyObjectiveStatus objectiveStatus = DailyObjectiveProgression.GetStatus(saveData, DateTime.UtcNow);
 
             // Build the default status separately so action feedback can override it cleanly.
             string fallbackStatus = upgradeRunning
@@ -182,6 +184,7 @@ namespace LaneSurvivor.Base
                 : "Hero: None";
             missionPanelTitleText.text = $"Missions {highestUnlockedMissionLevel}/{PlayerProgression.MaxMissionLevel}";
             missionPanelText.text = BuildMissionPanelText(saveData);
+            objectiveText.text = DailyObjectiveProgression.BuildStatusLabel(objectiveStatus);
             heroPanelTitleText.text = "Owned Heroes";
             heroPanelText.text = BuildHeroPanelText(saveData, ownedHeroes, equippedHero);
             statusText.text = !string.IsNullOrWhiteSpace(statusOverride)
@@ -200,10 +203,12 @@ namespace LaneSurvivor.Base
             // Prevent starting a second timer or spending coins that are not available.
             upgradeButton.interactable = !upgradeRunning && canAffordUpgrade;
             playButton.interactable = true;
-            ConfigureMissionButton(missionOneButton, saveData, 1, selectedMissionLevel);
-            ConfigureMissionButton(missionTwoButton, saveData, 2, selectedMissionLevel);
-            ConfigureMissionButton(missionThreeButton, saveData, 3, selectedMissionLevel);
-            ConfigureMissionButton(missionFourButton, saveData, 4, selectedMissionLevel);
+            claimObjectiveButton.interactable = objectiveStatus.canClaimReward;
+            for (int index = 0; index < missionButtons.Length; index += 1)
+            {
+                // Generated mission buttons map one-to-one to authored local mission ids.
+                ConfigureMissionButton(missionButtons[index], saveData, index + 1, selectedMissionLevel);
+            }
             equipHeroButton.interactable = HasUnequippedOwnedHero(ownedHeroes, equippedHero);
             heroesButton.interactable = true;
         }
@@ -228,6 +233,12 @@ namespace LaneSurvivor.Base
 
         private static void ConfigureMissionButton(Button missionButton, SaveGameData saveData, int missionLevel, int selectedMissionLevel)
         {
+            // Defensive null handling keeps tests focused on layout generation instead of crashing in update.
+            if (missionButton == null)
+            {
+                return;
+            }
+
             // Locked mission buttons are visible as goals but cannot be tapped in normal UI interaction.
             bool isMissionUnlocked = PlayerProgression.IsMissionUnlocked(saveData, missionLevel);
             missionButton.interactable = isMissionUnlocked;

@@ -55,6 +55,8 @@ namespace LaneSurvivor.Data
     [Serializable]
     public struct ZombieSpawnDefinition
     {
+        public ZombieEnemyType enemyType;
+
         [Min(1f)]
         public float health;
 

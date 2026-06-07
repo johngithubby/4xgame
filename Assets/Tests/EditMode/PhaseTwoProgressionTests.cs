@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using LaneSurvivor.Progression;
+using LaneSurvivor.Retention;
 using LaneSurvivor.Save;
 using NUnit.Framework;
 
@@ -61,6 +62,47 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(0, secondReward);
             Assert.AreEqual(10 + PlayerProgression.MinigameWinCoins, saveData.coins);
             Assert.IsTrue(rewardClaimed);
+        }
+
+        [Test]
+        public void DailyObjective_RecordsWinsAndClaimsRewardOnce()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = 10
+            };
+            DateTime now = new(2026, 6, 7, 12, 0, 0, DateTimeKind.Utc);
+
+            DailyObjectiveStatus firstWinStatus = DailyObjectiveProgression.RecordMinigameWin(saveData, now);
+            DailyObjectiveStatus secondWinStatus = DailyObjectiveProgression.RecordMinigameWin(saveData, now);
+            bool firstClaim = DailyObjectiveProgression.TryClaimReward(saveData, now);
+            bool secondClaim = DailyObjectiveProgression.TryClaimReward(saveData, now);
+
+            Assert.AreEqual(1, firstWinStatus.wins);
+            Assert.IsFalse(firstWinStatus.canClaimReward);
+            Assert.AreEqual(DailyObjectiveProgression.WinsRequired, secondWinStatus.wins);
+            Assert.IsTrue(secondWinStatus.canClaimReward);
+            Assert.IsTrue(firstClaim);
+            Assert.IsFalse(secondClaim);
+            Assert.AreEqual(10 + DailyObjectiveProgression.RewardCoins, saveData.coins);
+            Assert.IsTrue(saveData.dailyObjectiveRewardClaimed);
+        }
+
+        [Test]
+        public void DailyObjective_RollsOverOnNewUtcDay()
+        {
+            SaveGameData saveData = new();
+            DateTime firstDay = new(2026, 6, 7, 23, 30, 0, DateTimeKind.Utc);
+            DateTime nextDay = firstDay.AddHours(2);
+
+            DailyObjectiveProgression.RecordMinigameWin(saveData, firstDay);
+            saveData.dailyObjectiveRewardClaimed = true;
+            bool rolledOver = DailyObjectiveProgression.EnsureCurrentObjective(saveData, nextDay);
+
+            Assert.IsTrue(rolledOver);
+            Assert.AreEqual(DailyObjectiveProgression.GetUtcDayNumber(nextDay), saveData.dailyObjectiveUtcDayNumber);
+            Assert.AreEqual(0, saveData.dailyObjectiveWins);
+            Assert.IsFalse(saveData.dailyObjectiveRewardClaimed);
         }
 
         [Test]
@@ -248,7 +290,7 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.currentMissionLevel);
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.highestUnlockedMissionLevel);
             Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.unlockedMinigameLevel);
-            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4 }, saveData.completedMissionLevels);
+            CollectionAssert.AreEqual(new[] { 1, 2, 3, 4, 5, 6, 7, 8 }, saveData.completedMissionLevels);
         }
 
         [Test]
@@ -278,7 +320,7 @@ namespace LaneSurvivor.Tests.EditMode
             {
                 currentMissionLevel = PlayerProgression.MaxMissionLevel,
                 highestUnlockedMissionLevel = PlayerProgression.MaxMissionLevel,
-                completedMissionLevels = new List<int> { 1, 2, 3, 4 }
+                completedMissionLevels = new List<int> { 1, 2, 3, 4, 5, 6, 7, 8 }
             };
 
             Assert.AreEqual("DONE SELECTED", PlayerProgression.GetMissionStatusLabel(cappedData, PlayerProgression.MaxMissionLevel));

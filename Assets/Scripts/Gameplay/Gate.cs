@@ -117,6 +117,7 @@ namespace LaneSurvivor.Gameplay
                 GateModifierType.MultiplySquad => $"x{squadValue}",
                 GateModifierType.SubtractSquad => $"-{squadValue}",
                 GateModifierType.AddDamage => $"+{damageValue:0.#} DMG",
+                GateModifierType.MultiplyDamage => $"x{damageValue:0.#} DMG",
                 _ => "?"
             };
         }
@@ -129,6 +130,7 @@ namespace LaneSurvivor.Gameplay
                 GateModifierType.MultiplySquad => new Color(0.10f, 0.55f, 0.95f),
                 GateModifierType.SubtractSquad => new Color(0.90f, 0.18f, 0.16f),
                 GateModifierType.AddDamage => new Color(0.95f, 0.72f, 0.12f),
+                GateModifierType.MultiplyDamage => new Color(0.62f, 0.28f, 0.95f),
                 _ => Color.white
             };
         }

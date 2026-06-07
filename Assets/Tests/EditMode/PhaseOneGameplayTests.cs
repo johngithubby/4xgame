@@ -1,5 +1,6 @@
 using LaneSurvivor.Data;
 using LaneSurvivor.Gameplay;
+using LaneSurvivor.Progression;
 using LaneSurvivor.Rendering;
 using LaneSurvivor.Save;
 using LaneSurvivor.UI;
@@ -28,6 +29,9 @@ namespace LaneSurvivor.Tests.EditMode
 
             squad.ApplyGate(GateModifierType.AddDamage, 0, 2.5f);
             Assert.AreEqual(3.5f, squad.DamagePerMember);
+
+            squad.ApplyGate(GateModifierType.MultiplyDamage, 0, 2f);
+            Assert.AreEqual(7f, squad.DamagePerMember);
         }
 
         [Test]
@@ -351,6 +355,24 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void ArmoredZombie_ReducesIncomingShotDamage()
+        {
+            GameObject zombieObject = new("Armored Zombie Under Test");
+
+            Zombie zombie = zombieObject.AddComponent<Zombie>();
+            zombie.Configure(10f, 1, null, ZombieEnemyType.Armored);
+
+            float appliedDamage = zombie.TakeDamage(5f);
+
+            Assert.AreEqual(3f, appliedDamage, 0.001f);
+            Assert.IsFalse(zombie.IsDefeated);
+
+            zombie.TakeDamage(20f);
+
+            Assert.IsTrue(zombie.IsDefeated);
+        }
+
+        [Test]
         public void ZombieBreach_OnlyDamagesSquadInSameLane()
         {
             PlayerSquad squad = CreateSquad(5, 1f);
@@ -427,6 +449,25 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(6, levelDefinition.gates.Length);
             Assert.AreEqual(6, levelDefinition.zombies.Length);
             Assert.Greater(levelDefinition.finishDistance, 70f);
+        }
+
+        [Test]
+        public void LevelDefinitionFactory_ProvidesEighthMissionWithAdvancedContent()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = PlayerProgression.MaxMissionLevel,
+                highestUnlockedMissionLevel = PlayerProgression.MaxMissionLevel
+            };
+
+            LevelDefinition levelDefinition = LevelDefinitionFactory.CreateForSave(saveData);
+
+            Assert.AreEqual(PlayerProgression.MaxMissionLevel, levelDefinition.levelNumber);
+            Assert.AreEqual(9, levelDefinition.gates.Length);
+            Assert.AreEqual(10, levelDefinition.zombies.Length);
+            Assert.Greater(levelDefinition.finishDistance, 100f);
+            Assert.IsTrue(System.Array.Exists(levelDefinition.gates, gate => gate.modifierType == GateModifierType.MultiplyDamage));
+            Assert.IsTrue(System.Array.Exists(levelDefinition.zombies, zombie => zombie.enemyType == ZombieEnemyType.Armored));
         }
 
         [Test]

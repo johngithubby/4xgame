@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
+using LaneSurvivor.Retention;
 using UnityEngine;
 
 namespace LaneSurvivor.Save
@@ -33,6 +34,12 @@ namespace LaneSurvivor.Save
 
         public List<HeroProgressData> heroProgress = new();
 
+        public int dailyObjectiveUtcDayNumber;
+
+        public int dailyObjectiveWins;
+
+        public bool dailyObjectiveRewardClaimed;
+
         public void Normalize()
         {
             // Clamp save values after load so corrupt or older data cannot break gameplay assumptions.
@@ -40,6 +47,7 @@ namespace LaneSurvivor.Save
             hqLevel = Mathf.Max(1, hqLevel);
             NormalizeMissionProgression();
             NormalizeHeroes();
+            NormalizeDailyObjective();
 
             // Invalid persisted timer values cannot be recovered safely, so clear the active timer.
             if (hqUpgradeInProgress && !HasRecoverableHqUpgradeTimer())
@@ -208,6 +216,21 @@ namespace LaneSurvivor.Save
 
             // Sorting keeps JSON diffs and mission panel status checks deterministic.
             completedMissionLevels.Sort();
+        }
+
+        private void NormalizeDailyObjective()
+        {
+            // A zero day means no local daily objective has been initialized on this save yet.
+            dailyObjectiveUtcDayNumber = Mathf.Max(0, dailyObjectiveUtcDayNumber);
+
+            // Wins are capped at the current objective requirement so corrupted saves cannot overfill the panel.
+            dailyObjectiveWins = Mathf.Clamp(dailyObjectiveWins, 0, DailyObjectiveProgression.WinsRequired);
+
+            // A claimed objective must also show completed progress, otherwise reset the impossible claim flag.
+            if (dailyObjectiveRewardClaimed && dailyObjectiveWins < DailyObjectiveProgression.WinsRequired)
+            {
+                dailyObjectiveRewardClaimed = false;
+            }
         }
     }
 

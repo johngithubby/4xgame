@@ -79,6 +79,9 @@ namespace LaneSurvivor.Gameplay
                 case GateModifierType.AddDamage:
                     SetDamagePerMember(DamagePerMember + damageValue);
                     break;
+                case GateModifierType.MultiplyDamage:
+                    SetDamagePerMember(DamagePerMember * Mathf.Max(0f, damageValue));
+                    break;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(modifierType), modifierType, "Unsupported gate modifier.");
             }

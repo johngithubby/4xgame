@@ -2,6 +2,7 @@ using LaneSurvivor.Data;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Rendering;
+using LaneSurvivor.Retention;
 using LaneSurvivor.Save;
 using LaneSurvivor.UI;
 using System.Collections.Generic;
@@ -211,12 +212,15 @@ namespace LaneSurvivor.Gameplay
             // Mission completion unlocks the next local layout when the player clears the frontier mission.
             MissionCompletionResult missionCompletion = PlayerProgression.TryCompleteMission(saveData, levelDefinition.levelNumber);
 
+            // Daily objective progress gives successful runs a local session goal beyond mission unlocks.
+            DailyObjectiveStatus dailyObjectiveStatus = DailyObjectiveProgression.RecordMinigameWin(saveData, System.DateTime.UtcNow);
+
             // Persist the reward immediately so returning to Base shows the updated coin balance.
             SaveGameManager.Save(saveData);
-            return BuildRewardText(rewardCoins, heroReward, heroXpReward, missionCompletion);
+            return BuildRewardText(rewardCoins, heroReward, heroXpReward, missionCompletion, dailyObjectiveStatus);
         }
 
-        private static string BuildRewardText(int rewardCoins, HeroDefinition heroReward, HeroXpRewardResult heroXpReward, MissionCompletionResult missionCompletion)
+        private static string BuildRewardText(int rewardCoins, HeroDefinition heroReward, HeroXpRewardResult heroXpReward, MissionCompletionResult missionCompletion, DailyObjectiveStatus dailyObjectiveStatus)
         {
             // Coins are always the first reward line for a successful minigame win.
             List<string> rewardLines = new()
@@ -228,6 +232,16 @@ namespace LaneSurvivor.Gameplay
             if (missionCompletion.unlockedNewMission)
             {
                 rewardLines.Add($"Mission {missionCompletion.unlockedMissionLevel} unlocked: {PlayerProgression.GetMissionName(missionCompletion.unlockedMissionLevel)}");
+            }
+
+            // Daily objective feedback tells the player whether the Base claim button is ready.
+            if (dailyObjectiveStatus.canClaimReward)
+            {
+                rewardLines.Add($"Daily objective ready: claim +{dailyObjectiveStatus.rewardCoins}c at Base");
+            }
+            else if (!dailyObjectiveStatus.rewardClaimed)
+            {
+                rewardLines.Add($"Daily objective: {dailyObjectiveStatus.wins}/{dailyObjectiveStatus.winsRequired} wins");
             }
 
             // First-win hero unlocks remain visible even when XP is also awarded.
@@ -333,13 +347,58 @@ namespace LaneSurvivor.Gameplay
             {
                 // Zombies use high cards so they do not pop from below the road horizon near the player.
                 Vector3 zombiePosition = GameplayVisuals.WithVisualY(zombieDefinition.position, GameplayVisuals.ZombieCenterY);
-                GameObject zombieObject = PrototypeGeometryFactory.CreateCube("Zombie", zombiePosition, new Vector3(GameplayVisuals.ZombieCardWidth, GameplayVisuals.ZombieCardHeight, GameplayVisuals.ZombieCardDepth), zombieMaterial);
+                Vector3 zombieSize = GetZombieCardSize(zombieDefinition.enemyType);
+                GameObject zombieObject = PrototypeGeometryFactory.CreateCube(GetZombieObjectName(zombieDefinition.enemyType), zombiePosition, zombieSize, zombieMaterial);
+                CreateZombieTypeLabel(zombieObject.transform, zombieDefinition.enemyType);
 
                 Zombie zombie = zombieObject.AddComponent<Zombie>();
-                zombie.Configure(zombieDefinition.health, zombieDefinition.breachPenalty, zombieMaterial);
+                zombie.Configure(zombieDefinition.health, zombieDefinition.breachPenalty, zombieMaterial, zombieDefinition.enemyType);
                 autoShooter.RegisterZombie(zombie);
                 zombies.Add(zombie);
             }
+        }
+
+        private static Vector3 GetZombieCardSize(ZombieEnemyType enemyType)
+        {
+            // Armored zombies are slightly wider and taller so their reduced-damage behavior has a visible tell.
+            if (enemyType == ZombieEnemyType.Armored)
+            {
+                return new Vector3(GameplayVisuals.ZombieCardWidth * 1.15f, GameplayVisuals.ZombieCardHeight * 1.12f, GameplayVisuals.ZombieCardDepth);
+            }
+
+            // Basic zombies keep the established high-card placeholder silhouette.
+            return new Vector3(GameplayVisuals.ZombieCardWidth, GameplayVisuals.ZombieCardHeight, GameplayVisuals.ZombieCardDepth);
+        }
+
+        private static string GetZombieObjectName(ZombieEnemyType enemyType)
+        {
+            // Object names make PlayMode smoke failures easier to read in the generated hierarchy.
+            return enemyType == ZombieEnemyType.Armored ? "Armored Zombie" : "Zombie";
+        }
+
+        private static void CreateZombieTypeLabel(Transform zombieTransform, ZombieEnemyType enemyType)
+        {
+            // Basic zombies need no extra label because they are the default enemy read.
+            if (enemyType != ZombieEnemyType.Armored)
+            {
+                return;
+            }
+
+            // A tiny label makes the new enemy type understandable without imported art.
+            GameObject labelObject = new("Zombie Type Label");
+            labelObject.transform.SetParent(zombieTransform, false);
+            labelObject.transform.localPosition = new Vector3(0f, GameplayVisuals.ZombieCardHeight * 0.42f, -GameplayVisuals.ZombieCardDepth * 0.6f);
+            labelObject.transform.localRotation = Quaternion.identity;
+            labelObject.transform.localScale = Vector3.one * 0.16f;
+
+            // TextMesh matches the existing prototype world labels and keeps dependencies small.
+            TextMesh label = labelObject.AddComponent<TextMesh>();
+            label.text = "ARMOR";
+            label.font = ResolveWorldTextFont(label.font);
+            label.anchor = TextAnchor.MiddleCenter;
+            label.alignment = TextAlignment.Center;
+            label.characterSize = 1f;
+            label.color = Color.white;
         }
 
         private void ApplyReachedGates()
