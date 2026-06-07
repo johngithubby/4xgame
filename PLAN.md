@@ -35,7 +35,7 @@ Phase 1 is implemented and pushed on `develop`.
 - Basic level start, win, and lose flow.
 - Win/loss screen with restart.
 - Placeholder primitives, colored gates, lane markers, finish marker, and floating feedback text.
-- Placeholder shot tracers and damage numbers make automatic shooting easier to read.
+- World-space shot tracers and damage numbers make automatic shooting easier to read, using depth-safe foreground materials validated on iOS Simulator.
 - Local mission progression unlocks additional minigame layouts.
 - Local-only scene with no server and no monetization.
 
@@ -57,8 +57,8 @@ Phase 1 is implemented and pushed on `develop`.
 ### Validation
 
 - EditMode tests pass with the temp-copy Unity batch workflow documented in `LESSONS_LEARNED.md`.
-- Current proof: `25/25` Phase 1 EditMode tests passed as part of the full `62/62` EditMode Unity run.
-- Current PlayMode proof includes Minigame start movement, lane-button movement, restart, rewards, mission unlocks, and return-to-Base scene flow as part of the full `14/14` PlayMode Unity run.
+- Current proof: Phase 1 EditMode coverage passed as part of the full `66/66` EditMode Unity run.
+- Current PlayMode proof includes Minigame start movement, lane-button movement, depth-safe world-space combat feedback, restart, rewards, mission unlocks, and return-to-Base scene flow as part of the full `15/15` PlayMode Unity run.
 - Autoreview was run on the Phase 1 polish diff and reported no accepted/actionable findings.
 
 ### Remaining Phase 1 Polish Ideas
@@ -261,10 +261,10 @@ The mission select v2 slice is implemented:
 
 ### Validation
 
-- EditMode tests cover mission defaults, legacy migration, completed mission repair, status/reward labels, locked selection rejection, unlocked selection persistence, frontier mission unlocks, replay behavior, mission cap behavior, save persistence, and level definition selection for missions 3 and 4 as part of the full `62/62` EditMode Unity run.
-- PlayMode smoke tests cover Base mission panel display, direct mission selection, locked mission rejection, Minigame win mission unlocks, completed mission persistence, mission 4 cap completion, save persistence, and Base return showing the newly selected/completed mission as part of the full `14/14` PlayMode Unity run.
+- EditMode tests cover mission defaults, legacy migration, completed mission repair, status/reward labels, locked selection rejection, unlocked selection persistence, frontier mission unlocks, replay behavior, mission cap behavior, save persistence, and level definition selection for missions 3 and 4 as part of the full `66/66` EditMode Unity run.
+- PlayMode smoke tests cover Base mission panel display, direct mission selection, locked mission rejection, Minigame win mission unlocks, completed mission persistence, mission 4 cap completion, save persistence, world-space combat feedback spawning, and Base return showing the newly selected/completed mission as part of the full `15/15` PlayMode Unity run.
 - iOS smoke export succeeds and produces an Xcode project without adding backend or networking dependencies.
-- iOS Simulator SDK export builds, installs, and launches on a booted iPhone 17 simulator through XcodeBuildMCP; the Base mission panel screenshot was captured successfully.
+- iOS Simulator SDK export builds, installs, and launches on a booted iPhone 17 simulator through XcodeBuildMCP; world-space shot tracers, damage labels, and miss labels were captured in simulator video proof.
 
 ## Phase 4: Online Design Only
 
@@ -308,6 +308,6 @@ Local Phases 1 through 3 and the mission select v2 slice now have the requested 
 2. Manual local hero leveling with a coin cost. Done.
 3. Mission selection, completed mission tracking, and four local minigame layouts unlocked through mission wins. Done.
 4. Shot feedback and end-screen spacing polish. Done.
-5. Stability pass with expanded tests, iOS smoke export, and iOS Simulator launch proof. Done and verified with Unity EditMode, PlayMode, iOS export, and Simulator screenshot.
+5. Stability pass with expanded tests, iOS smoke export, and iOS Simulator launch proof. Done and verified with Unity EditMode, PlayMode, iOS export, Simulator launch, and combat feedback video proof.
 6. Phase 4 backend design doc. Done.
 7. Device-aspect camera framing polish. Done with responsive camera FOV, upper-right Minigame state text placement, and automated coverage.

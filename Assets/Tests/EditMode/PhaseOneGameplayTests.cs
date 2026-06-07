@@ -195,13 +195,78 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
-        public void LevelManager_DisablesWorldSpaceFeedbackUntilOverlayIsDepthSafe()
+        public void LevelManager_EnablesDepthSafeWorldSpaceCombatFeedback()
         {
-            // World-space TextMesh labels previously occluded the player during the chase-camera run.
-            Assert.IsFalse(LevelManager.WorldSpaceFeedbackEnabled);
+            // World-space TextMesh labels should be restored now that they use depth-safe foreground materials.
+            Assert.IsTrue(LevelManager.WorldSpaceFeedbackEnabled);
 
-            // World-space tracers previously read as shape-shifting gate pieces in full-run video proof.
-            Assert.IsFalse(LevelManager.WorldSpaceShotTracersEnabled);
+            // World-space tracers should be restored as thin flat mesh strips, not gate-like cube geometry.
+            Assert.IsTrue(LevelManager.WorldSpaceShotTracersEnabled);
+        }
+
+        [Test]
+        public void PrototypeMaterialFactory_CreatesAlwaysVisibleFeedbackMaterial()
+        {
+            // Combat effects need their own transparent material contract instead of borrowing opaque geometry state.
+            Material material = PrototypeMaterialFactory.CreateAlwaysVisibleFeedback(Color.yellow);
+
+            try
+            {
+                // The iOS feedback path must resolve to a real shader in player builds.
+                Assert.IsNotNull(material.shader);
+
+                // Foreground feedback should render after opaque road, gate, and zombie cards.
+                Assert.GreaterOrEqual(material.renderQueue, (int)RenderQueue.Overlay);
+
+                // The transparent render type keeps feedback out of the opaque depth-writing pass.
+                Assert.AreEqual("Transparent", material.GetTag("RenderType", false, string.Empty));
+
+                // Feedback should not write depth because that can hide later world objects.
+                AssertMaterialFloatIfPresent(material, "_ZWrite", 0f);
+
+                // When the shader exposes depth tests, feedback must ignore scene depth for readability.
+                AssertMaterialFloatIfPresent(material, "_ZTest", (float)CompareFunction.Always);
+
+                // Alpha blending keeps transparent labels and text shadows from becoming opaque obstacle blocks.
+                AssertMaterialFloatIfPresent(material, "_SrcBlend", (float)BlendMode.SrcAlpha);
+                AssertMaterialFloatIfPresent(material, "_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            }
+            finally
+            {
+                // Destroy the generated material explicitly so the EditMode test does not leak Unity objects.
+                UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void PrototypeMaterialFactory_CreatesAlwaysVisibleSolidFeedbackMaterial()
+        {
+            // Shot tracer strips use a solid foreground material because that path is reliable in iOS player builds.
+            Material material = PrototypeMaterialFactory.CreateAlwaysVisibleSolidFeedback(new Color(1f, 0.4f, 0f));
+
+            try
+            {
+                // The solid feedback path must resolve to a real shader.
+                Assert.IsNotNull(material.shader);
+
+                // Solid tracer strips still draw late so the road pass cannot cover them.
+                Assert.GreaterOrEqual(material.renderQueue, (int)RenderQueue.Overlay);
+
+                // Solid feedback should not write depth because it is not level geometry.
+                AssertMaterialFloatIfPresent(material, "_ZWrite", 0f);
+
+                // Compatible shaders should draw tracer strips regardless of depth ordering.
+                AssertMaterialFloatIfPresent(material, "_ZTest", (float)CompareFunction.Always);
+
+                // Solid feedback should replace color instead of entering transparent alpha sorting.
+                AssertMaterialFloatIfPresent(material, "_SrcBlend", (float)BlendMode.One);
+                AssertMaterialFloatIfPresent(material, "_DstBlend", (float)BlendMode.Zero);
+            }
+            finally
+            {
+                // Destroy the generated material explicitly so the EditMode test does not leak Unity objects.
+                UnityEngine.Object.DestroyImmediate(material);
+            }
         }
 
         [Test]
@@ -520,6 +585,24 @@ namespace LaneSurvivor.Tests.EditMode
 
             // World labels should sit above actor bases so finish and gate context remains readable.
             Assert.Greater(GameplayVisuals.WorldLabelY, GameplayVisuals.TrackTopY + 1f);
+
+            // Floating feedback starts high enough that the road horizon cannot bury combat labels.
+            Assert.GreaterOrEqual(GameplayVisuals.ShotTracerMinimumY, GameplayVisuals.TrackTopY + 1.2f);
+
+            // Tracers must stay narrow compared with actors and gate cards so they cannot read as obstacles.
+            Assert.Less(GameplayVisuals.ShotTracerWidth, GameplayVisuals.PlayerFootprint * 0.2f);
+            Assert.Less(GameplayVisuals.ShotTracerWidth, GameplayVisuals.GateCardWidth * 0.1f);
+
+            // The lateral tracer offset should separate shots from lane stripes without crossing lane boundaries.
+            Assert.Greater(GameplayVisuals.ShotTracerLaneOffsetX, GameplayVisuals.PlayerMastWidth);
+            Assert.Less(GameplayVisuals.ShotTracerLaneOffsetX, GameplayVisuals.LaneMatchTolerance);
+
+            // The forward muzzle offset should clear the visible player body without jumping near the target.
+            Assert.Greater(GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, GameplayVisuals.PlayerFootprint * 2f);
+            Assert.Less(GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, GameplayVisuals.ZombieCardWidth * 2f);
+
+            // Feedback text should remain smaller than gate labels so it reads as a temporary event.
+            Assert.LessOrEqual(GameplayVisuals.FeedbackLabelScale, 0.32f);
         }
 
         [Test]

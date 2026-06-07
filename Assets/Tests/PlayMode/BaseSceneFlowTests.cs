@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using LaneSurvivor.Gameplay;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
@@ -378,6 +379,70 @@ namespace LaneSurvivor.Tests.PlayMode
 
             // The squad should now be moving forward under the real runtime Update loop.
             Assert.Greater(playerSquad.transform.position.z, startingZ);
+        }
+
+        [UnityTest]
+        public IEnumerator MinigameScene_WorldSpaceCombatFeedbackUsesDepthSafeSceneObjects()
+        {
+            // Load the minigame directly so the real runtime camera and LevelManager exist.
+            SceneManager.LoadScene("Minigame");
+            yield return null;
+
+            // Wait a second frame so LevelManager.Start initializes gameplay dependencies.
+            yield return null;
+
+            // The scene manager owns the same combat feedback hook used by AutoShooter.ShotFired.
+            LevelManager levelManager = GameObject.Find("Level Manager")?.GetComponent<LevelManager>();
+            Assert.IsNotNull(levelManager);
+
+            // Invoke the private shot-feedback handler to avoid timing flake from very short tracer lifetimes.
+            MethodInfo shotFeedbackMethod = typeof(LevelManager).GetMethod("HandleShotFired", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(shotFeedbackMethod);
+            shotFeedbackMethod.Invoke(levelManager, new object[]
+            {
+                new Vector3(0f, GameplayVisuals.PlayerCenterY, 8f),
+                new Vector3(0f, GameplayVisuals.ZombieCenterY, 13f),
+                3f
+            });
+
+            // Shot feedback should be a flat mesh strip, not a stretched cube that can look like a gate.
+            GameObject shotTracer = GameObject.Find("Shot Tracer");
+            Assert.IsNotNull(shotTracer);
+            Assert.IsNull(shotTracer.GetComponent<LineRenderer>());
+            MeshFilter tracerMeshFilter = shotTracer.GetComponent<MeshFilter>();
+            Assert.IsNotNull(tracerMeshFilter);
+            Assert.IsNotNull(tracerMeshFilter.sharedMesh);
+            Assert.AreEqual(4, tracerMeshFilter.sharedMesh.vertexCount);
+            Assert.AreEqual(12, tracerMeshFilter.sharedMesh.triangles.Length);
+
+            // The generated strip should stay offset from the center lane stripe.
+            Vector3[] tracerVertices = tracerMeshFilter.sharedMesh.vertices;
+            float averageTracerX = (tracerVertices[0].x + tracerVertices[1].x + tracerVertices[2].x + tracerVertices[3].x) * 0.25f;
+            Assert.AreEqual(GameplayVisuals.ShotTracerLaneOffsetX, averageTracerX, 0.001f);
+
+            // The strip should start from a forward muzzle point so it cannot appear behind the player marker.
+            float averageStartZ = (tracerVertices[0].z + tracerVertices[1].z) * 0.5f;
+            Assert.AreEqual(8f + GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, averageStartZ, 0.001f);
+
+            // The tracer material should render in the foreground without writing scene depth.
+            MeshRenderer shotTracerRenderer = shotTracer.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(shotTracerRenderer);
+            Assert.IsNotNull(shotTracerRenderer.sharedMaterial);
+            Assert.GreaterOrEqual(shotTracerRenderer.sharedMaterial.renderQueue, (int)UnityEngine.Rendering.RenderQueue.Overlay);
+
+            // Floating feedback should remain a world object anchored to the combat point.
+            FloatingFeedback[] feedbackLabels = UnityEngine.Object.FindObjectsByType<FloatingFeedback>(FindObjectsSortMode.None);
+            Assert.Greater(feedbackLabels.Length, 0);
+            FloatingFeedback feedbackLabel = feedbackLabels[0];
+            Assert.IsNotNull(feedbackLabel.GetComponent<TextMesh>());
+            Assert.IsNotNull(feedbackLabel.transform.Find("Feedback Text Shadow"));
+            Assert.GreaterOrEqual(feedbackLabel.transform.position.y, GameplayVisuals.ShotTracerMinimumY);
+
+            // The label material uses the same foreground render queue as tracers so iOS depth cannot bury it.
+            Renderer labelRenderer = feedbackLabel.GetComponent<Renderer>();
+            Assert.IsNotNull(labelRenderer);
+            Assert.IsNotNull(labelRenderer.sharedMaterial);
+            Assert.GreaterOrEqual(labelRenderer.sharedMaterial.renderQueue, (int)UnityEngine.Rendering.RenderQueue.Overlay);
         }
 
         [UnityTest]

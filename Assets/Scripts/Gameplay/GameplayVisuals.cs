@@ -148,6 +148,30 @@ namespace LaneSurvivor.Gameplay
         // World labels sit above actor bases while remaining below the top UI.
         public const float WorldLabelY = 1.15f;
 
+        // Floating combat text starts above gate and zombie cards so the road horizon cannot hide it.
+        public const float FeedbackLabelOffsetY = 0.92f;
+
+        // Feedback text stays small enough to read as an event label instead of another obstacle card.
+        public const float FeedbackLabelScale = 0.30f;
+
+        // The dark duplicate is slightly offset in text-local space to keep yellow/red labels readable on iOS.
+        public static readonly Vector3 FeedbackTextShadowOffset = new(0.045f, -0.045f, 0.015f);
+
+        // Shot tracers are thin camera-facing strips, not stretched cubes that can look like gate pieces.
+        public const float ShotTracerWidth = 0.075f;
+
+        // Tracers last long enough to communicate auto-fire but short enough to avoid cluttering the chase view.
+        public const float ShotTracerLifetimeSeconds = 0.18f;
+
+        // Tracer endpoints are lifted to the readable card band and kept away from the road surface.
+        public const float ShotTracerMinimumY = TrackTopY + 1.24f;
+
+        // A small lane-local sideways offset keeps center-lane tracers from hiding on the white lane stripe.
+        public const float ShotTracerLaneOffsetX = 0.24f;
+
+        // Tracers start ahead of the squad center so they visually originate from the player marker front.
+        public const float ShotTracerMuzzleForwardOffsetZ = 1.35f;
+
         public static Vector3 WithVisualY(Vector3 source, float visualY)
         {
             // Level data owns lane and distance, while this helper owns prototype vertical staging.
