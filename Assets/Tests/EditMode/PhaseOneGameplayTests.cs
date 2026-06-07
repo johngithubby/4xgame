@@ -6,6 +6,7 @@ using LaneSurvivor.UI;
 using NUnit.Framework;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace LaneSurvivor.Tests.EditMode
 {
@@ -376,6 +377,29 @@ namespace LaneSurvivor.Tests.EditMode
 
                 // Placeholder materials need at least one common tint property for visual debugging.
                 Assert.IsTrue(material.HasProperty("_BaseColor") || material.HasProperty("_Color"));
+
+                // World placeholder geometry must render in the opaque queue so the track cannot draw over late gates.
+                Assert.LessOrEqual(material.renderQueue, (int)RenderQueue.GeometryLast);
+
+                // Runtime 3D placeholders should never use transparent UI or sprite fallback shaders.
+                Assert.AreNotEqual("Sprites/Default", material.shader.name);
+                Assert.AreNotEqual("UI/Default", material.shader.name);
+
+                // Compatible shaders expose this tag to replacement passes and render pipeline classification.
+                Assert.AreEqual("Opaque", material.GetTag("RenderType", false, string.Empty));
+
+                // URP shaders expose _Surface, where opaque is zero.
+                AssertMaterialFloatIfPresent(material, "_Surface", 0f);
+
+                // Built-in Standard exposes _Mode, where opaque is zero.
+                AssertMaterialFloatIfPresent(material, "_Mode", 0f);
+
+                // Blend One/Zero keeps generated world placeholders out of transparent alpha composition.
+                AssertMaterialFloatIfPresent(material, "_SrcBlend", (float)BlendMode.One);
+                AssertMaterialFloatIfPresent(material, "_DstBlend", (float)BlendMode.Zero);
+
+                // Depth writes prevent a large generated road plane from hiding distant gate cards on iOS/Metal.
+                AssertMaterialFloatIfPresent(material, "_ZWrite", 1f);
             }
             finally
             {
@@ -649,6 +673,18 @@ namespace LaneSurvivor.Tests.EditMode
 
             // The factory test should prevent this path, but keep a readable fallback for diagnostics.
             return material.color;
+        }
+
+        private static void AssertMaterialFloatIfPresent(Material material, string propertyName, float expectedValue)
+        {
+            // Shader-specific render-state controls should match the opaque contract whenever the shader exposes them.
+            if (!material.HasProperty(propertyName))
+            {
+                return;
+            }
+
+            // Render-state properties are integer-like floats, but keep a tolerance for shader-family storage details.
+            Assert.AreEqual(expectedValue, material.GetFloat(propertyName), 0.001f);
         }
 
         private static void InvokeAutoShooterUpdate(AutoShooter shooter)
