@@ -130,8 +130,8 @@ namespace LaneSurvivor.Heroes
 
             Text titleText = CreateText(canvas.transform, "Title Text", "Heroes", font, new Vector2(0f, -20f), TextAnchor.UpperCenter, new Vector2(260f, 42f));
             Text coinsText = CreateText(canvas.transform, "Coins Text", "Coins: 0", font, new Vector2(16f, -64f), TextAnchor.UpperLeft, new Vector2(220f, 34f));
-            Text equippedText = CreateText(canvas.transform, "Equipped Text", "Equipped: None", font, new Vector2(16f, -100f), TextAnchor.UpperLeft, new Vector2(360f, 34f));
-            Text heroListText = CreateText(canvas.transform, "Hero List Text", "No heroes owned yet", font, new Vector2(0f, -148f), TextAnchor.UpperCenter, new Vector2(360f, 430f));
+            Text equippedText = CreateText(canvas.transform, "Equipped Text", "Equipped: None", font, new Vector2(16f, -96f), TextAnchor.UpperLeft, new Vector2(360f, 58f));
+            Text heroListText = CreateText(canvas.transform, "Hero List Text", "No heroes owned yet", font, new Vector2(0f, -172f), TextAnchor.UpperCenter, new Vector2(360f, 400f));
             Text statusText = CreateText(canvas.transform, "Status Text", "Earn heroes through gameplay", font, new Vector2(0f, 116f), TextAnchor.LowerCenter, new Vector2(360f, 40f));
             Button equipButton = CreateButton(canvas.transform, "Equip Next Button", "EQUIP", font, new Vector2(-112f, 52f), new Vector2(0.5f, 0f), new Vector2(104f, 46f));
             Button levelButton = CreateButton(canvas.transform, "Level Up Button", "LEVEL", font, new Vector2(0f, 52f), new Vector2(0.5f, 0f), new Vector2(104f, 46f));
@@ -173,8 +173,11 @@ namespace LaneSurvivor.Heroes
             label.raycastTarget = false;
 
             RectTransform rectTransform = textObject.GetComponent<RectTransform>();
-            rectTransform.anchorMin = AnchorFromTextAnchor(anchor);
-            rectTransform.anchorMax = AnchorFromTextAnchor(anchor);
+            Vector2 anchorPoint = AnchorFromTextAnchor(anchor);
+            rectTransform.anchorMin = anchorPoint;
+            rectTransform.anchorMax = anchorPoint;
+            // Match pivot to anchor so top and edge labels grow inward from their intended screen inset.
+            rectTransform.pivot = anchorPoint;
             rectTransform.anchoredPosition = anchoredPosition;
             rectTransform.sizeDelta = size;
             return label;

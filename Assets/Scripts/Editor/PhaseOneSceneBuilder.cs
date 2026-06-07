@@ -270,8 +270,11 @@ namespace LaneSurvivor.EditorTools
             label.alignment = anchor;
 
             RectTransform rectTransform = textObject.GetComponent<RectTransform>();
-            rectTransform.anchorMin = AnchorFromTextAnchor(anchor);
-            rectTransform.anchorMax = AnchorFromTextAnchor(anchor);
+            Vector2 anchorPoint = AnchorFromTextAnchor(anchor);
+            rectTransform.anchorMin = anchorPoint;
+            rectTransform.anchorMax = anchorPoint;
+            // Match runtime HUD behavior so regenerated scenes keep edge labels inside the Game view.
+            rectTransform.pivot = anchorPoint;
             rectTransform.anchoredPosition = anchoredPosition;
             rectTransform.sizeDelta = new Vector2(320f, 40f);
 

@@ -315,8 +315,11 @@ namespace LaneSurvivor.Base
             label.raycastTarget = false;
 
             RectTransform rectTransform = textObject.GetComponent<RectTransform>();
-            rectTransform.anchorMin = AnchorFromTextAnchor(anchor);
-            rectTransform.anchorMax = AnchorFromTextAnchor(anchor);
+            Vector2 anchorPoint = AnchorFromTextAnchor(anchor);
+            rectTransform.anchorMin = anchorPoint;
+            rectTransform.anchorMax = anchorPoint;
+            // Match the pivot to the anchor so top-left HUD labels use their x value as an inset instead of straddling the screen edge.
+            rectTransform.pivot = anchorPoint;
             rectTransform.anchoredPosition = anchoredPosition;
             rectTransform.sizeDelta = size;
             return label;

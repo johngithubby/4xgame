@@ -68,14 +68,13 @@ namespace LaneSurvivor.Heroes
             IReadOnlyList<HeroDefinition> ownedHeroes = HeroInventory.GetOwnedHeroes(saveData);
             int equippedLevel = equippedHero != null ? HeroInventory.GetHeroLevel(saveData, equippedHero.id) : 0;
             int levelUpCost = equippedHero != null ? HeroProgression.GetManualLevelUpCoinCost(equippedLevel) : 0;
-            bool canLevelUp = equippedHero != null && equippedLevel < HeroProgression.MaxHeroLevel && coins >= levelUpCost;
+            bool heroCanGainLevels = equippedHero != null && equippedLevel < HeroProgression.MaxHeroLevel;
+            bool canLevelUp = heroCanGainLevels && coins >= levelUpCost;
 
             // Header text mirrors the dedicated screen role, not the Base scene compact panel.
             titleText.text = "Heroes";
             coinsText.text = $"Coins: {coins}";
-            equippedHeroText.text = equippedHero != null
-                ? $"Equipped: {equippedHero.displayName} Lv {equippedLevel}  Cost: {levelUpCost}"
-                : "Equipped: None";
+            equippedHeroText.text = BuildEquippedHeroText(equippedHero, equippedLevel, levelUpCost, heroCanGainLevels);
             heroListText.text = BuildHeroList(saveData, ownedHeroes, equippedHero);
             statusText.text = string.IsNullOrWhiteSpace(statusOverride)
                 ? "Earn heroes through gameplay"
@@ -108,6 +107,19 @@ namespace LaneSurvivor.Heroes
             }
 
             return string.Join("\n\n", rows);
+        }
+
+        private static string BuildEquippedHeroText(HeroDefinition equippedHero, int equippedLevel, int levelUpCost, bool heroCanGainLevels)
+        {
+            // Empty equipment should stay short so it fits in the same two-line header area.
+            if (equippedHero == null)
+            {
+                return "Equipped: None";
+            }
+
+            // Split the equipped summary from the level-up cost so long hero names cannot collide with the list.
+            string levelCostText = heroCanGainLevels ? $"Level cost: {levelUpCost} coins" : "Max level";
+            return $"Equipped: {equippedHero.displayName} Lv {equippedLevel}\n{levelCostText}";
         }
     }
 }

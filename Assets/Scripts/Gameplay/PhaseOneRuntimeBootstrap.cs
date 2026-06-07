@@ -197,8 +197,11 @@ namespace LaneSurvivor.Gameplay
             label.alignment = anchor;
 
             RectTransform rectTransform = textObject.GetComponent<RectTransform>();
-            rectTransform.anchorMin = AnchorFromTextAnchor(anchor);
-            rectTransform.anchorMax = AnchorFromTextAnchor(anchor);
+            Vector2 anchorPoint = AnchorFromTextAnchor(anchor);
+            rectTransform.anchorMin = anchorPoint;
+            rectTransform.anchorMax = anchorPoint;
+            // Match pivot to anchor so top-left HUD labels use their position as an inset instead of extending offscreen.
+            rectTransform.pivot = anchorPoint;
             rectTransform.anchoredPosition = anchoredPosition;
             rectTransform.sizeDelta = new Vector2(320f, 40f);
             return label;

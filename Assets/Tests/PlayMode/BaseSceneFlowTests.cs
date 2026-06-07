@@ -83,6 +83,42 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator BaseScene_TopLeftHudLabelsStayInsideCanvas()
+        {
+            // Wait one frame so the runtime-built Base HUD exists before inspecting its RectTransforms.
+            yield return null;
+
+            // The canvas bounds give the assertion the same left edge the player sees in Game view.
+            RectTransform canvasRect = GameObject.Find("Base HUD Canvas")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(canvasRect);
+            Vector3[] canvasCorners = new Vector3[4];
+            canvasRect.GetWorldCorners(canvasCorners);
+            float canvasLeftEdge = canvasCorners[0].x;
+
+            // These labels use upper-left anchoring and are the group that regressed offscreen in the editor view.
+            string[] topLeftHudLabels =
+            {
+                "Coins Text",
+                "HQ Text",
+                "Timer Text",
+                "Hero Text",
+                "Mission Text"
+            };
+
+            foreach (string labelName in topLeftHudLabels)
+            {
+                // Fetch each generated label by name so the test follows the runtime scene structure directly.
+                RectTransform labelRect = GameObject.Find(labelName)?.GetComponent<RectTransform>();
+                Assert.IsNotNull(labelRect, labelName);
+                Vector3[] labelCorners = new Vector3[4];
+                labelRect.GetWorldCorners(labelCorners);
+
+                // The left edge can have tiny float noise, but it should never cross outside the canvas.
+                Assert.GreaterOrEqual(labelCorners[0].x, canvasLeftEdge - 0.5f, $"{labelName} left edge should stay inside the Base HUD canvas.");
+            }
+        }
+
+        [UnityTest]
         public IEnumerator BaseScene_MissionButtonsPersistUnlockedSelection()
         {
             // Seed three unlocked missions so the Base HUD can move selection both forward and backward.
@@ -258,6 +294,40 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator MinigameScene_TopLeftHudLabelsStayInsideCanvas()
+        {
+            // Load the minigame directly so this test inspects the runtime HUD generated for actual play.
+            SceneManager.LoadScene("Minigame");
+            yield return null;
+
+            // Canvas bounds define the visible overlay edge where the screenshot showed clipping.
+            RectTransform canvasRect = GameObject.Find("HUD Canvas")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(canvasRect);
+            Vector3[] canvasCorners = new Vector3[4];
+            canvasRect.GetWorldCorners(canvasCorners);
+            float canvasLeftEdge = canvasCorners[0].x;
+
+            // These upper-left labels are the minigame text group that can hang offscreen with a centered pivot.
+            string[] topLeftHudLabels =
+            {
+                "Squad Text",
+                "Progress Text"
+            };
+
+            foreach (string labelName in topLeftHudLabels)
+            {
+                // Inspect the generated RectTransform so the test follows the same objects the player sees.
+                RectTransform labelRect = GameObject.Find(labelName)?.GetComponent<RectTransform>();
+                Assert.IsNotNull(labelRect, labelName);
+                Vector3[] labelCorners = new Vector3[4];
+                labelRect.GetWorldCorners(labelCorners);
+
+                // A tiny tolerance avoids float noise while still failing on visible left-edge clipping.
+                Assert.GreaterOrEqual(labelCorners[0].x, canvasLeftEdge - 0.5f, $"{labelName} left edge should stay inside the Minigame HUD canvas.");
+            }
+        }
+
+        [UnityTest]
         public IEnumerator MinigameScene_StartButtonMovesSquadForward()
         {
             // Load the minigame directly so this smoke test focuses on the start and movement loop.
@@ -418,6 +488,70 @@ namespace LaneSurvivor.Tests.PlayMode
             // Equipment state must survive beyond the current in-memory scene object.
             SaveGameData equippedData = SaveGameManager.Load();
             Assert.AreEqual(HeroCatalog.HqLevelTwoHeroId, equippedData.equippedHeroId);
+        }
+
+        [UnityTest]
+        public IEnumerator HeroesScene_HeaderAndHeroListStayInsideCanvasWithoutOverlap()
+        {
+            // Seed two upgraded heroes so the Hero list produces the multi-line text that exposed clipping.
+            SaveGameData saveData = new()
+            {
+                coins = HeroProgression.GetManualLevelUpCoinCost(4),
+                hqLevel = 2,
+                unlockedMinigameLevel = 2,
+                currentMissionLevel = 2,
+                highestUnlockedMissionLevel = 2
+            };
+            HeroInventory.GrantHero(saveData, HeroCatalog.FirstWinHeroId);
+            HeroInventory.GrantHero(saveData, HeroCatalog.HqLevelTwoHeroId);
+            HeroInventory.EquipHero(saveData, HeroCatalog.HqLevelTwoHeroId);
+            HeroProgression.AddXpToEquippedHero(saveData, 240);
+            SaveGameManager.Save(saveData);
+
+            // Load the Hero screen after seeding so the runtime bootstrap builds the real HUD layout.
+            SceneManager.LoadScene("Heroes");
+            yield return null;
+
+            // Canvas corners establish the visible bounds used by the generated overlay.
+            RectTransform canvasRect = GameObject.Find("Hero HUD Canvas")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(canvasRect);
+            Vector3[] canvasCorners = new Vector3[4];
+            canvasRect.GetWorldCorners(canvasCorners);
+            float canvasLeftEdge = canvasCorners[0].x;
+            float canvasTopEdge = canvasCorners[1].y;
+
+            // These top HUD labels should all stay inside the left/top canvas edges.
+            string[] topHudLabels =
+            {
+                "Title Text",
+                "Coins Text",
+                "Equipped Text",
+                "Hero List Text"
+            };
+
+            foreach (string labelName in topHudLabels)
+            {
+                // Read actual generated rectangles instead of duplicating layout constants in the test.
+                RectTransform labelRect = GameObject.Find(labelName)?.GetComponent<RectTransform>();
+                Assert.IsNotNull(labelRect, labelName);
+                Vector3[] labelCorners = new Vector3[4];
+                labelRect.GetWorldCorners(labelCorners);
+
+                // Small tolerance avoids float-noise failures while still catching visible clipping.
+                Assert.GreaterOrEqual(labelCorners[0].x, canvasLeftEdge - 0.5f, $"{labelName} left edge should stay inside the Hero HUD canvas.");
+                Assert.LessOrEqual(labelCorners[1].y, canvasTopEdge + 0.5f, $"{labelName} top edge should stay inside the Hero HUD canvas.");
+            }
+
+            // The hero list should begin below the equipped summary so their text cannot draw over each other.
+            RectTransform equippedRect = GameObject.Find("Equipped Text")?.GetComponent<RectTransform>();
+            RectTransform heroListRect = GameObject.Find("Hero List Text")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(equippedRect);
+            Assert.IsNotNull(heroListRect);
+            Vector3[] equippedCorners = new Vector3[4];
+            Vector3[] heroListCorners = new Vector3[4];
+            equippedRect.GetWorldCorners(equippedCorners);
+            heroListRect.GetWorldCorners(heroListCorners);
+            Assert.Less(heroListCorners[1].y, equippedCorners[0].y, "Hero list should sit below the equipped summary.");
         }
     }
 }
