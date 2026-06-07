@@ -4,7 +4,7 @@
 
 - `LaneSurvivor.Editor.asmdef`: Declares the editor-only assembly and references `LaneSurvivor.Runtime` for scene-building tools.
 - `IosSmokeBuild.cs`: Provides a command-line `LaneSurvivor.Editor.IosSmokeBuild.Run` method that builds enabled scenes for iOS into a disposable local folder, with optional simulator SDK selection through `LANE_SURVIVOR_IOS_SIMULATOR=1`, optional simulator architecture selection through `LANE_SURVIVOR_IOS_SIMULATOR_ARCH`, and optional verification start-scene ordering through `LANE_SURVIVOR_IOS_START_SCENE`.
-- `PhaseOneSceneBuilder.cs`: Rebuilds the Phase 1 level asset, placeholder materials, Unity scene, invisible gameplay squad anchor, runtime-matched HUD-layer player marker, perspective angled chase camera, UI, and build settings.
+- `PhaseOneSceneBuilder.cs`: Rebuilds the Phase 1 level asset, placeholder materials, Unity scene, invisible gameplay squad anchor, runtime-matched HUD-layer player marker, perspective angled chase camera, UI/end-screen reward layout, and build settings.
 
 ## Compile
 

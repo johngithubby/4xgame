@@ -46,7 +46,7 @@ namespace LaneSurvivor.Base
             CreateGround(groundMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ResetSave, EquipNextOwnedHero, LaunchHeroes);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, SelectPreviousMission, SelectNextMission, ResetSave, EquipNextOwnedHero, LaunchHeroes);
 
             RefreshScene();
         }
@@ -95,6 +95,35 @@ namespace LaneSurvivor.Base
             // Reset through the save manager so the same default data is written to disk and shown in UI.
             saveData = SaveGameManager.ResetToFreshData();
             statusMessage = "Local save reset";
+            RefreshScene();
+        }
+
+        private void SelectPreviousMission()
+        {
+            // Previous selection uses the same helper as the next button so locking rules stay centralized.
+            SelectMissionOffset(-1);
+        }
+
+        private void SelectNextMission()
+        {
+            // Next selection can only move through missions already unlocked by local minigame wins.
+            SelectMissionOffset(1);
+        }
+
+        private void SelectMissionOffset(int missionOffset)
+        {
+            // Derive the target from the normalized saved selection instead of trusting stale HUD labels.
+            int targetMissionLevel = PlayerProgression.GetSelectedMissionLevel(saveData) + missionOffset;
+            if (!PlayerProgression.TrySelectMission(saveData, targetMissionLevel))
+            {
+                statusMessage = "Mission locked";
+                RefreshScene();
+                return;
+            }
+
+            // Save immediately so launching the minigame or closing the app preserves the selected mission.
+            SaveGameManager.Save(saveData);
+            statusMessage = $"Mission {targetMissionLevel}: {PlayerProgression.GetMissionName(targetMissionLevel)}";
             RefreshScene();
         }
 
@@ -231,6 +260,7 @@ namespace LaneSurvivor.Base
             Text hqText = CreateText(canvas.transform, "HQ Text", "HQ Level: 1", font, new Vector2(16f, -90f), TextAnchor.UpperLeft, new Vector2(240f, 34f));
             Text timerText = CreateText(canvas.transform, "Timer Text", "Upgrade: Ready", font, new Vector2(16f, -122f), TextAnchor.UpperLeft, new Vector2(280f, 34f));
             Text heroText = CreateText(canvas.transform, "Hero Text", "Hero: None", font, new Vector2(16f, -154f), TextAnchor.UpperLeft, new Vector2(340f, 34f));
+            Text missionText = CreateText(canvas.transform, "Mission Text", "Mission 1: Outskirts", font, new Vector2(16f, -204f), TextAnchor.UpperLeft, new Vector2(232f, 58f));
             Text heroPanelTitleText = CreateText(canvas.transform, "Hero Panel Title Text", "Owned Heroes", font, new Vector2(0f, 260f), TextAnchor.LowerCenter, new Vector2(360f, 30f));
             Text heroPanelText = CreateText(canvas.transform, "Hero Panel Text", "None earned yet", font, new Vector2(0f, 214f), TextAnchor.LowerCenter, new Vector2(360f, 58f));
             Text statusText = CreateText(canvas.transform, "Status Text", "Next HQ upgrade", font, new Vector2(0f, 92f), TextAnchor.LowerCenter, new Vector2(360f, 34f));
@@ -238,12 +268,14 @@ namespace LaneSurvivor.Base
             Button collectButton = CreateButton(canvas.transform, "Collect Button", "COLLECT", font, new Vector2(-126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button upgradeButton = CreateButton(canvas.transform, "Upgrade Button", "UPGRADE", font, new Vector2(0f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button playButton = CreateButton(canvas.transform, "Play Button", "PLAY", font, new Vector2(126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
+            Button previousMissionButton = CreateButton(canvas.transform, "Previous Mission Button", "<", font, new Vector2(-94f, -222f), new Vector2(1f, 1f), new Vector2(48f, 36f));
+            Button nextMissionButton = CreateButton(canvas.transform, "Next Mission Button", ">", font, new Vector2(-38f, -222f), new Vector2(1f, 1f), new Vector2(48f, 36f));
             Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-58f, -18f), new Vector2(1f, 1f), new Vector2(72f, 34f));
             Button equipHeroButton = CreateButton(canvas.transform, "Equip Hero Button", "EQUIP", font, new Vector2(-56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
             Button heroesButton = CreateButton(canvas.transform, "Heroes Button", "HEROES", font, new Vector2(56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, heroText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, resetButton, equipHeroButton, heroesButton);
+            hud.Configure(titleText, coinsText, hqText, timerText, heroText, missionText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, previousMissionButton, nextMissionButton, resetButton, equipHeroButton, heroesButton);
             return hud;
         }
 

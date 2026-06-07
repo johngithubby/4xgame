@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LaneSurvivor.Heroes;
+using LaneSurvivor.Progression;
 using UnityEngine;
 
 namespace LaneSurvivor.Save
@@ -20,6 +21,10 @@ namespace LaneSurvivor.Save
 
         public int unlockedMinigameLevel = 1;
 
+        public int currentMissionLevel = 1;
+
+        public int highestUnlockedMissionLevel = 1;
+
         public List<string> ownedHeroIds = new();
 
         public string equippedHeroId = string.Empty;
@@ -31,7 +36,7 @@ namespace LaneSurvivor.Save
             // Clamp save values after load so corrupt or older data cannot break gameplay assumptions.
             coins = Mathf.Max(0, coins);
             hqLevel = Mathf.Max(1, hqLevel);
-            unlockedMinigameLevel = Mathf.Max(1, unlockedMinigameLevel);
+            NormalizeMissionProgression();
             NormalizeHeroes();
 
             // Invalid persisted timer values cannot be recovered safely, so clear the active timer.
@@ -147,6 +152,28 @@ namespace LaneSurvivor.Save
                     });
                 }
             }
+        }
+
+        private void NormalizeMissionProgression()
+        {
+            // Legacy saves used unlockedMinigameLevel as both unlock and selection, so keep that value as migration input.
+            int legacyUnlockedMissionLevel = Mathf.Clamp(Mathf.Max(1, unlockedMinigameLevel), 1, PlayerProgression.MaxMissionLevel);
+
+            // New saves track selected and highest-unlocked missions separately for the Base mission panel.
+            int normalizedHighestMissionLevel = Mathf.Clamp(Mathf.Max(Mathf.Max(1, highestUnlockedMissionLevel), legacyUnlockedMissionLevel), 1, PlayerProgression.MaxMissionLevel);
+
+            // If only the legacy field carries progress, preserve the old implicit behavior by selecting that mission.
+            if (legacyUnlockedMissionLevel > highestUnlockedMissionLevel && currentMissionLevel <= 1)
+            {
+                currentMissionLevel = legacyUnlockedMissionLevel;
+            }
+
+            // The selected mission must always be unlocked and inside the authored local mission range.
+            currentMissionLevel = Mathf.Clamp(Mathf.Max(1, currentMissionLevel), 1, normalizedHighestMissionLevel);
+            highestUnlockedMissionLevel = normalizedHighestMissionLevel;
+
+            // Keep the old field as a compatibility mirror for tests, docs, and older local JSON saves.
+            unlockedMinigameLevel = highestUnlockedMissionLevel;
         }
     }
 

@@ -26,6 +26,9 @@ namespace LaneSurvivor.Base
         private Text heroText;
 
         [SerializeField]
+        private Text missionText;
+
+        [SerializeField]
         private Text heroPanelTitleText;
 
         [SerializeField]
@@ -47,6 +50,12 @@ namespace LaneSurvivor.Base
         private Button playButton;
 
         [SerializeField]
+        private Button previousMissionButton;
+
+        [SerializeField]
+        private Button nextMissionButton;
+
+        [SerializeField]
         private Button resetButton;
 
         [SerializeField]
@@ -61,6 +70,7 @@ namespace LaneSurvivor.Base
             Text hq,
             Text timer,
             Text hero,
+            Text mission,
             Text heroPanelTitle,
             Text heroPanel,
             Text status,
@@ -68,6 +78,8 @@ namespace LaneSurvivor.Base
             Button collect,
             Button upgrade,
             Button play,
+            Button previousMission,
+            Button nextMission,
             Button reset,
             Button equipHero,
             Button heroes)
@@ -77,6 +89,7 @@ namespace LaneSurvivor.Base
             hqText = hq;
             timerText = timer;
             heroText = hero;
+            missionText = mission;
             heroPanelTitleText = heroPanelTitle;
             heroPanelText = heroPanel;
             statusText = status;
@@ -84,17 +97,21 @@ namespace LaneSurvivor.Base
             collectButton = collect;
             upgradeButton = upgrade;
             playButton = play;
+            previousMissionButton = previousMission;
+            nextMissionButton = nextMission;
             resetButton = reset;
             equipHeroButton = equipHero;
             heroesButton = heroes;
         }
 
-        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action resetAction, Action equipHeroAction, Action heroesAction)
+        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action previousMissionAction, Action nextMissionAction, Action resetAction, Action equipHeroAction, Action heroesAction)
         {
             // Replace listeners so scene rebuilds or test setup cannot accidentally duplicate clicks.
             collectButton.onClick.RemoveAllListeners();
             upgradeButton.onClick.RemoveAllListeners();
             playButton.onClick.RemoveAllListeners();
+            previousMissionButton.onClick.RemoveAllListeners();
+            nextMissionButton.onClick.RemoveAllListeners();
             resetButton.onClick.RemoveAllListeners();
             equipHeroButton.onClick.RemoveAllListeners();
             heroesButton.onClick.RemoveAllListeners();
@@ -103,6 +120,8 @@ namespace LaneSurvivor.Base
             collectButton.onClick.AddListener(() => collectAction?.Invoke());
             upgradeButton.onClick.AddListener(() => upgradeAction?.Invoke());
             playButton.onClick.AddListener(() => playAction?.Invoke());
+            previousMissionButton.onClick.AddListener(() => previousMissionAction?.Invoke());
+            nextMissionButton.onClick.AddListener(() => nextMissionAction?.Invoke());
             resetButton.onClick.AddListener(() => resetAction?.Invoke());
             equipHeroButton.onClick.AddListener(() => equipHeroAction?.Invoke());
             heroesButton.onClick.AddListener(() => heroesAction?.Invoke());
@@ -124,6 +143,8 @@ namespace LaneSurvivor.Base
             int upgradeCost = PlayerProgression.GetHqUpgradeCost(hqLevel);
             bool upgradeRunning = saveData != null && saveData.hqUpgradeInProgress;
             bool canAffordUpgrade = coins >= upgradeCost;
+            int selectedMissionLevel = PlayerProgression.GetSelectedMissionLevel(saveData);
+            int highestUnlockedMissionLevel = PlayerProgression.GetHighestUnlockedMissionLevel(saveData);
             HeroDefinition equippedHero = HeroInventory.GetEquippedHero(saveData);
             IReadOnlyList<HeroDefinition> ownedHeroes = HeroInventory.GetOwnedHeroes(saveData);
             bool firstHeroOwned = HeroInventory.OwnsHero(saveData, HeroCatalog.FirstWinHeroId);
@@ -140,6 +161,7 @@ namespace LaneSurvivor.Base
             heroText.text = equippedHero != null
                 ? $"Hero: {equippedHero.displayName} Lv {HeroInventory.GetHeroLevel(saveData, equippedHero.id)} (+{equippedHero.startingSquadBonus} squad)"
                 : "Hero: None";
+            missionText.text = $"Mission {selectedMissionLevel}: {PlayerProgression.GetMissionName(selectedMissionLevel)}\nUnlocked: {highestUnlockedMissionLevel}/{PlayerProgression.MaxMissionLevel}";
             heroPanelTitleText.text = "Owned Heroes";
             heroPanelText.text = BuildHeroPanelText(saveData, ownedHeroes, equippedHero);
             statusText.text = !string.IsNullOrWhiteSpace(statusOverride)
@@ -147,9 +169,10 @@ namespace LaneSurvivor.Base
                 : fallbackStatus;
 
             // Before the first hero is owned, the play hint tells the player a hero can be earned.
+            string missionUnlockHint = PlayerProgression.WouldUnlockNextMission(saveData) ? " + mission" : string.Empty;
             playHintText.text = firstHeroOwned
-                ? $"Win reward: +{PlayerProgression.MinigameWinCoins} coins"
-                : $"Win reward: +{PlayerProgression.MinigameWinCoins} coins + hero";
+                ? $"Win reward: +{PlayerProgression.MinigameWinCoins} coins{missionUnlockHint}"
+                : $"Win reward: +{PlayerProgression.MinigameWinCoins} coins + hero{missionUnlockHint}";
 
             // The collect button remains available in this prototype so the loop can be tested quickly.
             collectButton.interactable = true;
@@ -157,6 +180,8 @@ namespace LaneSurvivor.Base
             // Prevent starting a second timer or spending coins that are not available.
             upgradeButton.interactable = !upgradeRunning && canAffordUpgrade;
             playButton.interactable = true;
+            previousMissionButton.interactable = PlayerProgression.CanSelectPreviousMission(saveData);
+            nextMissionButton.interactable = PlayerProgression.CanSelectNextMission(saveData);
             equipHeroButton.interactable = HasUnequippedOwnedHero(ownedHeroes, equippedHero);
             heroesButton.interactable = true;
         }

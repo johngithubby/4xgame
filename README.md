@@ -15,13 +15,13 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Press Play.
 - The squad auto-starts after a short delay, moves forward, changes lanes with left/right input, applies gates in the matching lane, shoots zombies in the current lane, and reaches a win or loss state.
 - Lane input works with the on-screen arrow buttons, keyboard `A/D`, keyboard arrow keys, or tapping/clicking the left or right third of the screen.
-- HQ level 2 unlocks a second small minigame layout with tougher zombies.
+- Local mission progression unlocks additional minigame layouts with tougher lane pacing.
 - Automatic shots now show placeholder tracers and damage text.
 
 ## Phase 2
 
 - Open `Assets/Scenes/Base.unity` to try the first base-building slice.
-- The base scene shows a placeholder HQ building, local coins, collect, HQ upgrade, and play controls.
+- The base scene shows a placeholder HQ building, local coins, collect, HQ upgrade, mission selection, and play controls.
 - The Base HUD uses a narrow mobile reference layout for the placeholder controls.
 - HQ starts at level 1.
 - Collect grants local coins.
@@ -29,6 +29,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Completed HQ upgrades increase HQ level.
 - Base shows feedback when an HQ upgrade completes.
 - HQ levels above 1 add a visible starting squad bonus in the minigame.
+- Winning the highest unlocked mission unlocks the next local mission up to mission 4.
 - Winning the minigame grants a local coin reward and shows the reward on the completion screen.
 - Editor and development builds show a local save reset button for quick prototype iteration.
 - The minigame end screen has a `BASE` button to return to the base scene.
@@ -50,7 +51,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - EditMode tests live in `Assets/Tests/EditMode`.
 - PlayMode scene smoke tests live in `Assets/Tests/PlayMode`.
 - Current EditMode test coverage includes Phase 1 gameplay rules, Phase 2 progression/save rules, and Phase 3 hero inventory rules.
-- Current PlayMode test coverage includes Base collect/upgrade persistence, completed-upgrade feedback, Base-to-Minigame flow, Minigame start movement, lane-button movement, restart, rewards, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
+- Current PlayMode test coverage includes Base collect/upgrade persistence, mission selection, completed-upgrade feedback, Base-to-Minigame flow, Minigame start movement, lane-button movement, restart, rewards, mission unlocks, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
 - A batch-mode iOS smoke build entry point exists at `LaneSurvivor.Editor.IosSmokeBuild.Run`.
 

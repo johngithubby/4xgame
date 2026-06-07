@@ -60,7 +60,7 @@ namespace LaneSurvivor.Gameplay
                 SaveGameManager.Save(saveData);
             }
 
-            // Level selection is data-derived so HQ unlocks can switch to level 2 without scene edits.
+            // Mission selection is data-derived so Base can launch unlocked layouts without scene edits.
             return LevelDefinitionFactory.CreateForSave(saveData);
         }
 
@@ -160,10 +160,10 @@ namespace LaneSurvivor.Gameplay
             Text resultText = CreateText(panel.transform, "Result Text", "Result", font, new Vector2(0f, -38f), TextAnchor.UpperCenter);
             Text rewardText = CreateText(panel.transform, "Reward Text", string.Empty, font, new Vector2(0f, -78f), TextAnchor.UpperCenter);
 
-            // Hero unlocks and XP can add extra lines, so the reward label gets a taller text box.
-            rewardText.GetComponent<RectTransform>().sizeDelta = new Vector2(360f, 90f);
-            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(-100f, -162f), new Vector2(0.5f, 1f));
-            Button baseButton = CreateButton(panel.transform, "Base Button", "BASE", font, new Vector2(100f, -162f), new Vector2(0.5f, 1f));
+            // Mission unlocks, hero unlocks, and XP can add several lines, so the reward label gets more height.
+            rewardText.GetComponent<RectTransform>().sizeDelta = new Vector2(360f, 112f);
+            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(-100f, -184f), new Vector2(0.5f, 1f));
+            Button baseButton = CreateButton(panel.transform, "Base Button", "BASE", font, new Vector2(100f, -184f), new Vector2(0.5f, 1f));
 
             EndScreenController endScreenController = canvas.gameObject.AddComponent<EndScreenController>();
             endScreenController.Configure(panel, resultText, restartButton, baseButton, rewardText);

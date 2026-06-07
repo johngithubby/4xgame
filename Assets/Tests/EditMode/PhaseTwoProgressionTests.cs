@@ -112,9 +112,115 @@ namespace LaneSurvivor.Tests.EditMode
 
             Assert.IsTrue(completed);
             Assert.AreEqual(2, saveData.hqLevel);
-            Assert.AreEqual(2, saveData.unlockedMinigameLevel);
+            Assert.AreEqual(1, saveData.highestUnlockedMissionLevel);
+            Assert.AreEqual(1, saveData.currentMissionLevel);
+            Assert.AreEqual(1, saveData.unlockedMinigameLevel);
             Assert.IsFalse(saveData.hqUpgradeInProgress);
             Assert.AreEqual(1, PlayerProgression.GetStartingSquadBonus(saveData));
+        }
+
+        [Test]
+        public void Normalize_DefaultsMissionProgressionToFirstMission()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = -4,
+                highestUnlockedMissionLevel = 0,
+                unlockedMinigameLevel = 0
+            };
+
+            saveData.Normalize();
+
+            Assert.AreEqual(1, saveData.currentMissionLevel);
+            Assert.AreEqual(1, saveData.highestUnlockedMissionLevel);
+            Assert.AreEqual(1, saveData.unlockedMinigameLevel);
+        }
+
+        [Test]
+        public void Normalize_MigratesLegacyUnlockedMinigameLevelToMissionProgress()
+        {
+            SaveGameData saveData = new()
+            {
+                unlockedMinigameLevel = 3,
+                currentMissionLevel = 1,
+                highestUnlockedMissionLevel = 1
+            };
+
+            saveData.Normalize();
+
+            Assert.AreEqual(3, saveData.currentMissionLevel);
+            Assert.AreEqual(3, saveData.highestUnlockedMissionLevel);
+            Assert.AreEqual(3, saveData.unlockedMinigameLevel);
+        }
+
+        [Test]
+        public void TrySelectMission_RejectsLockedMission()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = 1,
+                highestUnlockedMissionLevel = 1
+            };
+
+            bool selected = PlayerProgression.TrySelectMission(saveData, 2);
+
+            Assert.IsFalse(selected);
+            Assert.AreEqual(1, saveData.currentMissionLevel);
+        }
+
+        [Test]
+        public void TrySelectMission_PersistsUnlockedMissionSelection()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = 1,
+                highestUnlockedMissionLevel = 3
+            };
+
+            bool selected = PlayerProgression.TrySelectMission(saveData, 2);
+
+            Assert.IsTrue(selected);
+            Assert.AreEqual(2, saveData.currentMissionLevel);
+            Assert.AreEqual(3, saveData.highestUnlockedMissionLevel);
+            Assert.AreEqual(3, saveData.unlockedMinigameLevel);
+        }
+
+        [Test]
+        public void CompleteMission_UnlocksNextMissionOnceAndAutoSelectsIt()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = 1,
+                highestUnlockedMissionLevel = 1
+            };
+
+            MissionCompletionResult firstCompletion = PlayerProgression.TryCompleteMission(saveData, 1);
+            MissionCompletionResult replayCompletion = PlayerProgression.TryCompleteMission(saveData, 1);
+
+            Assert.IsTrue(firstCompletion.unlockedNewMission);
+            Assert.AreEqual(2, firstCompletion.unlockedMissionLevel);
+            Assert.AreEqual(2, saveData.currentMissionLevel);
+            Assert.AreEqual(2, saveData.highestUnlockedMissionLevel);
+            Assert.AreEqual(2, saveData.unlockedMinigameLevel);
+            Assert.IsFalse(replayCompletion.unlockedNewMission);
+            Assert.AreEqual(2, saveData.highestUnlockedMissionLevel);
+        }
+
+        [Test]
+        public void CompleteMission_StopsAtAuthoredMissionCap()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = PlayerProgression.MaxMissionLevel,
+                highestUnlockedMissionLevel = PlayerProgression.MaxMissionLevel
+            };
+
+            MissionCompletionResult completion = PlayerProgression.TryCompleteMission(saveData, PlayerProgression.MaxMissionLevel);
+
+            Assert.IsFalse(completion.unlockedNewMission);
+            Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.currentMissionLevel);
+            Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.highestUnlockedMissionLevel);
+            Assert.AreEqual(PlayerProgression.MaxMissionLevel, saveData.unlockedMinigameLevel);
         }
 
         [Test]
@@ -187,7 +293,9 @@ namespace LaneSurvivor.Tests.EditMode
                 hqUpgradeInProgress = true,
                 hqUpgradeStartedUtcTicks = new DateTime(2026, 5, 30, 12, 0, 0, DateTimeKind.Utc).Ticks,
                 hqUpgradeDurationSeconds = 20,
-                unlockedMinigameLevel = 3
+                unlockedMinigameLevel = 3,
+                currentMissionLevel = 2,
+                highestUnlockedMissionLevel = 3
             };
 
             SaveGameManager.Save(saveData);
@@ -199,6 +307,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(saveData.hqUpgradeStartedUtcTicks, loadedData.hqUpgradeStartedUtcTicks);
             Assert.AreEqual(20, loadedData.hqUpgradeDurationSeconds);
             Assert.AreEqual(3, loadedData.unlockedMinigameLevel);
+            Assert.AreEqual(2, loadedData.currentMissionLevel);
+            Assert.AreEqual(3, loadedData.highestUnlockedMissionLevel);
         }
 
         [Test]
@@ -214,6 +324,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(1, loadedData.hqLevel);
             Assert.IsFalse(loadedData.hqUpgradeInProgress);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
+            Assert.AreEqual(1, loadedData.currentMissionLevel);
+            Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);
         }
 
         [Test]
@@ -228,7 +340,9 @@ namespace LaneSurvivor.Tests.EditMode
             {
                 coins = 250,
                 hqLevel = 4,
-                unlockedMinigameLevel = 4
+                unlockedMinigameLevel = 4,
+                currentMissionLevel = 3,
+                highestUnlockedMissionLevel = 4
             });
 
             // Reset writes fresh data immediately, and a later load should read the same defaults.
@@ -239,9 +353,13 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(0, resetData.coins);
             Assert.AreEqual(1, resetData.hqLevel);
             Assert.AreEqual(1, resetData.unlockedMinigameLevel);
+            Assert.AreEqual(1, resetData.currentMissionLevel);
+            Assert.AreEqual(1, resetData.highestUnlockedMissionLevel);
             Assert.AreEqual(0, loadedData.coins);
             Assert.AreEqual(1, loadedData.hqLevel);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
+            Assert.AreEqual(1, loadedData.currentMissionLevel);
+            Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);
         }
     }
 }

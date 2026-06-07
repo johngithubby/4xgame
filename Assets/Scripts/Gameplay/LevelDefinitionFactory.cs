@@ -13,11 +13,15 @@ namespace LaneSurvivor.Gameplay
             // Normalize the save before deriving level unlocks or hero stat bonuses.
             saveData?.Normalize();
 
-            // HQ progression unlocks level 2 through unlockedMinigameLevel.
-            int levelNumber = Mathf.Max(1, saveData?.unlockedMinigameLevel ?? 1);
-            return levelNumber >= 2
-                ? CreateLevelTwo(saveData)
-                : CreateLevelOne(saveData);
+            // Mission progression now selects the minigame layout while HQ and heroes still provide stat bonuses.
+            int levelNumber = PlayerProgression.GetSelectedMissionLevel(saveData);
+            return levelNumber switch
+            {
+                4 => CreateLevelFour(saveData),
+                3 => CreateLevelThree(saveData),
+                2 => CreateLevelTwo(saveData),
+                _ => CreateLevelOne(saveData)
+            };
         }
 
         private static LevelDefinition CreateLevelOne(SaveGameData saveData)
@@ -151,6 +155,187 @@ namespace LaneSurvivor.Gameplay
                     health = 42f,
                     breachPenalty = 8,
                     position = new Vector3(0f, 1f, 57f)
+                }
+            };
+            return levelDefinition;
+        }
+
+        private static LevelDefinition CreateLevelThree(SaveGameData saveData)
+        {
+            // Level three adds a longer midgame course with more alternating lane pressure.
+            LevelDefinition levelDefinition = CreateBaseDefinition(saveData, 3);
+            levelDefinition.finishDistance = 66f;
+            levelDefinition.squadMoveSpeed = 4.8f;
+            // Shared lane aliases keep authored obstacles aligned with the existing portrait-safe lane spacing.
+            float leftLane = -GameplayVisuals.SideLaneX;
+            float rightLane = GameplayVisuals.SideLaneX;
+
+            levelDefinition.gates = new[]
+            {
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.AddSquad,
+                    squadValue = 5,
+                    damageValue = 0f,
+                    position = new Vector3(rightLane, 1.1f, 8f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.AddDamage,
+                    squadValue = 0,
+                    damageValue = 0.7f,
+                    position = new Vector3(leftLane, 1.1f, 18f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.SubtractSquad,
+                    squadValue = 6,
+                    damageValue = 0f,
+                    position = new Vector3(0f, 1.1f, 29f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.MultiplySquad,
+                    squadValue = 2,
+                    damageValue = 0f,
+                    position = new Vector3(leftLane, 1.1f, 41f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.AddDamage,
+                    squadValue = 0,
+                    damageValue = 0.5f,
+                    position = new Vector3(rightLane, 1.1f, 55f)
+                }
+            };
+            levelDefinition.zombies = new[]
+            {
+                new ZombieSpawnDefinition
+                {
+                    health = 14f,
+                    breachPenalty = 3,
+                    position = new Vector3(0f, 1f, 11f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 26f,
+                    breachPenalty = 5,
+                    position = new Vector3(rightLane, 1f, 24f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 32f,
+                    breachPenalty = 6,
+                    position = new Vector3(leftLane, 1f, 36f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 45f,
+                    breachPenalty = 8,
+                    position = new Vector3(0f, 1f, 50f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 50f,
+                    breachPenalty = 9,
+                    position = new Vector3(rightLane, 1f, 63f)
+                }
+            };
+            return levelDefinition;
+        }
+
+        private static LevelDefinition CreateLevelFour(SaveGameData saveData)
+        {
+            // Level four is the current local cap and layers more late-run decisions before the finish.
+            LevelDefinition levelDefinition = CreateBaseDefinition(saveData, 4);
+            levelDefinition.finishDistance = 74f;
+            levelDefinition.squadMoveSpeed = 5f;
+            // Lane aliases avoid scattered magic numbers and keep the final slice aligned with earlier missions.
+            float leftLane = -GameplayVisuals.SideLaneX;
+            float rightLane = GameplayVisuals.SideLaneX;
+
+            levelDefinition.gates = new[]
+            {
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.AddDamage,
+                    squadValue = 0,
+                    damageValue = 0.8f,
+                    position = new Vector3(0f, 1.1f, 9f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.AddSquad,
+                    squadValue = 7,
+                    damageValue = 0f,
+                    position = new Vector3(leftLane, 1.1f, 19f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.SubtractSquad,
+                    squadValue = 8,
+                    damageValue = 0f,
+                    position = new Vector3(rightLane, 1.1f, 31f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.MultiplySquad,
+                    squadValue = 2,
+                    damageValue = 0f,
+                    position = new Vector3(0f, 1.1f, 43f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.AddDamage,
+                    squadValue = 0,
+                    damageValue = 0.6f,
+                    position = new Vector3(leftLane, 1.1f, 56f)
+                },
+                new GateSpawnDefinition
+                {
+                    modifierType = GateModifierType.AddSquad,
+                    squadValue = 5,
+                    damageValue = 0f,
+                    position = new Vector3(rightLane, 1.1f, 65f)
+                }
+            };
+            levelDefinition.zombies = new[]
+            {
+                new ZombieSpawnDefinition
+                {
+                    health = 18f,
+                    breachPenalty = 4,
+                    position = new Vector3(rightLane, 1f, 13f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 30f,
+                    breachPenalty = 6,
+                    position = new Vector3(0f, 1f, 25f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 38f,
+                    breachPenalty = 7,
+                    position = new Vector3(leftLane, 1f, 38f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 48f,
+                    breachPenalty = 8,
+                    position = new Vector3(rightLane, 1f, 51f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 56f,
+                    breachPenalty = 10,
+                    position = new Vector3(0f, 1f, 62f)
+                },
+                new ZombieSpawnDefinition
+                {
+                    health = 62f,
+                    breachPenalty = 11,
+                    position = new Vector3(leftLane, 1f, 71f)
                 }
             };
             return levelDefinition;

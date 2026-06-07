@@ -36,7 +36,7 @@ Phase 1 is implemented and pushed on `develop`.
 - Win/loss screen with restart.
 - Placeholder primitives, colored gates, lane markers, finish marker, and floating feedback text.
 - Placeholder shot tracers and damage numbers make automatic shooting easier to read.
-- HQ level 2 unlocks a second small minigame layout.
+- Local mission progression unlocks additional minigame layouts.
 - Local-only scene with no server and no monetization.
 
 ### Important Files
@@ -57,14 +57,14 @@ Phase 1 is implemented and pushed on `develop`.
 ### Validation
 
 - EditMode tests pass with the temp-copy Unity batch workflow documented in `LESSONS_LEARNED.md`.
-- Current proof: `23/23` Phase 1 EditMode tests passed as part of the full `52/52` EditMode Unity run.
-- Current PlayMode proof includes Minigame start movement, lane-button movement, restart, rewards, and return-to-Base scene flow as part of the full `9/9` PlayMode Unity run.
+- Current proof: `25/25` Phase 1 EditMode tests passed as part of the full `60/60` EditMode Unity run.
+- Current PlayMode proof includes Minigame start movement, lane-button movement, restart, rewards, mission unlocks, and return-to-Base scene flow as part of the full `10/10` PlayMode Unity run.
 - Autoreview was run on the Phase 1 polish diff and reported no accepted/actionable findings.
 
 ### Remaining Phase 1 Polish Ideas
 
 - Add a simple sound-free hit flash or projectile placeholder. Done with shot tracers.
-- Add a second small level definition. Done through the HQ level 2 unlock.
+- Add a second small level definition. Done through mission progression.
 - Improve camera framing for different device aspect ratios.
 - Expand PlayMode smoke coverage for longer full-run visual/gameplay passes when worthwhile.
 
@@ -84,15 +84,17 @@ The first tiny Phase 2 slice is implemented:
 - HQ upgrade spends coins and starts a local persisted timer.
 - Ready upgrades complete from scene load or while the base scene is open.
 - HQ level grants a starting squad bonus in the minigame.
+- Base shows the selected mission and allows previous/next selection among unlocked missions.
 - Base scene can launch Minigame.
 - Base scene can launch the dedicated Heroes screen.
 - Minigame win/loss screen can return to Base.
 - Minigame wins grant a fixed local coin reward and show it on the completion screen.
+- Minigame wins unlock the next local mission when the player clears the highest unlocked mission.
 - Base shows a visible feedback message when HQ upgrades complete.
 - Editor and development builds expose a local save reset button for prototype iteration.
 - Base HUD spacing has been tightened around a phone-sized reference layout.
 - Save, wallet, timer, and progression rules have EditMode coverage.
-- Base collection/upgrade, completed-upgrade feedback, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
+- Base collection/upgrade, mission selection, completed-upgrade feedback, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
 
 ### Smallest Useful Slice
 
@@ -136,7 +138,9 @@ SaveGameData
 - hqUpgradeStartedUtcTicks
 - hqUpgradeDurationSeconds
 - hqUpgradeInProgress
-- unlockedMinigameLevel
+- currentMissionLevel
+- highestUnlockedMissionLevel
+- unlockedMinigameLevel (legacy compatibility mirror)
 - ownedHeroIds
 - equippedHeroId
 - heroProgress
@@ -151,7 +155,9 @@ SaveGameData
 - Upgrade timer visibly counts down. Done.
 - Closing and reopening preserves coins, HQ level, and active timer state. Covered by save/timer implementation and EditMode tests.
 - Finished timer upgrades HQ level. Done.
-- HQ level affects minigame content or stats in a visible way. Done.
+- HQ level affects minigame stats in a visible way. Done.
+- Base scene can select previously unlocked missions. Done.
+- Winning the highest unlocked minigame mission unlocks the next mission. Done through mission 4.
 - Winning the minigame grants coins once per run and persists them locally. Done.
 - Player gets visible Base feedback when an HQ upgrade completes. Done.
 - Development builds can reset local save progress from the Base scene. Done.
@@ -161,9 +167,9 @@ SaveGameData
 
 ### Validation
 
-- Add EditMode tests for resource spending, insufficient funds, timer completion, minigame win rewards, save reset, and save/load persistence. Done.
+- Add EditMode tests for resource spending, insufficient funds, timer completion, mission selection/unlocks, minigame win rewards, save reset, and save/load persistence. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done.
-- Run Unity PlayMode smoke tests for Base collect/upgrade persistence, completed-upgrade feedback, Base -> Minigame scene loading, minigame win rewards, and Minigame end-screen -> Base return. Done.
+- Run Unity PlayMode smoke tests for Base collect/upgrade persistence, mission selection, completed-upgrade feedback, Base -> Minigame scene loading, minigame win rewards/unlocks, and Minigame end-screen -> Base return. Done.
 - Manual Play Mode pass remains useful for visual polish, but the key Base and Minigame UI paths now have automated smoke coverage.
 
 ## Phase 3: Heroes
@@ -229,6 +235,31 @@ The first Phase 3 hero slices are implemented:
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done.
 - Run Unity PlayMode smoke tests to keep first-win hero rewards, HQ milestone hero rewards, Base -> Minigame, Base -> Heroes, Hero screen level-up/equip, and return navigation covered. Done.
 
+## Local V2: Mission Progression
+
+### Goal
+
+Add a small local mission progression layer that makes the completed Base, Heroes, and Minigame loops feel like forward progress without adding backend, monetization, PvP, ads, or production art.
+
+### Current Status
+
+The first local v2 mission slice is implemented:
+
+- Save data tracks selected mission and highest unlocked mission.
+- The legacy `unlockedMinigameLevel` field is retained as a compatibility mirror.
+- Base HUD shows the selected mission and highest unlocked mission count.
+- Base HUD previous/next buttons select among unlocked missions and persist immediately.
+- Minigame launches the selected mission from local save data.
+- Four local mission layouts exist with distinct gate/zombie pacing.
+- Clearing the highest unlocked mission unlocks the next mission up to mission 4 and auto-selects it for the Base return.
+- Win reward text shows mission unlocks alongside coins, hero unlocks, and hero XP.
+
+### Validation
+
+- EditMode tests cover mission defaults, legacy migration, locked selection rejection, unlocked selection persistence, frontier mission unlocks, replay behavior, mission cap behavior, and level definition selection for missions 3 and 4 as part of the full `60/60` EditMode Unity run.
+- PlayMode smoke tests cover Base mission UI display, previous/next mission selection, Minigame win mission unlocks, save persistence, and Base return showing the newly selected mission as part of the full `10/10` PlayMode Unity run.
+- iOS smoke export succeeds and produces an Xcode project without adding backend or networking dependencies.
+
 ## Phase 4: Online Design Only
 
 ### Goal
@@ -265,11 +296,11 @@ Design future online systems after local Phases 1 through 3 are stable. Do not i
 
 ## Near-Term Next Step
 
-Local Phases 1 through 3 now have the requested final local roadmap slices represented:
+Local Phases 1 through 3 and the first local v2 mission slice now have the requested roadmap slices represented:
 
 1. Dedicated Hero screen. Done.
 2. Manual local hero leveling with a coin cost. Done.
-3. Second minigame layout unlocked by HQ progression. Done.
+3. Mission selection and four local minigame layouts unlocked through mission wins. Done.
 4. Shot feedback and end-screen spacing polish. Done.
 5. Stability pass with expanded tests and iOS smoke build entry point. Done and verified with Unity EditMode, PlayMode, and iOS smoke export.
 6. Phase 4 backend design doc. Done.

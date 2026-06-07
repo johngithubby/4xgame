@@ -64,6 +64,9 @@ namespace LaneSurvivor.Tests.PlayMode
             // Runtime-built objects prove the bootstrap ran successfully.
             Assert.IsNotNull(GameObject.Find("Base HUD Canvas"));
             Assert.IsNotNull(GameObject.Find("HQ Building"));
+            Text missionText = GameObject.Find("Mission Text")?.GetComponent<Text>();
+            Assert.IsNotNull(missionText);
+            StringAssert.Contains("Mission 1: Outskirts", missionText.text);
 
             // Invoke the real UI button listener so this verifies the same navigation path as a tap.
             Button playButton = GameObject.Find("Play Button")?.GetComponent<Button>();
@@ -77,6 +80,47 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual("Minigame", SceneManager.GetActiveScene().name);
             Assert.IsNotNull(GameObject.Find("Level Manager"));
             Assert.IsNotNull(GameObject.Find("Player Squad"));
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_MissionButtonsPersistUnlockedSelection()
+        {
+            // Seed three unlocked missions so the Base HUD can move selection both forward and backward.
+            SaveGameManager.Save(new SaveGameData
+            {
+                currentMissionLevel = 1,
+                highestUnlockedMissionLevel = 3,
+                unlockedMinigameLevel = 3
+            });
+
+            // Reload Base after seeding so the bootstrap reads the prepared mission state.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // The next button should be usable because mission 2 is already unlocked.
+            Button nextMissionButton = GameObject.Find("Next Mission Button")?.GetComponent<Button>();
+            Assert.IsNotNull(nextMissionButton);
+            Assert.IsTrue(nextMissionButton.interactable);
+            nextMissionButton.onClick.Invoke();
+            yield return null;
+
+            // Selecting mission 2 should save immediately and update the visible mission panel.
+            SaveGameData missionTwoData = SaveGameManager.Load();
+            Assert.AreEqual(2, missionTwoData.currentMissionLevel);
+            Text missionText = GameObject.Find("Mission Text")?.GetComponent<Text>();
+            Assert.IsNotNull(missionText);
+            StringAssert.Contains("Mission 2: Market Run", missionText.text);
+
+            // The previous button should move back to mission 1 through the real UI listener.
+            Button previousMissionButton = GameObject.Find("Previous Mission Button")?.GetComponent<Button>();
+            Assert.IsNotNull(previousMissionButton);
+            Assert.IsTrue(previousMissionButton.interactable);
+            previousMissionButton.onClick.Invoke();
+            yield return null;
+
+            // Reload from disk so the assertion proves selection persistence, not just in-memory UI state.
+            SaveGameData missionOneData = SaveGameManager.Load();
+            Assert.AreEqual(1, missionOneData.currentMissionLevel);
         }
 
         [UnityTest]
@@ -144,7 +188,9 @@ namespace LaneSurvivor.Tests.PlayMode
             // The saved state should now reflect the completed HQ upgrade and milestone hero reward.
             SaveGameData completedData = SaveGameManager.Load();
             Assert.AreEqual(2, completedData.hqLevel);
-            Assert.AreEqual(2, completedData.unlockedMinigameLevel);
+            Assert.AreEqual(1, completedData.highestUnlockedMissionLevel);
+            Assert.AreEqual(1, completedData.currentMissionLevel);
+            Assert.AreEqual(1, completedData.unlockedMinigameLevel);
             Assert.IsFalse(completedData.hqUpgradeInProgress);
             Assert.IsTrue(HeroInventory.OwnsHero(completedData, HeroCatalog.HqLevelTwoHeroId));
 
@@ -265,11 +311,15 @@ namespace LaneSurvivor.Tests.PlayMode
             Text rewardText = GameObject.Find("Reward Text")?.GetComponent<Text>();
             Assert.IsNotNull(rewardText);
             StringAssert.Contains($"+{PlayerProgression.MinigameWinCoins} coins", rewardText.text);
+            StringAssert.Contains("Mission 2 unlocked", rewardText.text);
             StringAssert.Contains("Mira Vanguard", rewardText.text);
 
             // Reload from disk so this proves LevelManager persisted the scene-earned rewards.
             SaveGameData rewardedData = SaveGameManager.Load();
             Assert.AreEqual(PlayerProgression.MinigameWinCoins, rewardedData.coins);
+            Assert.AreEqual(2, rewardedData.currentMissionLevel);
+            Assert.AreEqual(2, rewardedData.highestUnlockedMissionLevel);
+            Assert.AreEqual(2, rewardedData.unlockedMinigameLevel);
             Assert.IsTrue(HeroInventory.OwnsHero(rewardedData, HeroCatalog.FirstWinHeroId));
 
             Button baseButton = GameObject.Find("Base Button")?.GetComponent<Button>();
@@ -281,6 +331,9 @@ namespace LaneSurvivor.Tests.PlayMode
             // Returning to Base should rebuild the local hub instead of leaving the player in the minigame.
             Assert.AreEqual("Base", SceneManager.GetActiveScene().name);
             Assert.IsNotNull(GameObject.Find("Base HUD Canvas"));
+            Text returnedMissionText = GameObject.Find("Mission Text")?.GetComponent<Text>();
+            Assert.IsNotNull(returnedMissionText);
+            StringAssert.Contains("Mission 2: Market Run", returnedMissionText.text);
         }
 
         [UnityTest]
@@ -323,7 +376,9 @@ namespace LaneSurvivor.Tests.PlayMode
             {
                 coins = HeroProgression.GetManualLevelUpCoinCost(1),
                 hqLevel = 2,
-                unlockedMinigameLevel = 2
+                unlockedMinigameLevel = 2,
+                currentMissionLevel = 2,
+                highestUnlockedMissionLevel = 2
             };
             HeroInventory.GrantHero(saveData, HeroCatalog.FirstWinHeroId);
             HeroInventory.GrantHero(saveData, HeroCatalog.HqLevelTwoHeroId);

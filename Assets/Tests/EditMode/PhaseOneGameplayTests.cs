@@ -331,6 +331,39 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void LevelDefinitionFactory_UsesSelectedMissionLevel()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = 3,
+                highestUnlockedMissionLevel = 4
+            };
+
+            LevelDefinition levelDefinition = LevelDefinitionFactory.CreateForSave(saveData);
+
+            Assert.AreEqual(3, levelDefinition.levelNumber);
+            Assert.AreEqual(5, levelDefinition.gates.Length);
+            Assert.AreEqual(5, levelDefinition.zombies.Length);
+        }
+
+        [Test]
+        public void LevelDefinitionFactory_ProvidesFourthMissionAtLocalCap()
+        {
+            SaveGameData saveData = new()
+            {
+                currentMissionLevel = 4,
+                highestUnlockedMissionLevel = 4
+            };
+
+            LevelDefinition levelDefinition = LevelDefinitionFactory.CreateForSave(saveData);
+
+            Assert.AreEqual(4, levelDefinition.levelNumber);
+            Assert.AreEqual(6, levelDefinition.gates.Length);
+            Assert.AreEqual(6, levelDefinition.zombies.Length);
+            Assert.Greater(levelDefinition.finishDistance, 70f);
+        }
+
+        [Test]
         public void PrototypeMaterialFactory_CreatesTintableMaterial()
         {
             // The factory must not depend on any one named shader being present in a player build.

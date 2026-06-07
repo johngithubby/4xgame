@@ -235,10 +235,10 @@ namespace LaneSurvivor.EditorTools
             Text resultText = CreateText(panel.transform, "Result Text", "Result", font, new Vector2(0f, -38f), TextAnchor.UpperCenter);
             Text rewardText = CreateText(panel.transform, "Reward Text", string.Empty, font, new Vector2(0f, -78f), TextAnchor.UpperCenter);
 
-            // Hero rewards can add a second line, so the reward label gets a taller text box.
-            rewardText.GetComponent<RectTransform>().sizeDelta = new Vector2(340f, 70f);
-            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(-100f, -138f), new Vector2(0.5f, 1f));
-            Button baseButton = CreateButton(panel.transform, "Base Button", "BASE", font, new Vector2(100f, -138f), new Vector2(0.5f, 1f));
+            // Mission unlocks, hero rewards, and XP can add several lines, so the reward label gets more height.
+            rewardText.GetComponent<RectTransform>().sizeDelta = new Vector2(340f, 112f);
+            Button restartButton = CreateButton(panel.transform, "Restart Button", "RESTART", font, new Vector2(-100f, -184f), new Vector2(0.5f, 1f));
+            Button baseButton = CreateButton(panel.transform, "Base Button", "BASE", font, new Vector2(100f, -184f), new Vector2(0.5f, 1f));
 
             EndScreenController endScreenController = canvas.gameObject.AddComponent<EndScreenController>();
             endScreenController.Configure(panel, resultText, restartButton, baseButton, rewardText);

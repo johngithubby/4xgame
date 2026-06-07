@@ -208,18 +208,27 @@ namespace LaneSurvivor.Gameplay
             // Award hero XP after first-win hero grants so the new hero can progress immediately.
             HeroXpRewardResult heroXpReward = HeroProgression.TryGrantMinigameWinXp(saveData);
 
+            // Mission completion unlocks the next local layout when the player clears the frontier mission.
+            MissionCompletionResult missionCompletion = PlayerProgression.TryCompleteMission(saveData, levelDefinition.levelNumber);
+
             // Persist the reward immediately so returning to Base shows the updated coin balance.
             SaveGameManager.Save(saveData);
-            return BuildRewardText(rewardCoins, heroReward, heroXpReward);
+            return BuildRewardText(rewardCoins, heroReward, heroXpReward, missionCompletion);
         }
 
-        private static string BuildRewardText(int rewardCoins, HeroDefinition heroReward, HeroXpRewardResult heroXpReward)
+        private static string BuildRewardText(int rewardCoins, HeroDefinition heroReward, HeroXpRewardResult heroXpReward, MissionCompletionResult missionCompletion)
         {
             // Coins are always the first reward line for a successful minigame win.
             List<string> rewardLines = new()
             {
                 $"+{rewardCoins} coins"
             };
+
+            // Mission unlocks are shown before hero XP so the next run objective is immediately obvious.
+            if (missionCompletion.unlockedNewMission)
+            {
+                rewardLines.Add($"Mission {missionCompletion.unlockedMissionLevel} unlocked: {PlayerProgression.GetMissionName(missionCompletion.unlockedMissionLevel)}");
+            }
 
             // First-win hero unlocks remain visible even when XP is also awarded.
             if (heroReward != null)
