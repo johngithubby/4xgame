@@ -353,3 +353,32 @@ Local Phases 1 through 3 and the mission select v2 slice now have the requested 
 5. Stability pass with expanded tests, iOS smoke export, and iOS Simulator launch proof. Done and verified with Unity EditMode, PlayMode, iOS export, Simulator launch, and combat feedback video proof.
 6. Phase 4 backend design doc. Done.
 7. Device-aspect camera framing polish. Done with responsive camera FOV, upper-right Minigame state text placement, and automated coverage.
+
+## Local V4: Character Visual Pass
+
+### Goal
+
+Make the minigame actors read as people and zombies instead of rectangular prototype blobs while keeping implementation local-only, generated, and asset-license safe.
+
+### Current Status
+
+The first character visual pass is implemented:
+
+- Player squad now renders as a three-survivor formation made from generated rounded meshes.
+- Survivor visuals include heads, helmets, torsos, vests, arms, hands, legs, boots, and small rifles.
+- Basic zombies now render as humanoid undead bodies with green heads, eyes, mouths, reaching arms, legs, feet, and wound details.
+- Armored zombies add generated helmet, chest armor, shoulder armor, strap, and belt pieces.
+- Survivors now use a stronger procedural bent-knee run cycle while the gameplay root moves.
+- Basic and armored zombies now use slower procedural bent-knee in-place shamble animation.
+- Survivor and zombie legs now use connected hip, knee, shin, and foot transform chains so knee bends do not create detached joint gaps.
+- Zombie leg segments now use a pale dirty-gray material so their shamble remains readable against the dark road and in compressed simulator GIFs.
+- Runtime minigame and editor scene rebuild paths both use the same generated character factory.
+- The old HUD-only player marker is disabled by default, with visible world-space survivor meshes now serving as the primary player representation.
+- No imported art, copyrighted assets, backend dependencies, ads, monetization, gacha, guilds, or PvP were added.
+
+### Validation
+
+- EditMode coverage checks collider-free sphere/cylinder primitive generation and survivor/zombie body hierarchies.
+- EditMode coverage checks connected knee/shin pivots, procedural survivor running, zombie shambling, and high-contrast zombie leg material visibility.
+- PlayMode coverage checks the runtime Minigame scene spawns humanoid player and zombie parts with animator rigs instead of single-card actor blobs.
+- Latest verification: Unity EditMode `73/73`, Unity PlayMode `17/17`, clean `git diff --check`, and fresh iOS Simulator GIF captures for survivor running and zombie shamble visibility.

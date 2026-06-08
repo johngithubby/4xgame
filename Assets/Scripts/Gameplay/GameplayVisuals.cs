@@ -19,20 +19,20 @@ namespace LaneSurvivor.Gameplay
         // The lane match tolerance is below half the lane spacing so adjacent lanes do not both resolve.
         public const float LaneMatchTolerance = 0.38f;
 
-        // The player center is intentionally raised so the road plane cannot swallow the squad marker.
+        // The player center is raised so humanoid squad feet stay above the road while the chase camera follows the group.
         public const float PlayerCenterY = TrackTopY + 1.10f;
 
-        // The player height stays compact because the raised placement, not bulk, provides visibility.
-        public const float PlayerHeight = 0.48f;
+        // The player height now represents the generated survivor formation rather than a single placeholder cube.
+        public const float PlayerHeight = 1.35f;
 
-        // The player footprint keeps the placeholder body readable without filling the entire lane.
-        public const float PlayerFootprint = 0.42f;
+        // The player footprint fits a three-person mini formation inside one portrait-safe lane.
+        public const float PlayerFootprint = 0.68f;
 
-        // The simulator-visible player uses a HUD marker so road depth and transient world effects cannot hide it.
-        public const bool UseScreenSpacePlayerMarker = true;
+        // The world-space humanoid squad is now the primary player visual; the HUD marker remains as an emergency fallback.
+        public static readonly bool UseScreenSpacePlayerMarker = false;
 
-        // World player meshes stay available as gameplay anchors, but the HUD marker is the authoritative visual.
-        public const bool WorldPlayerMeshRenderersEnabled = false;
+        // The generated survivor meshes stay visible so the player is represented by people instead of UI rectangles.
+        public static readonly bool WorldPlayerMeshRenderersEnabled = true;
 
         // The HUD marker is compact so it does not repeat the oversized-world-player regression.
         public const float ScreenPlayerMarkerWidth = 36f;
@@ -118,19 +118,19 @@ namespace LaneSurvivor.Gameplay
         // The center is derived from bottom and height so tests can guard against vertical drift.
         public const float GateCardCenterY = GateCardBottomY + GateCardHeight * 0.5f;
 
-        // Zombie cards share the high-marker rule so side threats do not pop in from below the horizon.
-        public const float ZombieCardBottomY = TrackTopY + 1.02f;
+        // Zombie visual bounds start just above the road so enemies read as standing bodies instead of floating cards.
+        public const float ZombieCardBottomY = TrackTopY + 0.10f;
 
-        // Zombie cards are slightly taller than gates to make threats visually distinct.
-        public const float ZombieCardHeight = 0.86f;
+        // Zombie visual height covers the full generated humanoid from feet to head.
+        public const float ZombieCardHeight = 1.30f;
 
-        // Zombie cards fit comfortably inside one lane.
-        public const float ZombieCardWidth = 0.72f;
+        // Zombie visual width leaves room for outstretched arms without crossing lane boundaries.
+        public const float ZombieCardWidth = 0.82f;
 
-        // Zombie cards are thin placeholders rather than collider-like blocks.
-        public const float ZombieCardDepth = 0.14f;
+        // Zombie visual depth includes the forward-reaching arms that sell the undead silhouette.
+        public const float ZombieCardDepth = 0.58f;
 
-        // The zombie center is derived from bottom and height for the same drift guard as gates.
+        // The zombie center is derived from bottom and height so target points stay consistent with the visual body.
         public const float ZombieCardCenterY = ZombieCardBottomY + ZombieCardHeight * 0.5f;
 
         // The finish line is a flat decal so it cannot appear as a raised green wall.
@@ -139,16 +139,16 @@ namespace LaneSurvivor.Gameplay
         // The finish line has enough depth to read while remaining clearly ground-painted.
         public const float FinishLineDepth = 0.34f;
 
-        // Legacy zombie fields map to the new high-card constants for existing gameplay code and tests.
+        // Legacy zombie fields map to the generated humanoid bounds for existing gameplay code and tests.
         public const float ZombieCenterY = ZombieCardCenterY;
 
-        // Legacy zombie height now represents the high-card visual height.
+        // Legacy zombie height now represents the generated humanoid visual height.
         public const float ZombieHeight = ZombieCardHeight;
 
         // World labels sit above actor bases while remaining below the top UI.
         public const float WorldLabelY = 1.15f;
 
-        // Floating combat text starts above gate and zombie cards so the road horizon cannot hide it.
+        // Floating combat text starts above gates and humanoid zombies so the road horizon cannot hide it.
         public const float FeedbackLabelOffsetY = 0.92f;
 
         // Feedback text stays small enough to read as an event label instead of another obstacle card.
@@ -163,13 +163,13 @@ namespace LaneSurvivor.Gameplay
         // Tracers last long enough to communicate auto-fire but short enough to avoid cluttering the chase view.
         public const float ShotTracerLifetimeSeconds = 0.18f;
 
-        // Tracer endpoints are lifted to the readable card band and kept away from the road surface.
+        // Tracer endpoints are lifted to the readable actor band and kept away from the road surface.
         public const float ShotTracerMinimumY = TrackTopY + 1.24f;
 
         // A small lane-local sideways offset keeps center-lane tracers from hiding on the white lane stripe.
         public const float ShotTracerLaneOffsetX = 0.24f;
 
-        // Tracers start ahead of the squad center so they visually originate from the player marker front.
+        // Tracers start ahead of the squad center so they visually originate from the survivor formation.
         public const float ShotTracerMuzzleForwardOffsetZ = 1.35f;
 
         public static Vector3 WithVisualY(Vector3 source, float visualY)

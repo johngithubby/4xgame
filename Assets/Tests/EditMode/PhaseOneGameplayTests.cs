@@ -534,10 +534,7 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.AreEqual(Vector3.one * 2f, cube.transform.localScale);
 
                 // Avoid a direct Collider type reference because this project may compile without Physics.
-                foreach (Component component in cube.GetComponents<Component>())
-                {
-                    Assert.IsFalse(component.GetType().Name.Contains("Collider"));
-                }
+                AssertNoColliderComponents(cube);
             }
             finally
             {
@@ -564,10 +561,7 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.AreEqual(new Vector3(7f, 1f, 48f), plane.transform.localScale);
 
                 // Avoid a direct Collider type reference because this project may compile without Physics.
-                foreach (Component component in plane.GetComponents<Component>())
-                {
-                    Assert.IsFalse(component.GetType().Name.Contains("Collider"));
-                }
+                AssertNoColliderComponents(plane);
             }
             finally
             {
@@ -578,13 +572,189 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void PrototypeGeometryFactory_CreatesRoundedPrimitivesWithoutColliderComponents()
+        {
+            // Humanoid characters should use generated rounded meshes, not Unity primitive objects with colliders.
+            Material material = PrototypeMaterialFactory.Create(Color.cyan);
+            GameObject sphere = PrototypeGeometryFactory.CreateSphere("Sphere Under Test", Vector3.zero, Vector3.one, material);
+            GameObject cylinder = PrototypeGeometryFactory.CreateCylinder("Cylinder Under Test", Vector3.right, Vector3.one, material);
+
+            try
+            {
+                // Both primitives need renderable mesh data for generated character parts.
+                Assert.IsNotNull(sphere.GetComponent<MeshFilter>()?.sharedMesh);
+                Assert.IsNotNull(cylinder.GetComponent<MeshFilter>()?.sharedMesh);
+
+                // Rounded meshes should have more geometry than the old eight-corner cube silhouette.
+                Assert.Greater(sphere.GetComponent<MeshFilter>().sharedMesh.vertexCount, 24);
+                Assert.Greater(cylinder.GetComponent<MeshFilter>().sharedMesh.vertexCount, 24);
+
+                // Avoid a direct Collider type reference because this project may compile without Physics.
+                AssertNoColliderComponents(sphere);
+                AssertNoColliderComponents(cylinder);
+            }
+            finally
+            {
+                // Destroy generated Unity objects explicitly so EditMode tests stay isolated.
+                UnityEngine.Object.DestroyImmediate(sphere);
+                UnityEngine.Object.DestroyImmediate(cylinder);
+                UnityEngine.Object.DestroyImmediate(material);
+            }
+        }
+
+        [Test]
+        public void PrototypeCharacterFactory_BuildsHumanoidPlayerAndZombieParts()
+        {
+            // Character generation should replace old rectangular actor blobs with recognizable body hierarchies.
+            Material playerMaterial = PrototypeMaterialFactory.Create(Color.cyan);
+            Material accentMaterial = PrototypeMaterialFactory.Create(Color.magenta);
+            Material zombieMaterial = PrototypeMaterialFactory.Create(Color.green);
+            GameObject player = PrototypeCharacterFactory.CreatePlayerSquad("Player Squad Under Test", Vector3.zero, playerMaterial, accentMaterial);
+            GameObject zombie = PrototypeCharacterFactory.CreateZombie("Zombie Under Test", Vector3.forward, zombieMaterial, ZombieEnemyType.Basic);
+            GameObject armoredZombie = PrototypeCharacterFactory.CreateZombie("Armored Zombie Under Test", Vector3.forward * 2f, zombieMaterial, ZombieEnemyType.Armored);
+
+            try
+            {
+                // The player root remains a gameplay anchor while child meshes create the visible squad.
+                Assert.IsNull(player.GetComponent<MeshFilter>());
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Head"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
+                Assert.IsNotNull(player.transform.Find("Survivor Left Wing/Human Rifle"));
+                Assert.IsNotNull(player.transform.Find("Survivor Right Wing/Human Leg Right/Human Knee Right/Human Shin Right/Human Boot Right"));
+                Assert.GreaterOrEqual(player.GetComponentsInChildren<MeshRenderer>().Length, 30);
+
+                // Basic zombies need a head, face, limbs, and wound instead of a single card mesh.
+                Assert.IsNull(zombie.GetComponent<MeshFilter>());
+                Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Head"));
+                Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Eye Left"));
+                Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Arm Right"));
+                Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Leg Left/Zombie Knee Left"));
+                Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Leg Left/Zombie Knee Left/Zombie Shin Left"));
+                Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Wound"));
+
+                // Zombie thighs must contrast against the dark road so leg motion stays readable in simulator captures.
+                Transform zombieThigh = zombie.transform.Find("Zombie Figure/Zombie Leg Left/Zombie Thigh Left Mesh");
+                Assert.IsNotNull(zombieThigh);
+
+                // The generated thigh mesh owns the pants material that appears on all connected zombie leg segments.
+                MeshRenderer zombieThighRenderer = zombieThigh.GetComponent<MeshRenderer>();
+                Assert.IsNotNull(zombieThighRenderer);
+
+                // The test uses the same authored track color as runtime/editor scene builders.
+                Color zombiePantsColor = zombieThighRenderer.sharedMaterial.color;
+                Color trackColor = new(0.20f, 0.24f, 0.22f);
+
+                // Relative luminance catches colors that are technically different but visually merge at phone scale.
+                float zombiePantsLuminance = zombiePantsColor.r * 0.2126f + zombiePantsColor.g * 0.7152f + zombiePantsColor.b * 0.0722f;
+                float trackLuminance = trackColor.r * 0.2126f + trackColor.g * 0.7152f + trackColor.b * 0.0722f;
+
+                // A strong gap keeps the legs readable through GIF compression and the chase-camera perspective.
+                Assert.Greater(zombiePantsLuminance - trackLuminance, 0.32f);
+
+                // Armored zombies need explicit armor pieces so their damage reduction has a visual tell.
+                Assert.IsNotNull(armoredZombie.transform.Find("Zombie Figure/Zombie Armor Plate"));
+                Assert.IsNotNull(armoredZombie.transform.Find("Zombie Figure/Zombie Helmet"));
+
+                // All generated character geometry stays collider-free.
+                AssertNoColliderComponents(player);
+                AssertNoColliderComponents(zombie);
+                AssertNoColliderComponents(armoredZombie);
+            }
+            finally
+            {
+                // Destroy generated Unity objects explicitly so EditMode tests stay isolated.
+                UnityEngine.Object.DestroyImmediate(player);
+                UnityEngine.Object.DestroyImmediate(zombie);
+                UnityEngine.Object.DestroyImmediate(armoredZombie);
+                UnityEngine.Object.DestroyImmediate(playerMaterial);
+                UnityEngine.Object.DestroyImmediate(accentMaterial);
+                UnityEngine.Object.DestroyImmediate(zombieMaterial);
+            }
+        }
+
+        [Test]
+        public void PrototypeHumanoidAnimator_MovesSurvivorAndZombieLimbs()
+        {
+            // The procedural walk cycle should visibly rotate generated limbs without imported animation clips.
+            Material playerMaterial = PrototypeMaterialFactory.Create(Color.cyan);
+            Material accentMaterial = PrototypeMaterialFactory.Create(Color.magenta);
+            Material zombieMaterial = PrototypeMaterialFactory.Create(Color.green);
+            GameObject player = PrototypeCharacterFactory.CreatePlayerSquad("Animated Player Under Test", Vector3.zero, playerMaterial, accentMaterial);
+            GameObject zombie = PrototypeCharacterFactory.CreateZombie("Animated Zombie Under Test", Vector3.forward, zombieMaterial, ZombieEnemyType.Basic);
+
+            try
+            {
+                // The player animator should cache all three generated survivor rigs.
+                PrototypeHumanoidAnimator playerAnimator = player.GetComponent<PrototypeHumanoidAnimator>();
+                Assert.IsNotNull(playerAnimator);
+                Assert.AreEqual(PrototypeHumanoidAnimationStyle.SurvivorSquad, playerAnimator.AnimationStyle);
+                Assert.AreEqual(3, playerAnimator.AnimatedRigCount);
+
+                // Capture rest-pose leg joint rotations before forcing a run step.
+                Transform playerLeg = player.transform.Find("Survivor Leader/Human Leg Left");
+                Transform playerKnee = player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left");
+                Transform playerShin = player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left");
+                Assert.IsNotNull(playerLeg);
+                Assert.IsNotNull(playerKnee);
+                Assert.IsNotNull(playerShin);
+                Assert.AreSame(playerLeg, playerKnee.parent);
+                Assert.AreSame(playerKnee, playerShin.parent);
+                Quaternion playerLegRestRotation = playerLeg.localRotation;
+                Quaternion playerKneeRestRotation = playerKnee.localRotation;
+
+                // A forced moving evaluation should swing the hip and bend the connected knee joint.
+                playerAnimator.ForceEvaluate(0.4f, true);
+                Assert.IsTrue(playerAnimator.IsAnimating);
+                float playerThighSwing = Quaternion.Angle(playerLegRestRotation, playerLeg.localRotation);
+                float playerKneeBend = Quaternion.Angle(playerKneeRestRotation, playerKnee.localRotation);
+                Assert.Greater(playerThighSwing, 0.1f);
+                Assert.Greater(playerKneeBend, playerThighSwing + 5f);
+                Assert.Less(Vector3.Distance(playerKnee.position, playerShin.position), 0.001f);
+
+                // The zombie animator should shamble even when the gameplay root is stationary.
+                PrototypeHumanoidAnimator zombieAnimator = zombie.GetComponent<PrototypeHumanoidAnimator>();
+                Assert.IsNotNull(zombieAnimator);
+                Assert.AreEqual(PrototypeHumanoidAnimationStyle.ZombieShamble, zombieAnimator.AnimationStyle);
+                Assert.AreEqual(1, zombieAnimator.AnimatedRigCount);
+
+                // Capture rest-pose zombie arm and knee joints before forcing an in-place shamble step.
+                Transform zombieArm = zombie.transform.Find("Zombie Figure/Zombie Arm Left");
+                Transform zombieKnee = zombie.transform.Find("Zombie Figure/Zombie Leg Left/Zombie Knee Left");
+                Transform zombieShin = zombie.transform.Find("Zombie Figure/Zombie Leg Left/Zombie Knee Left/Zombie Shin Left");
+                Assert.IsNotNull(zombieArm);
+                Assert.IsNotNull(zombieKnee);
+                Assert.IsNotNull(zombieShin);
+                Assert.AreSame(zombieKnee, zombieShin.parent);
+                Quaternion zombieArmRestRotation = zombieArm.localRotation;
+                Quaternion zombieKneeRestRotation = zombieKnee.localRotation;
+
+                // Stationary zombies should still animate because they are waiting threats, not moving agents.
+                zombieAnimator.ForceEvaluate(1f, false);
+                Assert.IsTrue(zombieAnimator.IsAnimating);
+                Assert.Greater(Quaternion.Angle(zombieArmRestRotation, zombieArm.localRotation), 0.1f);
+                Assert.Greater(Quaternion.Angle(zombieKneeRestRotation, zombieKnee.localRotation), 0.1f);
+                Assert.Less(Vector3.Distance(zombieKnee.position, zombieShin.position), 0.001f);
+            }
+            finally
+            {
+                // Destroy generated Unity objects explicitly so EditMode tests stay isolated.
+                UnityEngine.Object.DestroyImmediate(player);
+                UnityEngine.Object.DestroyImmediate(zombie);
+                UnityEngine.Object.DestroyImmediate(playerMaterial);
+                UnityEngine.Object.DestroyImmediate(accentMaterial);
+                UnityEngine.Object.DestroyImmediate(zombieMaterial);
+            }
+        }
+
+        [Test]
         public void GameplayVisuals_KeepActorsAboveTrackSurface()
         {
             // The squad bottom must stay visibly above the generated track surface.
             Assert.Greater(GameplayVisuals.PlayerCenterY - GameplayVisuals.PlayerHeight * 0.5f, GameplayVisuals.TrackTopY);
 
-            // The squad needs substantial clearance so road perspective cannot swallow it mid-run.
-            Assert.GreaterOrEqual(GameplayVisuals.PlayerCenterY - GameplayVisuals.PlayerHeight * 0.5f - GameplayVisuals.TrackTopY, 0.75f);
+            // Humanoid feet should be close enough to the track to look grounded instead of floating.
+            Assert.LessOrEqual(GameplayVisuals.PlayerCenterY - GameplayVisuals.PlayerHeight * 0.5f - GameplayVisuals.TrackTopY, 0.5f);
 
             // Gate roots stay at road height because gameplay contact still happens at lane center.
             Assert.AreEqual(GameplayVisuals.TrackTopY, GameplayVisuals.GateRootY);
@@ -617,12 +787,17 @@ namespace LaneSurvivor.Tests.EditMode
             float expectedGateCardCenter = GameplayVisuals.GateCardBottomY + GameplayVisuals.GateCardHeight * 0.5f;
             Assert.AreEqual(expectedGateCardCenter, GameplayVisuals.GateCardCenterY, 0.001f);
 
-            // Zombie cards also sit above the horizon so they do not suddenly pop near the player.
-            Assert.GreaterOrEqual(GameplayVisuals.ZombieCardBottomY - GameplayVisuals.TrackTopY, 0.95f);
+            // Zombie visual bounds start just above the road so enemies look like bodies standing in lanes.
+            Assert.GreaterOrEqual(GameplayVisuals.ZombieCardBottomY - GameplayVisuals.TrackTopY, 0.08f);
 
-            // Zombie bottoms also need clearance because they can sit near the same late-lane horizon.
+            // Zombie feet should stay near the surface instead of floating like the previous high cards.
             float zombieClearance = GameplayVisuals.ZombieCenterY - GameplayVisuals.ZombieHeight * 0.5f - GameplayVisuals.TrackTopY;
-            Assert.GreaterOrEqual(zombieClearance, 0.95f);
+            Assert.GreaterOrEqual(zombieClearance, 0.08f);
+            Assert.LessOrEqual(zombieClearance, 0.16f);
+
+            // Humanoid zombies should be taller than gate labels while still staying compact for portrait framing.
+            Assert.Greater(GameplayVisuals.ZombieHeight, GameplayVisuals.GateCardHeight);
+            Assert.LessOrEqual(GameplayVisuals.ZombieHeight, 1.4f);
 
             // World labels should sit above actor bases so finish and gate context remains readable.
             Assert.Greater(GameplayVisuals.WorldLabelY, GameplayVisuals.TrackTopY + 1f);
@@ -638,8 +813,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.Greater(GameplayVisuals.ShotTracerLaneOffsetX, GameplayVisuals.PlayerMastWidth);
             Assert.Less(GameplayVisuals.ShotTracerLaneOffsetX, GameplayVisuals.LaneMatchTolerance);
 
-            // The forward muzzle offset should clear the visible player body without jumping near the target.
-            Assert.Greater(GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, GameplayVisuals.PlayerFootprint * 2f);
+            // The forward muzzle offset should clear the wider survivor formation without jumping near the target.
+            Assert.Greater(GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, GameplayVisuals.PlayerFootprint * 1.8f);
             Assert.Less(GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, GameplayVisuals.ZombieCardWidth * 2f);
 
             // Feedback text should remain smaller than gate labels so it reads as a temporary event.
@@ -664,31 +839,32 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
-        public void GameplayVisuals_KeepVisibilityMastAboveGateTop()
+        public void GameplayVisuals_KeepWorldHumanoidPlayerReadable()
         {
-            // Simulator verification now uses an overlay player marker to avoid world-depth dropouts.
-            Assert.IsTrue(GameplayVisuals.UseScreenSpacePlayerMarker);
+            // The player should now be visible as world-space survivor figures instead of only a HUD marker.
+            Assert.IsFalse(GameplayVisuals.UseScreenSpacePlayerMarker);
 
-            // The old world player mesh should not be visible at the same time as the overlay marker.
-            Assert.IsFalse(GameplayVisuals.WorldPlayerMeshRenderersEnabled);
+            // The generated world player meshes are the primary actor representation.
+            Assert.IsTrue(GameplayVisuals.WorldPlayerMeshRenderersEnabled);
 
-            // The overlay marker should remain compact enough to avoid the oversized-player regression.
+            // The fallback overlay marker should remain compact if it is re-enabled for simulator triage.
             Assert.LessOrEqual(GameplayVisuals.ScreenPlayerMarkerWidth, 40f);
             Assert.LessOrEqual(GameplayVisuals.ScreenPlayerMarkerHeight, 52f);
 
-            // The squad body should stay compact enough that it does not dominate the portrait camera.
-            Assert.LessOrEqual(GameplayVisuals.PlayerHeight, 0.65f);
+            // The squad body should be tall enough to read as people but still smaller than the gate skyline.
+            Assert.GreaterOrEqual(GameplayVisuals.PlayerHeight, 1.2f);
+            Assert.LessOrEqual(GameplayVisuals.PlayerHeight, 1.45f);
 
-            // The visibility mast should be a small marker, not a giant replacement player.
+            // Legacy marker constants should stay small in case the fallback is re-enabled later.
             Assert.LessOrEqual(GameplayVisuals.PlayerMastHeight, 0.55f);
 
-            // The high beacon should stay compact so it marks the squad without becoming the body.
+            // The high beacon fallback should stay compact so it cannot become a second player body.
             Assert.Less(GameplayVisuals.PlayerBeaconFootprint, GameplayVisuals.PlayerFootprint);
 
-            // The mast top should remain below the card top so the player does not visually swallow the gate.
-            float mastTop = GameplayVisuals.PlayerCenterY + GameplayVisuals.PlayerMastOffsetY + GameplayVisuals.PlayerMastHeight * 0.5f;
+            // The generated squad top should remain below the gate top so people do not visually swallow gates.
+            float playerTop = GameplayVisuals.PlayerCenterY + GameplayVisuals.PlayerHeight * 0.5f;
             float gateCardTop = GameplayVisuals.GateCardCenterY + GameplayVisuals.GateCardHeight * 0.5f;
-            Assert.Less(mastTop, gateCardTop);
+            Assert.Less(playerTop, gateCardTop);
         }
 
         [Test]
@@ -846,6 +1022,15 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(expectedColor.g, actualColor.g, 0.001f);
             Assert.AreEqual(expectedColor.b, actualColor.b, 0.001f);
             Assert.AreEqual(expectedColor.a, actualColor.a, 0.001f);
+        }
+
+        private static void AssertNoColliderComponents(GameObject root)
+        {
+            // Generated visuals should stay render-only and never add physics collider components.
+            foreach (Component component in root.GetComponentsInChildren<Component>(true))
+            {
+                Assert.IsFalse(component.GetType().Name.Contains("Collider"), $"{component.name} should not have a collider component.");
+            }
         }
 
         private static Color ReadMaterialColor(Material material)

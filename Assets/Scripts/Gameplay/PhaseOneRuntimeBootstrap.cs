@@ -66,18 +66,10 @@ namespace LaneSurvivor.Gameplay
 
         private static PlayerSquad CreatePlayerSquad(Material playerMaterial, Material beaconMaterial)
         {
-            // A collider-free cube avoids pulling physics modules into the simulator prototype.
-            GameObject playerObject = PrototypeGeometryFactory.CreateCube("Player Squad", new Vector3(0f, GameplayVisuals.PlayerCenterY, 0f), new Vector3(GameplayVisuals.PlayerFootprint, GameplayVisuals.PlayerHeight, GameplayVisuals.PlayerFootprint), playerMaterial);
+            // The squad root is still collider-free, but its children now form three readable survivor figures.
+            GameObject playerObject = PrototypeCharacterFactory.CreatePlayerSquad("Player Squad", new Vector3(0f, GameplayVisuals.PlayerCenterY, 0f), playerMaterial, beaconMaterial);
 
-            // A trailing marker avoids the center lane stripe and remains readable immediately after gate overlaps.
-            GameObject beaconObject = PrototypeGeometryFactory.CreateCube("Player Squad Beacon", playerObject.transform.position + new Vector3(0f, GameplayVisuals.PlayerBeaconOffsetY, GameplayVisuals.PlayerBeaconBackOffsetZ), new Vector3(GameplayVisuals.PlayerBeaconFootprint, GameplayVisuals.PlayerBeaconHeight, GameplayVisuals.PlayerBeaconFootprint), beaconMaterial);
-            beaconObject.transform.SetParent(playerObject.transform, true);
-
-            // A thin mast keeps the squad position visible during the full run without making the squad body oversized.
-            GameObject mastObject = PrototypeGeometryFactory.CreateCube("Player Squad Visibility Mast", playerObject.transform.position + new Vector3(0f, GameplayVisuals.PlayerMastOffsetY, 0f), new Vector3(GameplayVisuals.PlayerMastWidth, GameplayVisuals.PlayerMastHeight, GameplayVisuals.PlayerMastWidth), beaconMaterial);
-            mastObject.transform.SetParent(playerObject.transform, true);
-
-            // The gameplay object still drives rules and camera motion, while the HUD marker owns visibility.
+            // The visibility flag remains centralized so simulator fallback experiments do not need scene edits.
             SetWorldPlayerRendererVisibility(playerObject, GameplayVisuals.WorldPlayerMeshRenderersEnabled);
 
             return playerObject.AddComponent<PlayerSquad>();
@@ -85,7 +77,7 @@ namespace LaneSurvivor.Gameplay
 
         private static void SetWorldPlayerRendererVisibility(GameObject playerRoot, bool isVisible)
         {
-            // Hide every world-space player renderer so the simulator cannot intermittently depth-cull the squad.
+            // Apply the central visibility flag to every generated survivor mesh under the gameplay root.
             foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
             {
                 renderer.enabled = isVisible;

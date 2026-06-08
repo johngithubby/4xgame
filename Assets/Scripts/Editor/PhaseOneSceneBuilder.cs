@@ -139,18 +139,10 @@ namespace LaneSurvivor.EditorTools
 
         private static PlayerSquad CreatePlayerSquad(Material playerMaterial, Material beaconMaterial)
         {
-            // Match runtime-generated geometry so editor rebuilds reproduce simulator visibility.
-            GameObject playerObject = PrototypeGeometryFactory.CreateCube("Player Squad", new Vector3(0f, GameplayVisuals.PlayerCenterY, 0f), new Vector3(GameplayVisuals.PlayerFootprint, GameplayVisuals.PlayerHeight, GameplayVisuals.PlayerFootprint), playerMaterial);
+            // Match runtime-generated humanoid squad geometry so editor rebuilds reproduce the live minigame.
+            GameObject playerObject = PrototypeCharacterFactory.CreatePlayerSquad("Player Squad", new Vector3(0f, GameplayVisuals.PlayerCenterY, 0f), playerMaterial, beaconMaterial);
 
-            // The trailing marker stays out of the road centerline while the body remains compact.
-            GameObject beaconObject = PrototypeGeometryFactory.CreateCube("Player Squad Beacon", playerObject.transform.position + new Vector3(0f, GameplayVisuals.PlayerBeaconOffsetY, GameplayVisuals.PlayerBeaconBackOffsetZ), new Vector3(GameplayVisuals.PlayerBeaconFootprint, GameplayVisuals.PlayerBeaconHeight, GameplayVisuals.PlayerBeaconFootprint), beaconMaterial);
-            beaconObject.transform.SetParent(playerObject.transform, true);
-
-            // The thin mast is a visibility aid, not a larger squad body, and mirrors runtime generation.
-            GameObject mastObject = PrototypeGeometryFactory.CreateCube("Player Squad Visibility Mast", playerObject.transform.position + new Vector3(0f, GameplayVisuals.PlayerMastOffsetY, 0f), new Vector3(GameplayVisuals.PlayerMastWidth, GameplayVisuals.PlayerMastHeight, GameplayVisuals.PlayerMastWidth), beaconMaterial);
-            mastObject.transform.SetParent(playerObject.transform, true);
-
-            // The generated scene mirrors runtime: the gameplay transform exists, but the HUD marker is visible.
+            // The generated scene mirrors runtime visibility without requiring a HUD-only player marker.
             SetWorldPlayerRendererVisibility(playerObject, GameplayVisuals.WorldPlayerMeshRenderersEnabled);
 
             return playerObject.AddComponent<PlayerSquad>();
@@ -158,7 +150,7 @@ namespace LaneSurvivor.EditorTools
 
         private static void SetWorldPlayerRendererVisibility(GameObject playerRoot, bool isVisible)
         {
-            // Keeping this helper local makes editor scene output match runtime bootstrap output.
+            // Keeping this helper local makes editor scene output match runtime bootstrap visibility.
             foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
             {
                 renderer.enabled = isVisible;

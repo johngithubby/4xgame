@@ -13,10 +13,13 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Open the project root in Unity.
 - Open `Assets/Scenes/Minigame.unity`.
 - Press Play.
-- The squad auto-starts after a short delay, moves forward, changes lanes with left/right input, applies gates in the matching lane, shoots zombies in the current lane, and reaches a win or loss state.
+- The squad auto-starts after a short delay, moves forward, changes lanes with left/right input, applies gates in the matching lane, shoots humanoid zombies in the current lane, and reaches a win or loss state.
 - Lane input works with the on-screen arrow buttons, keyboard `A/D`, keyboard arrow keys, or tapping/clicking the left or right third of the screen.
 - Local mission progression unlocks additional minigame layouts with tougher lane pacing.
 - Automatic shots now show placeholder tracers and damage text.
+- The minigame now renders the player as a three-survivor formation with generated heads, bodies, limbs, helmets, and rifles instead of rectangular blobs.
+- Zombies now render as generated humanoid bodies with faces, reaching arms, legs, feet, wounds, and extra armor pieces for armored enemies.
+- Survivors now use a procedural bent-knee walking cycle while moving, and zombies use a slower in-place shamble.
 - The minigame chase camera widens its vertical FOV on extra-tall portrait devices so side lanes stay readable across iOS aspect ratios.
 - The minigame state label is anchored upper-right so simulator captures do not hide it under iPhone Dynamic Island overlays.
 

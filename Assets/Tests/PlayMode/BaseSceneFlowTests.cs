@@ -6,6 +6,7 @@ using System.Reflection;
 using LaneSurvivor.Gameplay;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
+using LaneSurvivor.Rendering;
 using LaneSurvivor.Retention;
 using LaneSurvivor.Save;
 using NUnit.Framework;
@@ -415,6 +416,49 @@ namespace LaneSurvivor.Tests.PlayMode
 
             // The squad should now be moving forward under the real runtime Update loop.
             Assert.Greater(playerSquad.transform.position.z, startingZ);
+        }
+
+        [UnityTest]
+        public IEnumerator MinigameScene_RuntimeCharactersUseHumanoidParts()
+        {
+            // Load the minigame directly so this verifies the real runtime bootstrap, not just a factory unit test.
+            SceneManager.LoadScene("Minigame");
+            yield return null;
+
+            // Wait a second frame so LevelManager.Start can build gates, zombies, and the player visuals.
+            yield return null;
+
+            // The player root should remain the gameplay anchor while child figures provide the visible squad.
+            GameObject playerSquad = GameObject.Find("Player Squad");
+            Assert.IsNotNull(playerSquad);
+            Assert.IsNull(playerSquad.GetComponent<MeshFilter>());
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Head"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Left Wing/Human Rifle"));
+            Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 30);
+            PrototypeHumanoidAnimator playerAnimator = playerSquad.GetComponent<PrototypeHumanoidAnimator>();
+            Assert.IsNotNull(playerAnimator);
+            Assert.AreEqual(PrototypeHumanoidAnimationStyle.SurvivorSquad, playerAnimator.AnimationStyle);
+            Assert.AreEqual(3, playerAnimator.AnimatedRigCount);
+
+            // The HUD-only marker should be absent in the current art direction because the world squad is visible.
+            Assert.IsNull(GameObject.Find("Player Squad Screen Marker"));
+
+            // At least one spawned enemy should be a humanoid zombie rather than a single rectangular card.
+            GameObject zombie = GameObject.Find("Zombie");
+            Assert.IsNotNull(zombie);
+            Assert.IsNull(zombie.GetComponent<MeshFilter>());
+            Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Head"));
+            Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Eye Left"));
+            Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Arm Right"));
+            Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Leg Left/Zombie Knee Left"));
+            Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Leg Left/Zombie Knee Left/Zombie Shin Left"));
+            Assert.GreaterOrEqual(zombie.GetComponentsInChildren<MeshRenderer>(true).Length, 14);
+            PrototypeHumanoidAnimator zombieAnimator = zombie.GetComponent<PrototypeHumanoidAnimator>();
+            Assert.IsNotNull(zombieAnimator);
+            Assert.AreEqual(PrototypeHumanoidAnimationStyle.ZombieShamble, zombieAnimator.AnimationStyle);
+            Assert.AreEqual(1, zombieAnimator.AnimatedRigCount);
         }
 
         [UnityTest]

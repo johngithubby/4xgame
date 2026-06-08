@@ -345,10 +345,9 @@ namespace LaneSurvivor.Gameplay
         {
             foreach (ZombieSpawnDefinition zombieDefinition in levelDefinition.zombies)
             {
-                // Zombies use high cards so they do not pop from below the road horizon near the player.
+                // Zombies use generated humanoid bodies while keeping the root at the authored lane/distance point.
                 Vector3 zombiePosition = GameplayVisuals.WithVisualY(zombieDefinition.position, GameplayVisuals.ZombieCenterY);
-                Vector3 zombieSize = GetZombieCardSize(zombieDefinition.enemyType);
-                GameObject zombieObject = PrototypeGeometryFactory.CreateCube(GetZombieObjectName(zombieDefinition.enemyType), zombiePosition, zombieSize, zombieMaterial);
+                GameObject zombieObject = PrototypeCharacterFactory.CreateZombie(GetZombieObjectName(zombieDefinition.enemyType), zombiePosition, zombieMaterial, zombieDefinition.enemyType);
                 CreateZombieTypeLabel(zombieObject.transform, zombieDefinition.enemyType);
 
                 Zombie zombie = zombieObject.AddComponent<Zombie>();
@@ -356,18 +355,6 @@ namespace LaneSurvivor.Gameplay
                 autoShooter.RegisterZombie(zombie);
                 zombies.Add(zombie);
             }
-        }
-
-        private static Vector3 GetZombieCardSize(ZombieEnemyType enemyType)
-        {
-            // Armored zombies are slightly wider and taller so their reduced-damage behavior has a visible tell.
-            if (enemyType == ZombieEnemyType.Armored)
-            {
-                return new Vector3(GameplayVisuals.ZombieCardWidth * 1.15f, GameplayVisuals.ZombieCardHeight * 1.12f, GameplayVisuals.ZombieCardDepth);
-            }
-
-            // Basic zombies keep the established high-card placeholder silhouette.
-            return new Vector3(GameplayVisuals.ZombieCardWidth, GameplayVisuals.ZombieCardHeight, GameplayVisuals.ZombieCardDepth);
         }
 
         private static string GetZombieObjectName(ZombieEnemyType enemyType)
@@ -387,7 +374,7 @@ namespace LaneSurvivor.Gameplay
             // A tiny label makes the new enemy type understandable without imported art.
             GameObject labelObject = new("Zombie Type Label");
             labelObject.transform.SetParent(zombieTransform, false);
-            labelObject.transform.localPosition = new Vector3(0f, GameplayVisuals.ZombieCardHeight * 0.42f, -GameplayVisuals.ZombieCardDepth * 0.6f);
+            labelObject.transform.localPosition = new Vector3(0f, GameplayVisuals.ZombieCardHeight * 0.56f, -GameplayVisuals.ZombieCardDepth * 0.42f);
             labelObject.transform.localRotation = Quaternion.identity;
             labelObject.transform.localScale = Vector3.one * 0.16f;
 
@@ -429,10 +416,10 @@ namespace LaneSurvivor.Gameplay
 
         private void SpawnShotTracer(Vector3 origin, Vector3 target)
         {
-            // Move the visible muzzle forward so the tracer does not project behind the HUD-followed player marker.
+            // Move the visible muzzle forward so the tracer starts near the survivor formation instead of its root.
             Vector3 muzzleOrigin = MoveTracerOriginToMuzzle(origin, target);
 
-            // Lift endpoints into the readable actor-card band so the road surface cannot swallow the effect.
+            // Lift endpoints into the readable actor band so the road surface cannot swallow the effect.
             Vector3 liftedOrigin = OffsetTracerPoint(LiftTracerPoint(muzzleOrigin));
             Vector3 liftedTarget = OffsetTracerPoint(LiftTracerPoint(target));
 
@@ -538,7 +525,7 @@ namespace LaneSurvivor.Gameplay
 
         private static Vector3 MoveTracerOriginToMuzzle(Vector3 origin, Vector3 target)
         {
-            // The visible player marker follows a clamped screen projection, so center-origin shots can appear behind it.
+            // The gameplay root sits inside the survivor group, so center-origin shots need a forward muzzle offset.
             Vector3 planarDirection = new(target.x - origin.x, 0f, target.z - origin.z);
 
             // Very close or overlapping targets should keep the original point instead of creating unstable geometry.
@@ -627,7 +614,7 @@ namespace LaneSurvivor.Gameplay
 
         private static Vector3 LiftFeedbackPoint(Vector3 point, float offsetY)
         {
-            // Preserve the event lane and distance while moving the label into the readable card band.
+            // Preserve the event lane and distance while moving the label into the readable actor/gate band.
             return new Vector3(point.x, Mathf.Max(point.y + offsetY, GameplayVisuals.ShotTracerMinimumY), point.z);
         }
 
