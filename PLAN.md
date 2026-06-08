@@ -365,7 +365,7 @@ Make the minigame actors read as people and zombies instead of rectangular proto
 The first character visual pass is implemented:
 
 - Player squad now renders as a three-survivor formation made from generated rounded meshes.
-- Survivor visuals include heads, helmets, torsos, vests, arms, hands, legs, boots, and small rifles.
+- Survivor visuals include heads, helmets, torsos, vests, arms, hands, legs, boots, and generated weapons.
 - Basic zombies now render as humanoid undead bodies with green heads, eyes, mouths, reaching arms, legs, feet, and wound details.
 - Armored zombies add generated helmet, chest armor, shoulder armor, strap, and belt pieces.
 - Survivors now use a stronger procedural bent-knee run cycle while the gameplay root moves.
@@ -382,3 +382,44 @@ The first character visual pass is implemented:
 - EditMode coverage checks connected knee/shin pivots, procedural survivor running, zombie shambling, and high-contrast zombie leg material visibility.
 - PlayMode coverage checks the runtime Minigame scene spawns humanoid player and zombie parts with animator rigs instead of single-card actor blobs.
 - Latest verification: Unity EditMode `73/73`, Unity PlayMode `17/17`, clean `git diff --check`, and fresh iOS Simulator GIF captures for survivor running and zombie shamble visibility.
+
+## Local V5: Survivor Weapon Variety and Tracer Alignment
+
+### Goal
+
+Give the three survivor figures distinct generated weapons held in firing position, and make every world-space shot tracer originate from the visible weapon muzzle instead of an approximate squad-root offset.
+
+### Current Status
+
+Implemented in this slice:
+
+- Kept this slice visual-only; no squad damage, fire rate, target selection, mission balance, hero bonus, economy, or progression tuning changed.
+- Replaced the single shared `Human Rifle` prop with three procedural weapon profiles: leader rifle, left-wing shotgun, and right-wing SMG.
+- Attached each weapon to the survivor right-hand chain in a raised firing pose so it points down-lane toward zombie targets.
+- Added a named `Weapon Muzzle` anchor under each weapon, positioned at the barrel tip and following survivor animation.
+- Added a small runtime weapon/muzzle registry on `PlayerSquad` so combat feedback can select a real muzzle transform.
+- Updated automatic shot feedback so `ShotFired` events use a selected muzzle world position, rotating through available survivor muzzles.
+- Preserved the old root-derived forward/lane fallback offset only for scenes or tests that have no weapon muzzle anchors.
+- Bypassed the fake forward and lane offsets for weapon-based shots so tracers line up with the visible held weapon.
+- Preserved the current always-visible, depth-safe tracer material and flat strip mesh behavior on iOS Simulator.
+- Kept all weapons generated from existing collider-free primitive mesh helpers; no weapon art or external assets were imported.
+
+### Acceptance Criteria
+
+- The leader visibly holds a rifle, the left survivor visibly holds a shotgun, and the right survivor visibly holds an SMG. Done.
+- Weapons are in firing position in the generated Minigame runtime scene and the editor-rebuilt scene. Done through the shared character factory.
+- Each weapon has a muzzle anchor at the visible barrel tip. Done.
+- Shot tracers start at the selected weapon muzzle in world space and point to the zombie target point. Done for weapon-origin shot events.
+- Tracers no longer start from behind the squad, from the lane stripe, or from a hard-coded approximate offset when muzzle anchors exist. Done.
+- If a future scene omits weapon anchors, shooting still works with the existing safe fallback origin. Done through the no-muzzle event path.
+- No gameplay balance changes are introduced in this phase. Done.
+
+### Validation
+
+- EditMode coverage checks that the generated survivor squad has three distinct weapon profiles, each with a named muzzle anchor. Done.
+- EditMode coverage checks muzzle anchors are forward of their survivor bodies and parented under the corresponding weapon transforms. Done.
+- EditMode coverage checks shot events use a muzzle transform position when one is available. Done.
+- PlayMode coverage checks tracer spawning uses the supplied muzzle transform position without fake offsets. Done.
+- PlayMode coverage checks the runtime Minigame scene spawns all three weapons and muzzle anchors. Done.
+- Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `17/17`, and clean `git diff --check`.
+- iOS Simulator verification captured `/private/tmp/4xgame-v5-weapons-20260608.mov`, `/private/tmp/4xgame-v5-weapons.gif`, and `/private/tmp/4xgame-v5-combat-contact.jpg`; survivors visibly hold distinct generated weapons in firing pose, and combat frames show tracer activity from the squad weapon area. Done.

@@ -6,7 +6,7 @@ namespace LaneSurvivor.Gameplay
 {
     public sealed class AutoShooter : MonoBehaviour
     {
-        public event Action<Vector3, Vector3, float> ShotFired;
+        public event Action<Vector3, Vector3, float, bool> ShotFired;
 
         [SerializeField]
         private PlayerSquad playerSquad;
@@ -64,7 +64,19 @@ namespace LaneSurvivor.Gameplay
                 // Capture damage once so visual feedback matches the gameplay mutation.
                 float damage = playerSquad.GetTotalDamage();
                 float appliedDamage = target.TakeDamage(damage);
-                ShotFired?.Invoke(playerSquad.transform.position + Vector3.up * 0.5f, target.transform.position + Vector3.up * 0.5f, appliedDamage);
+
+                // Target points stay centered on the visible zombie body so tracers aim where damage text appears.
+                Vector3 targetPoint = target.transform.position + Vector3.up * 0.5f;
+
+                // Prefer a generated survivor muzzle, then let the visual layer know when it is safe to skip offsets.
+                bool shotStartedAtWeaponMuzzle = playerSquad.TryGetNextWeaponMuzzlePosition(out Vector3 shotOrigin);
+                if (!shotStartedAtWeaponMuzzle)
+                {
+                    // Old or test-only squads without generated weapons keep the existing root-derived fallback origin.
+                    shotOrigin = playerSquad.transform.position + Vector3.up * 0.5f;
+                }
+
+                ShotFired?.Invoke(shotOrigin, targetPoint, appliedDamage, shotStartedAtWeaponMuzzle);
             }
         }
 

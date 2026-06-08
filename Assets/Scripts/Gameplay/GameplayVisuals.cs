@@ -166,10 +166,10 @@ namespace LaneSurvivor.Gameplay
         // Tracer endpoints are lifted to the readable actor band and kept away from the road surface.
         public const float ShotTracerMinimumY = TrackTopY + 1.24f;
 
-        // A small lane-local sideways offset keeps center-lane tracers from hiding on the white lane stripe.
+        // Legacy root-origin fallback shots use this lane-local sideways offset to avoid the white lane stripe.
         public const float ShotTracerLaneOffsetX = 0.24f;
 
-        // Tracers start ahead of the squad center so they visually originate from the survivor formation.
+        // Legacy root-origin fallback shots move forward so they appear near the survivor formation.
         public const float ShotTracerMuzzleForwardOffsetZ = 1.35f;
 
         public static Vector3 WithVisualY(Vector3 source, float visualY)

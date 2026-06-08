@@ -1,4 +1,5 @@
 using LaneSurvivor.Data;
+using LaneSurvivor.Gameplay;
 using UnityEngine;
 
 namespace LaneSurvivor.Rendering
@@ -6,6 +7,15 @@ namespace LaneSurvivor.Rendering
     public static class PrototypeCharacterFactory
     {
         private const float SurvivorWingScale = 0.72f;
+
+        // The leader keeps the longest profile so the front survivor reads as the primary shooter.
+        public const string LeaderRifleName = "Leader Rifle";
+
+        // The left wing uses a chunkier shotgun silhouette to distinguish the side survivor at phone scale.
+        public const string LeftWingShotgunName = "Left Wing Shotgun";
+
+        // The right wing uses a compact SMG silhouette to complete the three-profile weapon set.
+        public const string RightWingSmgName = "Right Wing SMG";
 
         private static readonly Color SurvivorSkinColor = new(0.84f, 0.62f, 0.43f);
 
@@ -47,13 +57,13 @@ namespace LaneSurvivor.Rendering
             Material highlightMaterial = accentMaterial != null ? accentMaterial : CreateMaterial(new Color(1f, 0.13f, 0.72f));
 
             // A three-person wedge makes squad count feel like people without spawning one mesh per count value.
-            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
             // Side survivors sit slightly lower and behind the leader so the group reads as a formation from the chase camera.
-            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.40f, -0.06f, -0.30f), SurvivorWingScale, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.40f, -0.06f, -0.30f), SurvivorWingScale, LeftWingShotgunName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
             // Mirroring the side placement gives the player a recognizably human squad silhouette in one lane.
-            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.40f, -0.06f, -0.30f), SurvivorWingScale, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.40f, -0.06f, -0.30f), SurvivorWingScale, RightWingSmgName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
             // The procedural animator swings the generated limbs only when the gameplay root is moving.
             PrototypeHumanoidAnimator animator = squadRoot.AddComponent<PrototypeHumanoidAnimator>();
@@ -124,7 +134,7 @@ namespace LaneSurvivor.Rendering
             return zombieRoot;
         }
 
-        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, Material bodyMaterial, Material accentMaterial, Material skinMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material weaponMaterial)
+        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material accentMaterial, Material skinMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material weaponMaterial)
         {
             // A per-survivor transform makes it cheap to scale and offset squad members as a formation.
             GameObject survivorRoot = new(name);
@@ -144,26 +154,144 @@ namespace LaneSurvivor.Rendering
 
             // Connected shoulder chains make arm swing pivot from the body instead of spinning around a forearm center.
             CreateHumanArm(survivorRoot.transform, "Left", -1f, bodyMaterial, skinMaterial);
-            CreateHumanArm(survivorRoot.transform, "Right", 1f, bodyMaterial, skinMaterial);
+
+            // The weapon is parented under the right hand so muzzle anchors follow the procedural arm animation.
+            Transform weaponHand = CreateHumanArm(survivorRoot.transform, "Right", 1f, bodyMaterial, skinMaterial);
 
             // Connected hip/knee/ankle chains remove the knee gap and make the run read as a real bent limb.
             CreateHumanLeg(survivorRoot.transform, "Left", -1f, 0.02f, pantsMaterial, bootMaterial);
             CreateHumanLeg(survivorRoot.transform, "Right", 1f, -0.02f, pantsMaterial, bootMaterial);
 
-            // A small cylindrical rifle keeps the auto-shooter readable without imported weapon art.
-            CreateCylinderPart(survivorRoot.transform, "Human Rifle", new Vector3(0.13f, 0.07f, -0.18f), new Vector3(0.04f, 0.42f, 0.04f), weaponMaterial, Quaternion.Euler(83f, 0f, 64f));
+            // Procedural weapon profiles keep the squad readable without importing any firearm art.
+            CreateSurvivorWeapon(weaponHand, weaponProfileName, weaponMaterial);
         }
 
-        private static void CreateHumanArm(Transform survivorRoot, string sideName, float sideSign, Material sleeveMaterial, Material skinMaterial)
+        private static Transform CreateHumanArm(Transform survivorRoot, string sideName, float sideSign, Material sleeveMaterial, Material skinMaterial)
         {
             // Shoulder pivots make arm swing originate from the torso instead of rotating around the arm mesh center.
-            Transform shoulder = CreateJoint(survivorRoot, $"Human Arm {sideName}", new Vector3(sideSign * 0.17f, 0.28f, -0.01f), Quaternion.Euler(0f, 0f, sideSign * 16f));
+            Transform shoulder = CreateJoint(survivorRoot, $"Human Arm {sideName}", new Vector3(sideSign * 0.17f, 0.36f, -0.01f), Quaternion.Euler(0f, 0f, sideSign * 12f));
 
-            // The visible upper-arm cylinder hangs from the shoulder pivot and inherits all run-cycle swing.
-            CreateCylinderPart(shoulder, $"Human Upper Arm {sideName} Mesh", new Vector3(0f, -0.18f, 0f), new Vector3(0.06f, 0.36f, 0.06f), sleeveMaterial, Quaternion.identity);
+            // The hand sits forward and high so every survivor holds their weapon in a readable firing pose.
+            Vector3 handLocalPosition = new(sideSign * 0.01f, -0.05f, 0.30f);
 
-            // Hands are children of the shoulder chain, so they cannot visually detach from the arm during animation.
-            CreateSpherePart(shoulder, $"Human Hand {sideName}", new Vector3(0f, -0.38f, -0.015f), new Vector3(0.075f, 0.065f, 0.065f), skinMaterial, Quaternion.identity);
+            // The visible upper arm spans from shoulder toward the raised hand instead of hanging at the side.
+            CreateCylinderBetween(shoulder, $"Human Upper Arm {sideName} Mesh", Vector3.zero, handLocalPosition, 0.06f, sleeveMaterial);
+
+            // The hand is a unit-scale joint so attached weapons are not distorted by the hand mesh scale.
+            Transform hand = CreateJoint(shoulder, $"Human Hand {sideName}", handLocalPosition, Quaternion.identity);
+
+            // The visible hand mesh stays on the joint while child weapons inherit a clean transform.
+            CreateSpherePart(hand, $"Human Hand {sideName} Mesh", Vector3.zero, new Vector3(0.075f, 0.065f, 0.065f), skinMaterial, Quaternion.identity);
+
+            return hand;
+        }
+
+        private static void CreateSurvivorWeapon(Transform hand, string weaponProfileName, Material weaponMaterial)
+        {
+            // A profile root makes the whole weapon easy for tests, animation, and muzzle lookup to reason about.
+            GameObject weaponRoot = new(weaponProfileName);
+
+            // Parenting under the hand chain makes the weapon follow arm swing and keeps the muzzle anchor animated.
+            weaponRoot.transform.SetParent(hand, false);
+
+            // The slight forward offset keeps the grip from disappearing inside the generated hand sphere.
+            weaponRoot.transform.localPosition = new Vector3(0f, -0.015f, 0.035f);
+
+            // Weapon child pieces are authored in hand-local space with their barrels pointing down-lane on +Z.
+            weaponRoot.transform.localRotation = Quaternion.identity;
+
+            // Unit scale preserves the distinct profile proportions below even on smaller wing survivors.
+            weaponRoot.transform.localScale = Vector3.one;
+
+            switch (weaponProfileName)
+            {
+                case LeaderRifleName:
+                    CreateLeaderRifle(weaponRoot.transform, weaponMaterial);
+                    break;
+                case LeftWingShotgunName:
+                    CreateLeftWingShotgun(weaponRoot.transform, weaponMaterial);
+                    break;
+                case RightWingSmgName:
+                    CreateRightWingSmg(weaponRoot.transform, weaponMaterial);
+                    break;
+                default:
+                    throw new System.ArgumentOutOfRangeException(nameof(weaponProfileName), weaponProfileName, "Unsupported survivor weapon profile.");
+            }
+        }
+
+        private static void CreateLeaderRifle(Transform weaponRoot, Material weaponMaterial)
+        {
+            // The rifle body is long and narrow so the leader reads as the precision shooter.
+            CreateCylinderPart(weaponRoot, "Leader Rifle Body", new Vector3(0f, 0f, 0.24f), new Vector3(0.055f, 0.42f, 0.055f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // A thinner forward barrel extends beyond the body and defines the muzzle anchor position.
+            CreateCylinderPart(weaponRoot, "Leader Rifle Barrel", new Vector3(0f, 0f, 0.58f), new Vector3(0.028f, 0.42f, 0.028f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // The rear stock gives the rifle a shoulder-fired silhouette without imported art.
+            CreateCylinderPart(weaponRoot, "Leader Rifle Stock", new Vector3(0f, 0f, -0.08f), new Vector3(0.050f, 0.24f, 0.050f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // A small vertical grip visually connects the weapon to the hand joint.
+            CreateCylinderPart(weaponRoot, "Leader Rifle Grip", new Vector3(0f, -0.09f, 0.15f), new Vector3(0.035f, 0.18f, 0.035f), weaponMaterial, Quaternion.identity);
+
+            // The muzzle anchor sits at the barrel tip so tracer origins match the visible rifle.
+            CreateWeaponMuzzleAnchor(weaponRoot, 0.79f);
+        }
+
+        private static void CreateLeftWingShotgun(Transform weaponRoot, Material weaponMaterial)
+        {
+            // A chunkier receiver distinguishes the shotgun from the leader's long rifle.
+            CreateCylinderPart(weaponRoot, "Shotgun Receiver", new Vector3(0f, 0f, 0.20f), new Vector3(0.070f, 0.32f, 0.070f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // Twin side-by-side barrels give the left survivor a broad shotgun silhouette.
+            CreateCylinderPart(weaponRoot, "Shotgun Barrel Left", new Vector3(-0.032f, 0f, 0.54f), new Vector3(0.028f, 0.48f, 0.028f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+            CreateCylinderPart(weaponRoot, "Shotgun Barrel Right", new Vector3(0.032f, 0f, 0.54f), new Vector3(0.028f, 0.48f, 0.028f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // The fore-end under the barrels gives the generated shotgun a pump-like read.
+            CreateCylinderPart(weaponRoot, "Shotgun Fore End", new Vector3(0f, -0.04f, 0.45f), new Vector3(0.045f, 0.28f, 0.045f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // A short stock keeps the side survivor weapon compact inside one lane.
+            CreateCylinderPart(weaponRoot, "Shotgun Stock", new Vector3(0f, 0f, -0.06f), new Vector3(0.060f, 0.20f, 0.060f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // The muzzle anchor is centered between the two visible barrel tips.
+            CreateWeaponMuzzleAnchor(weaponRoot, 0.78f);
+        }
+
+        private static void CreateRightWingSmg(Transform weaponRoot, Material weaponMaterial)
+        {
+            // The SMG body is short and tall so it reads differently from rifle and shotgun profiles.
+            CreateSpherePart(weaponRoot, "SMG Receiver", new Vector3(0f, 0f, 0.18f), new Vector3(0.085f, 0.075f, 0.18f), weaponMaterial, Quaternion.identity);
+
+            // A short barrel makes the right-wing weapon compact while still providing a real muzzle tip.
+            CreateCylinderPart(weaponRoot, "SMG Barrel", new Vector3(0f, 0f, 0.42f), new Vector3(0.026f, 0.26f, 0.026f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // A vertical magazine gives the small weapon its most recognizable shape at mobile scale.
+            CreateCylinderPart(weaponRoot, "SMG Magazine", new Vector3(0f, -0.14f, 0.14f), new Vector3(0.040f, 0.22f, 0.040f), weaponMaterial, Quaternion.identity);
+
+            // A tiny rear stock keeps the profile from looking like just another barrel.
+            CreateCylinderPart(weaponRoot, "SMG Stock", new Vector3(0f, 0f, -0.03f), new Vector3(0.045f, 0.16f, 0.045f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // The muzzle anchor sits on the shorter SMG barrel tip.
+            CreateWeaponMuzzleAnchor(weaponRoot, 0.55f);
+        }
+
+        private static Transform CreateWeaponMuzzleAnchor(Transform weaponRoot, float muzzleLocalZ)
+        {
+            // Empty anchors give gameplay an exact world-space muzzle without adding extra render geometry.
+            GameObject muzzleObject = new(PlayerSquad.WeaponMuzzleAnchorName);
+
+            // The anchor is a direct weapon child, so tests can verify it belongs to the corresponding profile.
+            muzzleObject.transform.SetParent(weaponRoot, false);
+
+            // Barrels point down-lane on local +Z, making the tip position easy to audit.
+            muzzleObject.transform.localPosition = new Vector3(0f, 0f, muzzleLocalZ);
+
+            // Identity rotation lets future projectile effects inherit the weapon's authored aim directly.
+            muzzleObject.transform.localRotation = Quaternion.identity;
+
+            // Unit scale prevents parented effects from inheriting any accidental marker sizing.
+            muzzleObject.transform.localScale = Vector3.one;
+
+            return muzzleObject.transform;
         }
 
         private static void CreateZombieArm(Transform figureRoot, string sideName, float sideSign, Material skinMaterial)
@@ -253,6 +381,23 @@ namespace LaneSurvivor.Rendering
             // A dark belt and strap help armor read as equipment rather than a flat gray patch.
             CreateCylinderPart(figureRoot, "Zombie Armor Belt", new Vector3(0f, -0.18f, -0.15f), new Vector3(0.045f, 0.34f, 0.045f), armorTrimMaterial, Quaternion.Euler(0f, 0f, 90f));
             CreateCylinderPart(figureRoot, "Zombie Armor Strap", new Vector3(-0.09f, 0.07f, -0.17f), new Vector3(0.035f, 0.46f, 0.035f), armorTrimMaterial, Quaternion.Euler(0f, 0f, -24f));
+        }
+
+        private static GameObject CreateCylinderBetween(Transform parent, string name, Vector3 localStart, Vector3 localEnd, float radius, Material material)
+        {
+            // Segment math lets raised arms connect shoulder to hand without guessing cylinder rotations.
+            Vector3 segment = localEnd - localStart;
+
+            // The mesh is centered between both endpoints so the cylinder spans the exact authored limb segment.
+            Vector3 midpoint = (localStart + localEnd) * 0.5f;
+
+            // Very short segments would make FromToRotation unstable, so keep an inert fallback rotation.
+            Quaternion rotation = segment.sqrMagnitude > 0.0001f ? Quaternion.FromToRotation(Vector3.up, segment.normalized) : Quaternion.identity;
+
+            // Unity cylinder meshes run along local Y, so scale.y becomes the segment length.
+            Vector3 scale = new(radius, Mathf.Max(segment.magnitude, 0.001f), radius);
+
+            return CreateCylinderPart(parent, name, midpoint, scale, material, rotation);
         }
 
         private static GameObject CreateSpherePart(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Material material, Quaternion localRotation)

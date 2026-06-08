@@ -287,7 +287,7 @@ namespace LaneSurvivor.Tests.EditMode
                 // The registered target is ahead, in range, and in the squad lane.
                 shooter.Initialize(squad, 8f, 0.35f, 0.5f);
                 shooter.RegisterZombie(zombie);
-                shooter.ShotFired += (_, _, _) => shotFired = true;
+                shooter.ShotFired += (_, _, _, _) => shotFired = true;
                 squad.SetMoving(true);
 
                 // Reflection invokes the Unity Update callback without requiring a PlayMode frame.
@@ -306,6 +306,69 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void AutoShooter_UsesGeneratedWeaponMuzzleWhenAvailable()
+        {
+            // Generated survivor weapons should drive shot origins instead of the old squad-root approximation.
+            Material playerMaterial = PrototypeMaterialFactory.Create(Color.cyan);
+            Material accentMaterial = PrototypeMaterialFactory.Create(Color.magenta);
+            GameObject playerObject = PrototypeCharacterFactory.CreatePlayerSquad("Muzzle Squad Under Test", new Vector3(0f, GameplayVisuals.PlayerCenterY, 0f), playerMaterial, accentMaterial);
+            PlayerSquad squad = playerObject.AddComponent<PlayerSquad>();
+            AutoShooter shooter = playerObject.AddComponent<AutoShooter>();
+            Zombie zombie = CreateZombie(new Vector3(0f, GameplayVisuals.ZombieCenterY, 4f), 1);
+            LevelDefinition levelDefinition = ScriptableObject.CreateInstance<LevelDefinition>();
+            bool shotFired = false;
+            bool originUsedWeaponMuzzle = false;
+            Vector3 actualOrigin = default;
+
+            try
+            {
+                // The authored lane setup matches runtime enough to initialize the squad and shooter deterministically.
+                levelDefinition.startingSquadCount = 5;
+                levelDefinition.startingDamagePerMember = 1f;
+                levelDefinition.squadMoveSpeed = 1f;
+                levelDefinition.lanePositions = new[] { -GameplayVisuals.SideLaneX, 0f, GameplayVisuals.SideLaneX };
+
+                // Initialization scans the generated hierarchy and registers all survivor muzzle anchors.
+                squad.Initialize(levelDefinition);
+                Assert.AreEqual(3, squad.WeaponMuzzleCount);
+
+                // The first round-robin shot should come from the leader rifle muzzle.
+                Transform expectedMuzzle = playerObject.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+                Assert.IsNotNull(expectedMuzzle);
+
+                // Configure the same target path used by normal gameplay.
+                shooter.Initialize(squad, 8f, 0.35f, 0.5f);
+                shooter.RegisterZombie(zombie);
+                shooter.ShotFired += (origin, _, _, usesWeaponMuzzle) =>
+                {
+                    shotFired = true;
+                    actualOrigin = origin;
+                    originUsedWeaponMuzzle = usesWeaponMuzzle;
+                };
+                squad.SetMoving(true);
+
+                // Reflection invokes the Unity Update callback without needing a PlayMode frame.
+                InvokeAutoShooterUpdate(shooter);
+
+                // Shot events should now expose the exact muzzle world position and mark it as weapon-based.
+                Assert.IsTrue(shotFired);
+                Assert.IsTrue(originUsedWeaponMuzzle);
+                Assert.AreEqual(expectedMuzzle.position.x, actualOrigin.x, 0.001f);
+                Assert.AreEqual(expectedMuzzle.position.y, actualOrigin.y, 0.001f);
+                Assert.AreEqual(expectedMuzzle.position.z, actualOrigin.z, 0.001f);
+            }
+            finally
+            {
+                // Destroy generated Unity objects explicitly so EditMode tests stay isolated.
+                UnityEngine.Object.DestroyImmediate(playerObject);
+                UnityEngine.Object.DestroyImmediate(zombie.gameObject);
+                UnityEngine.Object.DestroyImmediate(playerMaterial);
+                UnityEngine.Object.DestroyImmediate(accentMaterial);
+                UnityEngine.Object.DestroyImmediate(levelDefinition);
+            }
+        }
+
+        [Test]
         public void AutoShooter_IgnoresZombieAheadInDifferentLane()
         {
             // Create a moving squad so the shooter is allowed to search for targets.
@@ -319,7 +382,7 @@ namespace LaneSurvivor.Tests.EditMode
                 // The target is ahead and in range, but the strict tolerance keeps it outside the center lane.
                 shooter.Initialize(squad, 8f, 0.35f, 0.1f);
                 shooter.RegisterZombie(zombie);
-                shooter.ShotFired += (_, _, _) => shotFired = true;
+                shooter.ShotFired += (_, _, _, _) => shotFired = true;
                 squad.SetMoving(true);
 
                 // Reflection invokes the same private Update method Unity calls every frame.
@@ -609,7 +672,7 @@ namespace LaneSurvivor.Tests.EditMode
             Material playerMaterial = PrototypeMaterialFactory.Create(Color.cyan);
             Material accentMaterial = PrototypeMaterialFactory.Create(Color.magenta);
             Material zombieMaterial = PrototypeMaterialFactory.Create(Color.green);
-            GameObject player = PrototypeCharacterFactory.CreatePlayerSquad("Player Squad Under Test", Vector3.zero, playerMaterial, accentMaterial);
+            GameObject player = PrototypeCharacterFactory.CreatePlayerSquad("Player Squad Under Test", new Vector3(0f, GameplayVisuals.PlayerCenterY, 0f), playerMaterial, accentMaterial);
             GameObject zombie = PrototypeCharacterFactory.CreateZombie("Zombie Under Test", Vector3.forward, zombieMaterial, ZombieEnemyType.Basic);
             GameObject armoredZombie = PrototypeCharacterFactory.CreateZombie("Armored Zombie Under Test", Vector3.forward * 2f, zombieMaterial, ZombieEnemyType.Armored);
 
@@ -620,9 +683,16 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Head"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
-                Assert.IsNotNull(player.transform.Find("Survivor Left Wing/Human Rifle"));
+                Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}"));
+                Assert.IsNotNull(player.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeftWingShotgunName}"));
+                Assert.IsNotNull(player.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}"));
                 Assert.IsNotNull(player.transform.Find("Survivor Right Wing/Human Leg Right/Human Knee Right/Human Shin Right/Human Boot Right"));
                 Assert.GreaterOrEqual(player.GetComponentsInChildren<MeshRenderer>().Length, 30);
+
+                // Every distinct weapon profile should own a direct muzzle anchor at the visible barrel tip.
+                AssertWeaponMuzzle(player.transform, "Survivor Leader", PrototypeCharacterFactory.LeaderRifleName);
+                AssertWeaponMuzzle(player.transform, "Survivor Left Wing", PrototypeCharacterFactory.LeftWingShotgunName);
+                AssertWeaponMuzzle(player.transform, "Survivor Right Wing", PrototypeCharacterFactory.RightWingSmgName);
 
                 // Basic zombies need a head, face, limbs, and wound instead of a single card mesh.
                 Assert.IsNull(zombie.GetComponent<MeshFilter>());
@@ -809,11 +879,11 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.Less(GameplayVisuals.ShotTracerWidth, GameplayVisuals.PlayerFootprint * 0.2f);
             Assert.Less(GameplayVisuals.ShotTracerWidth, GameplayVisuals.GateCardWidth * 0.1f);
 
-            // The lateral tracer offset should separate shots from lane stripes without crossing lane boundaries.
+            // The legacy lateral tracer offset should separate fallback shots from lane stripes without crossing lanes.
             Assert.Greater(GameplayVisuals.ShotTracerLaneOffsetX, GameplayVisuals.PlayerMastWidth);
             Assert.Less(GameplayVisuals.ShotTracerLaneOffsetX, GameplayVisuals.LaneMatchTolerance);
 
-            // The forward muzzle offset should clear the wider survivor formation without jumping near the target.
+            // The legacy forward muzzle offset should clear the wider survivor formation without jumping near the target.
             Assert.Greater(GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, GameplayVisuals.PlayerFootprint * 1.8f);
             Assert.Less(GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, GameplayVisuals.ZombieCardWidth * 2f);
 
@@ -1022,6 +1092,26 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(expectedColor.g, actualColor.g, 0.001f);
             Assert.AreEqual(expectedColor.b, actualColor.b, 0.001f);
             Assert.AreEqual(expectedColor.a, actualColor.a, 0.001f);
+        }
+
+        private static void AssertWeaponMuzzle(Transform playerRoot, string survivorName, string weaponName)
+        {
+            // The profile root must live under the right-hand chain so animation carries the weapon and muzzle together.
+            Transform weapon = playerRoot.Find($"{survivorName}/Human Arm Right/Human Hand Right/{weaponName}");
+            Assert.IsNotNull(weapon, $"{weaponName} should exist under {survivorName}'s right hand.");
+
+            // Muzzle anchors are direct weapon children, not unrelated sibling transforms near the squad root.
+            Transform muzzle = weapon.Find(PlayerSquad.WeaponMuzzleAnchorName);
+            Assert.IsNotNull(muzzle, $"{weaponName} should have a named muzzle anchor.");
+            Assert.AreSame(weapon, muzzle.parent);
+
+            // The anchor should be authored above the tracer minimum so LevelManager can keep the start point exact.
+            Assert.GreaterOrEqual(muzzle.position.y, GameplayVisuals.ShotTracerMinimumY);
+
+            // The barrel tip needs to sit down-lane from the survivor body, because zombies spawn at larger Z values.
+            Transform survivor = playerRoot.Find(survivorName);
+            Assert.IsNotNull(survivor);
+            Assert.Greater(muzzle.position.z, survivor.position.z + 0.2f);
         }
 
         private static void AssertNoColliderComponents(GameObject root)

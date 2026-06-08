@@ -332,8 +332,8 @@ namespace LaneSurvivor.Rendering
             // The head gets both a nod and a tiny vertical offset so faces read as alive.
             ApplyPartPose(rig.head, Quaternion.Euler(headNod, 0f, -bodyRoll * 0.2f), Vector3.up * bounce * 0.28f);
 
-            // Rifles should track the survivor hand rhythm without swinging as far as arms.
-            ApplyPartPose(rig.weapon, Quaternion.Euler(counterStride * weightedArmSwing * 0.22f, 0f, 0f), Vector3.zero);
+            // Held weapons inherit the hand chain and receive only a tiny pulse to avoid breaking their firing pose.
+            ApplyPartPose(rig.weapon, Quaternion.Euler(stride * weightedArmSwing * 0.08f, 0f, 0f), Vector3.zero);
         }
 
         private static void ApplyPartPose(AnimatedPart part, Quaternion additiveRotation, Vector3 additivePosition)
@@ -388,9 +388,19 @@ namespace LaneSurvivor.Rendering
                 rightLowerLeg = CapturePart(survivorRoot, "Human Shin Right"),
                 leftFoot = CapturePart(survivorRoot, "Human Boot Left"),
                 rightFoot = CapturePart(survivorRoot, "Human Boot Right"),
-                weapon = CapturePart(survivorRoot, "Human Rifle"),
+                weapon = CaptureSurvivorWeapon(survivorRoot),
                 phaseOffset = phaseOffset
             };
+        }
+
+        private static AnimatedPart CaptureSurvivorWeapon(Transform survivorRoot)
+        {
+            // Weapon roots have profile-specific names, so test each known generated profile in deterministic order.
+            Transform weapon = FindDescendant(survivorRoot, PrototypeCharacterFactory.LeaderRifleName) ??
+                               FindDescendant(survivorRoot, PrototypeCharacterFactory.LeftWingShotgunName) ??
+                               FindDescendant(survivorRoot, PrototypeCharacterFactory.RightWingSmgName);
+
+            return new AnimatedPart(weapon);
         }
 
         private static HumanoidRig CaptureZombieRig(Transform zombieRoot)

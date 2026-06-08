@@ -435,8 +435,13 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Head"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
-            Assert.IsNotNull(playerSquad.transform.Find("Survivor Left Wing/Human Rifle"));
+            Assert.IsNotNull(playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}"));
+            Assert.IsNotNull(playerSquad.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeftWingShotgunName}/{PlayerSquad.WeaponMuzzleAnchorName}"));
+            Assert.IsNotNull(playerSquad.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}/{PlayerSquad.WeaponMuzzleAnchorName}"));
             Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 30);
+            PlayerSquad playerSquadComponent = playerSquad.GetComponent<PlayerSquad>();
+            Assert.IsNotNull(playerSquadComponent);
+            Assert.AreEqual(3, playerSquadComponent.WeaponMuzzleCount);
             PrototypeHumanoidAnimator playerAnimator = playerSquad.GetComponent<PrototypeHumanoidAnimator>();
             Assert.IsNotNull(playerAnimator);
             Assert.AreEqual(PrototypeHumanoidAnimationStyle.SurvivorSquad, playerAnimator.AnimationStyle);
@@ -478,11 +483,14 @@ namespace LaneSurvivor.Tests.PlayMode
             // Invoke the private shot-feedback handler to avoid timing flake from very short tracer lifetimes.
             MethodInfo shotFeedbackMethod = typeof(LevelManager).GetMethod("HandleShotFired", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.IsNotNull(shotFeedbackMethod);
+            Vector3 weaponMuzzleOrigin = new(0.35f, GameplayVisuals.ShotTracerMinimumY + 0.12f, 8f);
+            Vector3 zombieTargetPoint = new(0.10f, GameplayVisuals.ZombieCenterY + 0.5f, 13f);
             shotFeedbackMethod.Invoke(levelManager, new object[]
             {
-                new Vector3(0f, GameplayVisuals.PlayerCenterY, 8f),
-                new Vector3(0f, GameplayVisuals.ZombieCenterY, 13f),
-                3f
+                weaponMuzzleOrigin,
+                zombieTargetPoint,
+                3f,
+                true
             });
 
             // Shot feedback should be a flat mesh strip, not a stretched cube that can look like a gate.
@@ -495,14 +503,14 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(4, tracerMeshFilter.sharedMesh.vertexCount);
             Assert.AreEqual(12, tracerMeshFilter.sharedMesh.triangles.Length);
 
-            // The generated strip should stay offset from the center lane stripe.
+            // The generated strip should begin exactly at the weapon muzzle instead of a lane/root approximation.
             Vector3[] tracerVertices = tracerMeshFilter.sharedMesh.vertices;
-            float averageTracerX = (tracerVertices[0].x + tracerVertices[1].x + tracerVertices[2].x + tracerVertices[3].x) * 0.25f;
-            Assert.AreEqual(GameplayVisuals.ShotTracerLaneOffsetX, averageTracerX, 0.001f);
-
-            // The strip should start from a forward muzzle point so it cannot appear behind the player marker.
+            float averageStartX = (tracerVertices[0].x + tracerVertices[1].x) * 0.5f;
+            float averageStartY = (tracerVertices[0].y + tracerVertices[1].y) * 0.5f;
             float averageStartZ = (tracerVertices[0].z + tracerVertices[1].z) * 0.5f;
-            Assert.AreEqual(8f + GameplayVisuals.ShotTracerMuzzleForwardOffsetZ, averageStartZ, 0.001f);
+            Assert.AreEqual(weaponMuzzleOrigin.x, averageStartX, 0.001f);
+            Assert.AreEqual(weaponMuzzleOrigin.y, averageStartY, 0.001f);
+            Assert.AreEqual(weaponMuzzleOrigin.z, averageStartZ, 0.001f);
 
             // The tracer material should render in the foreground without writing scene depth.
             MeshRenderer shotTracerRenderer = shotTracer.GetComponent<MeshRenderer>();

@@ -158,12 +158,12 @@ namespace LaneSurvivor.Gameplay
             SetState(LevelState.Lost);
         }
 
-        private void HandleShotFired(Vector3 origin, Vector3 target, float damage)
+        private void HandleShotFired(Vector3 origin, Vector3 target, float damage, bool originUsesWeaponMuzzle)
         {
             if (WorldSpaceShotTracersEnabled)
             {
                 // A short line tracer makes automatic shooting visible without adding imported art assets.
-                SpawnShotTracer(origin, target);
+                SpawnShotTracer(origin, target, originUsesWeaponMuzzle);
             }
 
             // Damage text helps explain why tougher zombies take several shots.
@@ -414,14 +414,16 @@ namespace LaneSurvivor.Gameplay
             }
         }
 
-        private void SpawnShotTracer(Vector3 origin, Vector3 target)
+        private void SpawnShotTracer(Vector3 origin, Vector3 target, bool originUsesWeaponMuzzle)
         {
-            // Move the visible muzzle forward so the tracer starts near the survivor formation instead of its root.
-            Vector3 muzzleOrigin = MoveTracerOriginToMuzzle(origin, target);
+            // Weapon-origin shots already begin at the visible barrel, while legacy roots still need the old forward offset.
+            Vector3 tracerOrigin = originUsesWeaponMuzzle ? origin : MoveTracerOriginToMuzzle(origin, target);
 
-            // Lift endpoints into the readable actor band so the road surface cannot swallow the effect.
-            Vector3 liftedOrigin = OffsetTracerPoint(LiftTracerPoint(muzzleOrigin));
-            Vector3 liftedTarget = OffsetTracerPoint(LiftTracerPoint(target));
+            // Real muzzle anchors are authored above the road, so keep their start point exact for visual alignment.
+            Vector3 liftedOrigin = originUsesWeaponMuzzle ? tracerOrigin : OffsetTracerPoint(LiftTracerPoint(tracerOrigin));
+
+            // Legacy fallback shots keep the lane-stripe offset, while weapon shots aim directly at the target point.
+            Vector3 liftedTarget = originUsesWeaponMuzzle ? LiftTracerPoint(target) : OffsetTracerPoint(LiftTracerPoint(target));
 
             // Direction and distance guard against invalid zero-length tracer geometry.
             Vector3 direction = liftedTarget - liftedOrigin;
@@ -525,7 +527,7 @@ namespace LaneSurvivor.Gameplay
 
         private static Vector3 MoveTracerOriginToMuzzle(Vector3 origin, Vector3 target)
         {
-            // The gameplay root sits inside the survivor group, so center-origin shots need a forward muzzle offset.
+            // Legacy fallback origins use the gameplay root, so those shots still need a forward visual offset.
             Vector3 planarDirection = new(target.x - origin.x, 0f, target.z - origin.z);
 
             // Very close or overlapping targets should keep the original point instead of creating unstable geometry.
@@ -626,10 +628,10 @@ namespace LaneSurvivor.Gameplay
 
         private static Vector3 OffsetTracerPoint(Vector3 point)
         {
-            // Center-lane shots overlap the lane stripe unless the tracer rides slightly to one side.
+            // Legacy fallback shots can overlap the lane stripe unless the tracer rides slightly to one side.
             float offsetDirection = point.x < 0f ? -1f : 1f;
 
-            // Side-lane shots offset outward, while center-lane shots consistently offset to the right edge.
+            // Side-lane fallback shots offset outward, while center-lane fallback shots use the right edge.
             return new Vector3(point.x + offsetDirection * GameplayVisuals.ShotTracerLaneOffsetX, point.y, point.z);
         }
 
