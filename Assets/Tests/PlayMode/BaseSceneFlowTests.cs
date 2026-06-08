@@ -432,12 +432,25 @@ namespace LaneSurvivor.Tests.PlayMode
             GameObject playerSquad = GameObject.Find("Player Squad");
             Assert.IsNotNull(playerSquad);
             Assert.IsNull(playerSquad.GetComponent<MeshFilter>());
-            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Head"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
-            Assert.IsNotNull(playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}"));
+            // Runtime weapon pose checks use visible body anchors, not hard-coded world heights.
+            Transform leaderHead = playerSquad.transform.Find("Survivor Leader/Human Head");
+            Transform leaderMuzzle = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            Transform smgHead = playerSquad.transform.Find("Survivor Right Wing/Human Head");
+            Transform smgPelvis = playerSquad.transform.Find("Survivor Right Wing/Human Pelvis");
+            Transform smgMuzzle = playerSquad.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            Assert.IsNotNull(leaderHead);
+            Assert.IsNotNull(leaderMuzzle);
             Assert.IsNotNull(playerSquad.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeftWingShotgunName}/{PlayerSquad.WeaponMuzzleAnchorName}"));
-            Assert.IsNotNull(playerSquad.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}/{PlayerSquad.WeaponMuzzleAnchorName}"));
+            Assert.IsNotNull(smgMuzzle);
+            Assert.IsNotNull(smgHead);
+            Assert.IsNotNull(smgPelvis);
+            // Long-gun muzzle height should stay near the survivor head in the real Minigame scene.
+            Assert.GreaterOrEqual(leaderMuzzle.position.y, leaderHead.position.y - 0.08f);
+            // The compact SMG should be clearly lower, but still above the lower-body anchor.
+            Assert.LessOrEqual(smgMuzzle.position.y, smgHead.position.y - 0.16f);
+            Assert.Greater(smgMuzzle.position.y, smgPelvis.position.y);
             Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 30);
             PlayerSquad playerSquadComponent = playerSquad.GetComponent<PlayerSquad>();
             Assert.IsNotNull(playerSquadComponent);

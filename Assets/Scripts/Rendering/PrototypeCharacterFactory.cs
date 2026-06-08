@@ -17,6 +17,13 @@ namespace LaneSurvivor.Rendering
         // The right wing uses a compact SMG silhouette to complete the three-profile weapon set.
         public const string RightWingSmgName = "Right Wing SMG";
 
+        // Weapon hold style controls whether a survivor aims from the face or from the waist.
+        private enum SurvivorWeaponHoldStyle
+        {
+            EyeLevel,
+            HipFire
+        }
+
         private static readonly Color SurvivorSkinColor = new(0.84f, 0.62f, 0.43f);
 
         private static readonly Color SurvivorPantsColor = new(0.20f, 0.27f, 0.34f);
@@ -152,27 +159,30 @@ namespace LaneSurvivor.Rendering
             CreateSpherePart(survivorRoot.transform, "Human Head", new Vector3(0f, 0.46f, -0.02f), new Vector3(0.19f, 0.21f, 0.18f), skinMaterial, Quaternion.identity);
             CreateSpherePart(survivorRoot.transform, "Human Helmet", new Vector3(0f, 0.56f, -0.01f), new Vector3(0.21f, 0.09f, 0.19f), gearMaterial, Quaternion.identity);
 
+            // The weapon profile decides the authored firing pose before any procedural walk animation runs.
+            SurvivorWeaponHoldStyle holdStyle = GetWeaponHoldStyle(weaponProfileName);
+
             // Connected shoulder chains make arm swing pivot from the body instead of spinning around a forearm center.
-            CreateHumanArm(survivorRoot.transform, "Left", -1f, bodyMaterial, skinMaterial);
+            CreateHumanArm(survivorRoot.transform, "Left", -1f, holdStyle, bodyMaterial, skinMaterial);
 
             // The weapon is parented under the right hand so muzzle anchors follow the procedural arm animation.
-            Transform weaponHand = CreateHumanArm(survivorRoot.transform, "Right", 1f, bodyMaterial, skinMaterial);
+            Transform weaponHand = CreateHumanArm(survivorRoot.transform, "Right", 1f, holdStyle, bodyMaterial, skinMaterial);
 
             // Connected hip/knee/ankle chains remove the knee gap and make the run read as a real bent limb.
             CreateHumanLeg(survivorRoot.transform, "Left", -1f, 0.02f, pantsMaterial, bootMaterial);
             CreateHumanLeg(survivorRoot.transform, "Right", 1f, -0.02f, pantsMaterial, bootMaterial);
 
             // Procedural weapon profiles keep the squad readable without importing any firearm art.
-            CreateSurvivorWeapon(weaponHand, weaponProfileName, weaponMaterial);
+            CreateSurvivorWeapon(weaponHand, weaponProfileName, holdStyle, weaponMaterial);
         }
 
-        private static Transform CreateHumanArm(Transform survivorRoot, string sideName, float sideSign, Material sleeveMaterial, Material skinMaterial)
+        private static Transform CreateHumanArm(Transform survivorRoot, string sideName, float sideSign, SurvivorWeaponHoldStyle holdStyle, Material sleeveMaterial, Material skinMaterial)
         {
             // Shoulder pivots make arm swing originate from the torso instead of rotating around the arm mesh center.
-            Transform shoulder = CreateJoint(survivorRoot, $"Human Arm {sideName}", new Vector3(sideSign * 0.17f, 0.36f, -0.01f), Quaternion.Euler(0f, 0f, sideSign * 12f));
+            Transform shoulder = CreateJoint(survivorRoot, $"Human Arm {sideName}", new Vector3(sideSign * 0.17f, 0.36f, -0.01f), GetHumanShoulderRestRotation(sideSign, holdStyle));
 
-            // The hand sits forward and high so every survivor holds their weapon in a readable firing pose.
-            Vector3 handLocalPosition = new(sideSign * 0.01f, -0.05f, 0.30f);
+            // The hand target separates shoulder-fired weapons from lower hip-fire weapons.
+            Vector3 handLocalPosition = GetHumanHandLocalPosition(sideSign, holdStyle);
 
             // The visible upper arm spans from shoulder toward the raised hand instead of hanging at the side.
             CreateCylinderBetween(shoulder, $"Human Upper Arm {sideName} Mesh", Vector3.zero, handLocalPosition, 0.06f, sleeveMaterial);
@@ -186,7 +196,7 @@ namespace LaneSurvivor.Rendering
             return hand;
         }
 
-        private static void CreateSurvivorWeapon(Transform hand, string weaponProfileName, Material weaponMaterial)
+        private static void CreateSurvivorWeapon(Transform hand, string weaponProfileName, SurvivorWeaponHoldStyle holdStyle, Material weaponMaterial)
         {
             // A profile root makes the whole weapon easy for tests, animation, and muzzle lookup to reason about.
             GameObject weaponRoot = new(weaponProfileName);
@@ -194,11 +204,11 @@ namespace LaneSurvivor.Rendering
             // Parenting under the hand chain makes the weapon follow arm swing and keeps the muzzle anchor animated.
             weaponRoot.transform.SetParent(hand, false);
 
-            // The slight forward offset keeps the grip from disappearing inside the generated hand sphere.
-            weaponRoot.transform.localPosition = new Vector3(0f, -0.015f, 0.035f);
+            // The root offset keeps the grip readable while preserving the selected hold height.
+            weaponRoot.transform.localPosition = GetWeaponRootLocalPosition(holdStyle);
 
             // Weapon child pieces are authored in hand-local space with their barrels pointing down-lane on +Z.
-            weaponRoot.transform.localRotation = Quaternion.identity;
+            weaponRoot.transform.localRotation = GetWeaponRootLocalRotation(holdStyle);
 
             // Unit scale preserves the distinct profile proportions below even on smaller wing survivors.
             weaponRoot.transform.localScale = Vector3.one;
@@ -216,6 +226,90 @@ namespace LaneSurvivor.Rendering
                     break;
                 default:
                     throw new System.ArgumentOutOfRangeException(nameof(weaponProfileName), weaponProfileName, "Unsupported survivor weapon profile.");
+            }
+        }
+
+        private static SurvivorWeaponHoldStyle GetWeaponHoldStyle(string weaponProfileName)
+        {
+            switch (weaponProfileName)
+            {
+                case LeaderRifleName:
+                case LeftWingShotgunName:
+                    // Long weapons are shoulder-fired so their muzzles stay near the survivor's face.
+                    return SurvivorWeaponHoldStyle.EyeLevel;
+                case RightWingSmgName:
+                    // The compact SMG gives the squad a second read by firing from the hip.
+                    return SurvivorWeaponHoldStyle.HipFire;
+                default:
+                    // Unsupported profiles should fail close to the source of the bad generated hierarchy.
+                    throw new System.ArgumentOutOfRangeException(nameof(weaponProfileName), weaponProfileName, "Unsupported survivor weapon hold style.");
+            }
+        }
+
+        private static Vector3 GetHumanHandLocalPosition(float sideSign, SurvivorWeaponHoldStyle holdStyle)
+        {
+            // Negative side values are the support hand on the survivor's left side.
+            bool isLeftHand = sideSign < 0f;
+
+            switch (holdStyle)
+            {
+                case SurvivorWeaponHoldStyle.EyeLevel:
+                    // Eye-level support hands cross toward the weapon fore-end instead of swinging at the side.
+                    return isLeftHand ? new Vector3(0.18f, 0.02f, 0.34f) : new Vector3(-0.03f, 0.09f, 0.31f);
+                case SurvivorWeaponHoldStyle.HipFire:
+                    // Hip-fire hands stay lower around the waist while still pointing the barrel down-lane.
+                    return isLeftHand ? new Vector3(0.17f, -0.21f, 0.33f) : new Vector3(-0.02f, -0.18f, 0.27f);
+                default:
+                    // New hold styles should define exact hand targets rather than falling back to a generic pose.
+                    throw new System.ArgumentOutOfRangeException(nameof(holdStyle), holdStyle, "Unsupported survivor weapon hold style.");
+            }
+        }
+
+        private static Quaternion GetHumanShoulderRestRotation(float sideSign, SurvivorWeaponHoldStyle holdStyle)
+        {
+            switch (holdStyle)
+            {
+                case SurvivorWeaponHoldStyle.EyeLevel:
+                    // A small outward roll keeps shoulder-fired arms from collapsing into the chest.
+                    return Quaternion.Euler(0f, 0f, sideSign * 5f);
+                case SurvivorWeaponHoldStyle.HipFire:
+                    // Hip-fire arms need less roll because the hands already sit lower and wider.
+                    return Quaternion.Euler(0f, 0f, sideSign * 3f);
+                default:
+                    // Unknown styles should not silently reuse an unrelated shoulder pose.
+                    throw new System.ArgumentOutOfRangeException(nameof(holdStyle), holdStyle, "Unsupported survivor weapon hold style.");
+            }
+        }
+
+        private static Vector3 GetWeaponRootLocalPosition(SurvivorWeaponHoldStyle holdStyle)
+        {
+            switch (holdStyle)
+            {
+                case SurvivorWeaponHoldStyle.EyeLevel:
+                    // Shoulder-fired weapons sit close to the hand so the barrel stays near eye height.
+                    return new Vector3(0f, -0.015f, 0.035f);
+                case SurvivorWeaponHoldStyle.HipFire:
+                    // Hip-fire weapons sit a touch lower and farther forward to clear the waist silhouette.
+                    return new Vector3(0f, -0.025f, 0.045f);
+                default:
+                    // New styles should provide their own authored root offset.
+                    throw new System.ArgumentOutOfRangeException(nameof(holdStyle), holdStyle, "Unsupported survivor weapon hold style.");
+            }
+        }
+
+        private static Quaternion GetWeaponRootLocalRotation(SurvivorWeaponHoldStyle holdStyle)
+        {
+            switch (holdStyle)
+            {
+                case SurvivorWeaponHoldStyle.EyeLevel:
+                    // Eye-level weapons point straight down-lane so tracer origins line up with sighted shots.
+                    return Quaternion.identity;
+                case SurvivorWeaponHoldStyle.HipFire:
+                    // Hip-fire weapons stay mostly level; a tiny upward pitch keeps the muzzle visible above the road.
+                    return Quaternion.Euler(-2f, 0f, 0f);
+                default:
+                    // New styles should declare an explicit local weapon rotation.
+                    throw new System.ArgumentOutOfRangeException(nameof(holdStyle), holdStyle, "Unsupported survivor weapon hold style.");
             }
         }
 

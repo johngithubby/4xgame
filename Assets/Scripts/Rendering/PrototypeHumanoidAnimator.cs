@@ -321,19 +321,32 @@ namespace LaneSurvivor.Rendering
             ApplyPartPose(rig.leftFoot, Quaternion.Euler(-leftHipSwing * 0.22f - leftKneeBend * 0.30f, 0f, 0f), Vector3.zero);
             ApplyPartPose(rig.rightFoot, Quaternion.Euler(-rightHipSwing * 0.22f - rightKneeBend * 0.30f, 0f, 0f), Vector3.zero);
 
-            // Arms swing opposite their neighboring legs; zombie arms keep their authored reaching pose underneath.
-            ApplyPartPose(rig.leftArm, Quaternion.Euler(counterStride * weightedArmSwing, 0f, 0f), Vector3.zero);
-            ApplyPartPose(rig.rightArm, Quaternion.Euler(stride * weightedArmSwing, 0f, 0f), Vector3.zero);
+            if (animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad)
+            {
+                // Survivors keep both hands locked to their authored firing pose instead of swinging weapons while shooting.
+                ApplyPartPose(rig.leftArm, Quaternion.identity, Vector3.zero);
+                ApplyPartPose(rig.rightArm, Quaternion.identity, Vector3.zero);
 
-            // Hands inherit arm movement, with a small pulse to make the silhouette lively.
-            ApplyPartPose(rig.leftHand, Quaternion.Euler(counterStride * weightedArmSwing * 0.35f, 0f, 0f), Vector3.zero);
-            ApplyPartPose(rig.rightHand, Quaternion.Euler(stride * weightedArmSwing * 0.35f, 0f, 0f), Vector3.zero);
+                // Stable hand transforms keep eye-level and hip-fire muzzle anchors from bobbing around the survivor body.
+                ApplyPartPose(rig.leftHand, Quaternion.identity, Vector3.zero);
+                ApplyPartPose(rig.rightHand, Quaternion.identity, Vector3.zero);
+            }
+            else
+            {
+                // Zombie arms swing opposite their neighboring legs while preserving their authored reaching pose underneath.
+                ApplyPartPose(rig.leftArm, Quaternion.Euler(counterStride * weightedArmSwing, 0f, 0f), Vector3.zero);
+                ApplyPartPose(rig.rightArm, Quaternion.Euler(stride * weightedArmSwing, 0f, 0f), Vector3.zero);
+
+                // Zombie hands inherit the arm motion with a smaller wrist-like pulse.
+                ApplyPartPose(rig.leftHand, Quaternion.Euler(counterStride * weightedArmSwing * 0.35f, 0f, 0f), Vector3.zero);
+                ApplyPartPose(rig.rightHand, Quaternion.Euler(stride * weightedArmSwing * 0.35f, 0f, 0f), Vector3.zero);
+            }
 
             // The head gets both a nod and a tiny vertical offset so faces read as alive.
             ApplyPartPose(rig.head, Quaternion.Euler(headNod, 0f, -bodyRoll * 0.2f), Vector3.up * bounce * 0.28f);
 
-            // Held weapons inherit the hand chain and receive only a tiny pulse to avoid breaking their firing pose.
-            ApplyPartPose(rig.weapon, Quaternion.Euler(stride * weightedArmSwing * 0.08f, 0f, 0f), Vector3.zero);
+            // Held weapons should inherit only the stable authored hand pose so tracers remain visually aligned.
+            ApplyPartPose(rig.weapon, Quaternion.identity, Vector3.zero);
         }
 
         private static void ApplyPartPose(AnimatedPart part, Quaternion additiveRotation, Vector3 additivePosition)

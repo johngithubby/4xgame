@@ -19,6 +19,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Automatic shots now show placeholder tracers and damage text.
 - The minigame now renders the player as a three-survivor formation with generated heads, bodies, limbs, helmets, and gear instead of rectangular blobs.
 - The three survivors now hold distinct generated weapons: leader rifle, left-wing shotgun, and right-wing SMG.
+- Rifle and shotgun survivors keep their weapons near eye level while the SMG survivor fires from the hip, with firing arms stabilized so muzzle positions do not bob during running.
 - Automatic shot tracers now start from registered weapon muzzle anchors when generated weapons are present, with the old root-derived fallback kept for hand-built test scenes.
 - Zombies now render as generated humanoid bodies with faces, reaching arms, legs, feet, wounds, and extra armor pieces for armored enemies.
 - Survivors now use a procedural bent-knee walking cycle while moving, and zombies use a slower in-place shamble.

@@ -694,6 +694,13 @@ namespace LaneSurvivor.Tests.EditMode
                 AssertWeaponMuzzle(player.transform, "Survivor Left Wing", PrototypeCharacterFactory.LeftWingShotgunName);
                 AssertWeaponMuzzle(player.transform, "Survivor Right Wing", PrototypeCharacterFactory.RightWingSmgName);
 
+                // Long weapons should read as shoulder/eye-level firing poses.
+                AssertEyeLevelWeaponHold(player.transform, "Survivor Leader", PrototypeCharacterFactory.LeaderRifleName);
+                AssertEyeLevelWeaponHold(player.transform, "Survivor Left Wing", PrototypeCharacterFactory.LeftWingShotgunName);
+
+                // The compact SMG should be visibly lower so the squad has a hip-fire weapon type.
+                AssertHipFireWeaponHold(player.transform, "Survivor Right Wing", PrototypeCharacterFactory.RightWingSmgName);
+
                 // Basic zombies need a head, face, limbs, and wound instead of a single card mesh.
                 Assert.IsNull(zombie.GetComponent<MeshFilter>());
                 Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Head"));
@@ -765,13 +772,22 @@ namespace LaneSurvivor.Tests.EditMode
                 Transform playerLeg = player.transform.Find("Survivor Leader/Human Leg Left");
                 Transform playerKnee = player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left");
                 Transform playerShin = player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left");
+                Transform playerWeaponArm = player.transform.Find("Survivor Leader/Human Arm Right");
+                Transform playerWeaponHand = player.transform.Find("Survivor Leader/Human Arm Right/Human Hand Right");
+                Transform playerWeapon = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
                 Assert.IsNotNull(playerLeg);
                 Assert.IsNotNull(playerKnee);
                 Assert.IsNotNull(playerShin);
+                Assert.IsNotNull(playerWeaponArm);
+                Assert.IsNotNull(playerWeaponHand);
+                Assert.IsNotNull(playerWeapon);
                 Assert.AreSame(playerLeg, playerKnee.parent);
                 Assert.AreSame(playerKnee, playerShin.parent);
                 Quaternion playerLegRestRotation = playerLeg.localRotation;
                 Quaternion playerKneeRestRotation = playerKnee.localRotation;
+                Quaternion playerWeaponArmRestRotation = playerWeaponArm.localRotation;
+                Quaternion playerWeaponHandRestRotation = playerWeaponHand.localRotation;
+                Quaternion playerWeaponRestRotation = playerWeapon.localRotation;
 
                 // A forced moving evaluation should swing the hip and bend the connected knee joint.
                 playerAnimator.ForceEvaluate(0.4f, true);
@@ -781,6 +797,11 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.Greater(playerThighSwing, 0.1f);
                 Assert.Greater(playerKneeBend, playerThighSwing + 5f);
                 Assert.Less(Vector3.Distance(playerKnee.position, playerShin.position), 0.001f);
+
+                // Survivor firing arms should stay in their authored weapon pose while the legs do the running.
+                Assert.Less(Quaternion.Angle(playerWeaponArmRestRotation, playerWeaponArm.localRotation), 0.001f);
+                Assert.Less(Quaternion.Angle(playerWeaponHandRestRotation, playerWeaponHand.localRotation), 0.001f);
+                Assert.Less(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.001f);
 
                 // The zombie animator should shamble even when the gameplay root is stationary.
                 PrototypeHumanoidAnimator zombieAnimator = zombie.GetComponent<PrototypeHumanoidAnimator>();
@@ -1105,13 +1126,46 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsNotNull(muzzle, $"{weaponName} should have a named muzzle anchor.");
             Assert.AreSame(weapon, muzzle.parent);
 
-            // The anchor should be authored above the tracer minimum so LevelManager can keep the start point exact.
-            Assert.GreaterOrEqual(muzzle.position.y, GameplayVisuals.ShotTracerMinimumY);
+            // Weapon-origin tracers use exact muzzle starts, so the anchor only needs to stay safely above the road.
+            Assert.Greater(muzzle.position.y, GameplayVisuals.TrackTopY + 1.0f);
 
             // The barrel tip needs to sit down-lane from the survivor body, because zombies spawn at larger Z values.
             Transform survivor = playerRoot.Find(survivorName);
             Assert.IsNotNull(survivor);
             Assert.Greater(muzzle.position.z, survivor.position.z + 0.2f);
+        }
+
+        private static void AssertEyeLevelWeaponHold(Transform playerRoot, string survivorName, string weaponName)
+        {
+            // The survivor head provides a stable local reference for eye-level weapon placement.
+            Transform head = playerRoot.Find($"{survivorName}/Human Head");
+            Assert.IsNotNull(head, $"{survivorName} should have a head reference for weapon pose checks.");
+
+            // The weapon muzzle is the exact point where tracers begin, so its height defines the firing pose.
+            Transform muzzle = playerRoot.Find($"{survivorName}/Human Arm Right/Human Hand Right/{weaponName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            Assert.IsNotNull(muzzle, $"{weaponName} should have a muzzle for weapon pose checks.");
+
+            // Shoulder-fired weapons should sit close to the face instead of down at the waist.
+            Assert.GreaterOrEqual(muzzle.position.y, head.position.y - 0.08f, $"{weaponName} should be held near eye level.");
+        }
+
+        private static void AssertHipFireWeaponHold(Transform playerRoot, string survivorName, string weaponName)
+        {
+            // The survivor head marks the upper bound that hip-fire weapons should visibly avoid.
+            Transform head = playerRoot.Find($"{survivorName}/Human Head");
+            Assert.IsNotNull(head, $"{survivorName} should have a head reference for hip-fire checks.");
+
+            // The pelvis marks the lower body reference so hip-fire does not drop below the character.
+            Transform pelvis = playerRoot.Find($"{survivorName}/Human Pelvis");
+            Assert.IsNotNull(pelvis, $"{survivorName} should have a pelvis reference for hip-fire checks.");
+
+            // The muzzle height is the visible firing origin for the compact weapon profile.
+            Transform muzzle = playerRoot.Find($"{survivorName}/Human Arm Right/Human Hand Right/{weaponName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            Assert.IsNotNull(muzzle, $"{weaponName} should have a muzzle for hip-fire checks.");
+
+            // Hip-fire weapons should sit clearly below the face while staying above the pelvis.
+            Assert.LessOrEqual(muzzle.position.y, head.position.y - 0.16f, $"{weaponName} should be held below eye level.");
+            Assert.Greater(muzzle.position.y, pelvis.position.y, $"{weaponName} should stay above the lower-body anchor.");
         }
 
         private static void AssertNoColliderComponents(GameObject root)
