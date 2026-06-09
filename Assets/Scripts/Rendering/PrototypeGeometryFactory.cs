@@ -43,6 +43,17 @@ namespace LaneSurvivor.Rendering
             return gameObject;
         }
 
+        public static GameObject CreateRegularPrism(string name, Vector3 position, Vector3 scale, int sideCount, Material material)
+        {
+            // Clamp to a valid polygon so callers cannot accidentally request a two-sided or empty prism.
+            int safeSideCount = Mathf.Max(3, sideCount);
+
+            // Regular prisms give base-building placeholders authored silhouettes without importing meshes.
+            GameObject gameObject = CreateMeshObject(name, position, Quaternion.identity, scale, material, CreateRegularPrismMesh(safeSideCount));
+
+            return gameObject;
+        }
+
         private static GameObject CreateMeshObject(string name, Vector3 position, Quaternion rotation, Vector3 scale, Material material, Mesh mesh)
         {
             // Build the object manually so no helper path adds a runtime physics collider.
@@ -432,6 +443,110 @@ namespace LaneSurvivor.Rendering
             // Bounds let Unity cull scaled limbs and props correctly.
             sharedCylinderMesh.RecalculateBounds();
             return sharedCylinderMesh;
+        }
+
+        private static Mesh CreateRegularPrismMesh(int sideCount)
+        {
+            // Lists keep the generated top, bottom, and wall geometry readable for small prototype meshes.
+            List<Vector3> vertices = new();
+            List<Vector3> normals = new();
+            List<Vector2> uvs = new();
+            List<int> triangles = new();
+
+            // The unit prism matches the cube helper's vertical bounds so caller scale controls final height.
+            int topCenterIndex = vertices.Count;
+            vertices.Add(new Vector3(0f, 0.5f, 0f));
+            normals.Add(Vector3.up);
+            uvs.Add(new Vector2(0.5f, 0.5f));
+
+            // Bottom center gives the underside its own normal for stable lighting if the camera sees an edge.
+            int bottomCenterIndex = vertices.Count;
+            vertices.Add(new Vector3(0f, -0.5f, 0f));
+            normals.Add(Vector3.down);
+            uvs.Add(new Vector2(0.5f, 0.5f));
+
+            // Top cap ring stores one vertex per polygon corner with upward normals.
+            int topRingStartIndex = vertices.Count;
+            for (int vertexIndex = 0; vertexIndex < sideCount; vertexIndex += 1)
+            {
+                // Starting at +Z makes a pentagon read with one point toward the back of the base scene.
+                float angle = Mathf.PI * 0.5f + vertexIndex * Mathf.PI * 2f / sideCount;
+                float x = Mathf.Cos(angle) * 0.5f;
+                float z = Mathf.Sin(angle) * 0.5f;
+                vertices.Add(new Vector3(x, 0.5f, z));
+                normals.Add(Vector3.up);
+                uvs.Add(new Vector2(x + 0.5f, z + 0.5f));
+            }
+
+            // Bottom cap ring mirrors the top cap with downward normals.
+            int bottomRingStartIndex = vertices.Count;
+            for (int vertexIndex = 0; vertexIndex < sideCount; vertexIndex += 1)
+            {
+                // Use the same X/Z coordinates as the top ring so the sides connect cleanly.
+                float angle = Mathf.PI * 0.5f + vertexIndex * Mathf.PI * 2f / sideCount;
+                float x = Mathf.Cos(angle) * 0.5f;
+                float z = Mathf.Sin(angle) * 0.5f;
+                vertices.Add(new Vector3(x, -0.5f, z));
+                normals.Add(Vector3.down);
+                uvs.Add(new Vector2(x + 0.5f, z + 0.5f));
+            }
+
+            // Cap fans close the top and bottom with double-sided triangles for shader-culling resilience.
+            for (int sideIndex = 0; sideIndex < sideCount; sideIndex += 1)
+            {
+                // Wrap the final side back to the first ring vertex.
+                int nextSideIndex = (sideIndex + 1) % sideCount;
+                AddDoubleSidedTriangle(triangles, topCenterIndex, topRingStartIndex + nextSideIndex, topRingStartIndex + sideIndex);
+                AddDoubleSidedTriangle(triangles, bottomCenterIndex, bottomRingStartIndex + sideIndex, bottomRingStartIndex + nextSideIndex);
+            }
+
+            // Side faces use duplicated vertices so each wall segment has a flat outward normal.
+            for (int sideIndex = 0; sideIndex < sideCount; sideIndex += 1)
+            {
+                // Adjacent cap vertices define the wall segment endpoints.
+                int nextSideIndex = (sideIndex + 1) % sideCount;
+                Vector3 topA = vertices[topRingStartIndex + sideIndex];
+                Vector3 topB = vertices[topRingStartIndex + nextSideIndex];
+                Vector3 bottomA = vertices[bottomRingStartIndex + sideIndex];
+                Vector3 bottomB = vertices[bottomRingStartIndex + nextSideIndex];
+
+                // The midpoint direction is the outward normal for a regular prism side.
+                Vector3 outwardNormal = new Vector3(topA.x + topB.x, 0f, topA.z + topB.z).normalized;
+
+                // Four side vertices form one flat-shaded wall quad.
+                int sideStartIndex = vertices.Count;
+                vertices.Add(topA);
+                normals.Add(outwardNormal);
+                uvs.Add(new Vector2(0f, 1f));
+                vertices.Add(topB);
+                normals.Add(outwardNormal);
+                uvs.Add(new Vector2(1f, 1f));
+                vertices.Add(bottomB);
+                normals.Add(outwardNormal);
+                uvs.Add(new Vector2(1f, 0f));
+                vertices.Add(bottomA);
+                normals.Add(outwardNormal);
+                uvs.Add(new Vector2(0f, 0f));
+
+                // Two triangles make the wall, and the helper adds reverse winding for reliable visibility.
+                AddDoubleSidedTriangle(triangles, sideStartIndex, sideStartIndex + 1, sideStartIndex + 2);
+                AddDoubleSidedTriangle(triangles, sideStartIndex, sideStartIndex + 2, sideStartIndex + 3);
+            }
+
+            // HideFlags prevent generated prism meshes from being written into scene or project assets.
+            Mesh mesh = new()
+            {
+                name = $"Prototype Generated {sideCount}-Sided Prism Mesh",
+                hideFlags = HideFlags.HideAndDontSave,
+                vertices = vertices.ToArray(),
+                normals = normals.ToArray(),
+                uv = uvs.ToArray(),
+                triangles = triangles.ToArray()
+            };
+
+            // Bounds let Unity cull scaled base and HQ prism meshes correctly.
+            mesh.RecalculateBounds();
+            return mesh;
         }
 
         private static void AddDoubleSidedTriangle(List<int> triangles, int first, int second, int third)

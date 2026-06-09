@@ -71,6 +71,12 @@ namespace LaneSurvivor.Base
         [SerializeField]
         private Button heroesButton;
 
+        [SerializeField]
+        private Button zoomInButton;
+
+        [SerializeField]
+        private Button zoomOutButton;
+
         public void Configure(
             Text title,
             Text coins,
@@ -91,7 +97,9 @@ namespace LaneSurvivor.Base
             Button[] missionSelectionButtons,
             Button reset,
             Button equipHero,
-            Button heroes)
+            Button heroes,
+            Button zoomIn,
+            Button zoomOut)
         {
             titleText = title;
             coinsText = coins;
@@ -113,9 +121,11 @@ namespace LaneSurvivor.Base
             resetButton = reset;
             equipHeroButton = equipHero;
             heroesButton = heroes;
+            zoomInButton = zoomIn;
+            zoomOutButton = zoomOut;
         }
 
-        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action claimObjectiveAction, Action<int> selectMissionAction, Action resetAction, Action equipHeroAction, Action heroesAction)
+        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action claimObjectiveAction, Action<int> selectMissionAction, Action resetAction, Action equipHeroAction, Action heroesAction, Action zoomInAction, Action zoomOutAction)
         {
             // Replace listeners so scene rebuilds or test setup cannot accidentally duplicate clicks.
             collectButton.onClick.RemoveAllListeners();
@@ -130,6 +140,8 @@ namespace LaneSurvivor.Base
             resetButton.onClick.RemoveAllListeners();
             equipHeroButton.onClick.RemoveAllListeners();
             heroesButton.onClick.RemoveAllListeners();
+            zoomInButton.onClick.RemoveAllListeners();
+            zoomOutButton.onClick.RemoveAllListeners();
 
             // Button listeners stay tiny and delegate all state changes to the bootstrap.
             collectButton.onClick.AddListener(() => collectAction?.Invoke());
@@ -145,6 +157,8 @@ namespace LaneSurvivor.Base
             resetButton.onClick.AddListener(() => resetAction?.Invoke());
             equipHeroButton.onClick.AddListener(() => equipHeroAction?.Invoke());
             heroesButton.onClick.AddListener(() => heroesAction?.Invoke());
+            zoomInButton.onClick.AddListener(() => zoomInAction?.Invoke());
+            zoomOutButton.onClick.AddListener(() => zoomOutAction?.Invoke());
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
             // Keep the reset affordance available in editor and development builds for fast iteration.
@@ -211,6 +225,8 @@ namespace LaneSurvivor.Base
             }
             equipHeroButton.interactable = HasUnequippedOwnedHero(ownedHeroes, equippedHero);
             heroesButton.interactable = true;
+            zoomInButton.interactable = true;
+            zoomOutButton.interactable = true;
         }
 
         private static string BuildMissionPanelText(SaveGameData saveData)

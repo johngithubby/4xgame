@@ -19,6 +19,8 @@ namespace LaneSurvivor.Base
 
         private BaseHudController hudController;
 
+        private BaseCameraController cameraController;
+
         private string statusMessage = string.Empty;
 
         private void Awake()
@@ -47,15 +49,18 @@ namespace LaneSurvivor.Base
             }
 
             Material groundMaterial = CreateMaterial(new Color(0.18f, 0.25f, 0.24f));
-            Material hqMaterial = CreateMaterial(new Color(0.18f, 0.45f, 0.85f));
+            Material perimeterMaterial = CreateMaterial(new Color(0.08f, 0.13f, 0.12f));
+            Material reservedSpaceMaterial = CreateMaterial(new Color(0.30f, 0.35f, 0.32f));
+            Material hqMaterial = CreateMaterial(Color.white);
+            Material hqDetailMaterial = CreateMaterial(new Color(0.95f, 0.72f, 0.22f));
 
-            CreateCamera();
+            cameraController = CreateCamera();
             CreateLight();
             CreateEventSystem();
-            CreateGround(groundMaterial);
-            hqBuilding = CreateHqBuilding(hqMaterial);
+            CreateGround(groundMaterial, perimeterMaterial, reservedSpaceMaterial);
+            hqBuilding = CreateHqBuilding(hqMaterial, hqDetailMaterial);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ClaimDailyObjective, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ClaimDailyObjective, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes, cameraController.ZoomIn, cameraController.ZoomOut);
 
             RefreshScene();
         }
@@ -200,15 +205,20 @@ namespace LaneSurvivor.Base
             hudController.UpdateView(saveData, remainingSeconds, statusMessage);
         }
 
-        private static void CreateCamera()
+        private static BaseCameraController CreateCamera()
         {
-            // Use a fixed camera for the tiny base prototype.
+            // Use a stable perspective camera with zoom controlled by BaseCameraController.
             GameObject cameraObject = new("Main Camera");
             Camera camera = cameraObject.AddComponent<Camera>();
-            camera.fieldOfView = 52f;
+            camera.fieldOfView = BaseCameraController.DefaultFieldOfView;
             camera.tag = "MainCamera";
-            cameraObject.transform.position = new Vector3(0f, 7f, -8f);
+            cameraObject.transform.position = BaseCameraController.DefaultCameraPosition;
             cameraObject.transform.rotation = Quaternion.Euler(55f, 0f, 0f);
+
+            // The controller handles pinch, scroll, keyboard, and HUD-button zoom without moving overlay UI.
+            BaseCameraController zoomController = cameraObject.AddComponent<BaseCameraController>();
+            zoomController.Configure(camera);
+            return zoomController;
         }
 
         private static void CreateLight()
@@ -224,7 +234,7 @@ namespace LaneSurvivor.Base
         private static void CreateEventSystem()
         {
             // Only create an EventSystem when the scene does not already provide one.
-            if (FindObjectOfType<EventSystem>() != null)
+            if (FindAnyObjectByType<EventSystem>() != null)
             {
                 return;
             }
@@ -234,21 +244,125 @@ namespace LaneSurvivor.Base
             eventSystemObject.AddComponent<StandaloneInputModule>();
         }
 
-        private static void CreateGround(Material groundMaterial)
+        private static void CreateGround(Material groundMaterial, Material perimeterMaterial, Material reservedSpaceMaterial)
         {
-            // A single flat cube is enough to establish the base area.
-            PrototypeGeometryFactory.CreateCube("Base Ground", new Vector3(0f, -0.1f, 0f), new Vector3(8f, 0.12f, 8f), groundMaterial);
+            // The base footprint is now a pentagon so future defenses and openings have a clear perimeter.
+            PrototypeGeometryFactory.CreateRegularPrism("Base Ground", new Vector3(0f, -0.06f, 0f), new Vector3(12f, 0.12f, 12f), 5, groundMaterial);
+
+            // Low perimeter strips reserve wall placement without implementing full base-defense systems yet.
+            CreatePentagonPerimeterSegments("Future Wall Space", 5.45f, 0.04f, 0.13f, 0.18f, perimeterMaterial);
+
+            // A larger second ring marks future moat space while leaving the playable base interior clear.
+            CreatePentagonPerimeterSegments("Future Moat Space", 6.2f, 0.005f, 0.055f, 0.15f, perimeterMaterial);
+
+            // Reserve a front opening where later rescued humans, trucks, or resources can enter the base.
+            CreateReservedPad("Future Gate Space", new Vector3(0f, 0.04f, -4.25f), new Vector3(1.55f, 0.08f, 0.54f), reservedSpaceMaterial);
+
+            // Reserve a separate unload opening so future truck/resource loops have a distinct destination.
+            CreateReservedPad("Future Resource Drop-Off Opening", new Vector3(2.35f, 0.04f, -3.05f), new Vector3(1.22f, 0.08f, 0.48f), reservedSpaceMaterial);
+
+            // Future lab, hangar, and training pads keep strategic expansion space visible from the first Base slice.
+            CreateReservedPad("Future Lab Pad", new Vector3(-2.35f, 0.04f, 0.75f), new Vector3(1.35f, 0.08f, 1.05f), reservedSpaceMaterial);
+            CreateReservedPad("Future Hangar Pad", new Vector3(2.35f, 0.04f, 0.75f), new Vector3(1.45f, 0.08f, 1.12f), reservedSpaceMaterial);
+            CreateReservedPad("Future Training Pad", new Vector3(0f, 0.04f, 3.25f), new Vector3(1.75f, 0.08f, 0.9f), reservedSpaceMaterial);
         }
 
-        private static HQBuilding CreateHqBuilding(Material hqMaterial)
+        private static void CreatePentagonPerimeterSegments(string namePrefix, float radius, float yPosition, float height, float thickness, Material material)
         {
-            // The HQ is represented by a simple cube for the first base-building slice.
-            GameObject hqObject = PrototypeGeometryFactory.CreateCube("HQ Building", new Vector3(0f, 1f, 0f), new Vector3(2f, 2f, 2f), hqMaterial);
+            for (int sideIndex = 0; sideIndex < 5; sideIndex += 1)
+            {
+                // Adjacent pentagon points define one perimeter segment.
+                Vector2 firstPoint = GetPentagonPoint(radius, sideIndex);
+                Vector2 secondPoint = GetPentagonPoint(radius, (sideIndex + 1) % 5);
+                Vector2 edge = secondPoint - firstPoint;
+                Vector2 midpoint = (firstPoint + secondPoint) * 0.5f;
+
+                // Shorten each strip a little so future gate and moat breaks remain readable.
+                GameObject segment = PrototypeGeometryFactory.CreateCube(
+                    $"{namePrefix} {sideIndex + 1}",
+                    new Vector3(midpoint.x, yPosition, midpoint.y),
+                    new Vector3(edge.magnitude * 0.78f, height, thickness),
+                    material);
+
+                // Rotate the cube's local X axis onto the pentagon edge.
+                segment.transform.rotation = Quaternion.Euler(0f, Mathf.Atan2(-edge.y, edge.x) * Mathf.Rad2Deg, 0f);
+            }
+        }
+
+        private static void CreateReservedPad(string name, Vector3 position, Vector3 scale, Material material)
+        {
+            // Low pads are deliberately non-functional placeholders that keep future build slots visible.
+            PrototypeGeometryFactory.CreateCube(name, position, scale, material);
+
+            // A separate world label avoids inheriting the pad's non-uniform scale.
+            GameObject labelObject = new($"{name} Label");
+            labelObject.transform.position = position + new Vector3(0f, 0.16f, 0f);
+            labelObject.transform.rotation = Quaternion.Euler(65f, 0f, 0f);
+            labelObject.transform.localScale = Vector3.one * 0.18f;
+
+            TextMesh label = labelObject.AddComponent<TextMesh>();
+            label.anchor = TextAnchor.MiddleCenter;
+            label.alignment = TextAlignment.Center;
+            label.characterSize = 1f;
+            label.color = Color.white;
+            label.text = BuildReservedPadLabel(name);
+        }
+
+        private static string BuildReservedPadLabel(string name)
+        {
+            // Short labels keep the world-space pads legible without crowding the Base HUD.
+            if (name.Contains("Gate"))
+            {
+                return "GATE";
+            }
+
+            if (name.Contains("Drop-Off"))
+            {
+                return "DROP";
+            }
+
+            if (name.Contains("Lab"))
+            {
+                return "LAB";
+            }
+
+            if (name.Contains("Hangar"))
+            {
+                return "HANGAR";
+            }
+
+            if (name.Contains("Training"))
+            {
+                return "TRAIN";
+            }
+
+            return "FUTURE";
+        }
+
+        private static Vector2 GetPentagonPoint(float radius, int pointIndex)
+        {
+            // Match the regular-prism mesh orientation so perimeter markers track the ground edge directions.
+            float angle = Mathf.PI * 0.5f + pointIndex * Mathf.PI * 2f / 5f;
+            return new Vector2(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius);
+        }
+
+        private static HQBuilding CreateHqBuilding(Material hqMaterial, Material hqDetailMaterial)
+        {
+            // The HQ root owns unscaled labels and detail rows while the body child grows per level.
+            GameObject hqObject = new("HQ Building");
+
+            // A five-sided prism makes the HQ read as part of the pentagon base plan.
+            GameObject hqBodyObject = PrototypeGeometryFactory.CreateRegularPrism("HQ Body", Vector3.zero, Vector3.one, 5, hqMaterial);
+            hqBodyObject.transform.SetParent(hqObject.transform, false);
+
+            // Detail rows are generated under a container so HQBuilding can rebuild them by level.
+            GameObject detailRootObject = new("HQ Detail Root");
+            detailRootObject.transform.SetParent(hqObject.transform, false);
 
             // A world-space TextMesh labels the placeholder building without needing UI layout.
             GameObject labelObject = new("HQ Label");
             labelObject.transform.SetParent(hqObject.transform, false);
-            labelObject.transform.localPosition = new Vector3(0f, 0.9f, -0.55f);
+            labelObject.transform.localPosition = new Vector3(0f, 2.05f, -0.45f);
             labelObject.transform.localRotation = Quaternion.Euler(65f, 0f, 0f);
             labelObject.transform.localScale = Vector3.one * 0.22f;
 
@@ -259,7 +373,7 @@ namespace LaneSurvivor.Base
             label.color = Color.white;
 
             HQBuilding hqBuilding = hqObject.AddComponent<HQBuilding>();
-            hqBuilding.Configure(label);
+            hqBuilding.Configure(label, hqBodyObject.transform, hqBodyObject.GetComponent<Renderer>(), detailRootObject.transform, hqDetailMaterial);
             return hqBuilding;
         }
 
@@ -294,9 +408,13 @@ namespace LaneSurvivor.Base
             Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-58f, -18f), new Vector2(1f, 1f), new Vector2(72f, 34f));
             Button equipHeroButton = CreateButton(canvas.transform, "Equip Hero Button", "EQUIP", font, new Vector2(-56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
             Button heroesButton = CreateButton(canvas.transform, "Heroes Button", "HEROES", font, new Vector2(56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
+            Button zoomInButton = CreateButton(canvas.transform, "Zoom In Button", "+", font, new Vector2(-30f, 42f), new Vector2(1f, 0.5f), new Vector2(44f, 44f));
+            Button zoomOutButton = CreateButton(canvas.transform, "Zoom Out Button", "-", font, new Vector2(-30f, -8f), new Vector2(1f, 0.5f), new Vector2(44f, 44f));
+            ConfigureZoomButtonLabel(zoomInButton);
+            ConfigureZoomButtonLabel(zoomOutButton);
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, heroText, missionPanelTitleText, missionPanelText, objectiveText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, claimObjectiveButton, missionButtons, resetButton, equipHeroButton, heroesButton);
+            hud.Configure(titleText, coinsText, hqText, timerText, heroText, missionPanelTitleText, missionPanelText, objectiveText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, claimObjectiveButton, missionButtons, resetButton, equipHeroButton, heroesButton, zoomInButton, zoomOutButton);
             return hud;
         }
 
@@ -409,6 +527,22 @@ namespace LaneSurvivor.Base
             label.resizeTextForBestFit = true;
             label.resizeTextMinSize = 12;
             label.resizeTextMaxSize = 18;
+        }
+
+        private static void ConfigureZoomButtonLabel(Button button)
+        {
+            // Zoom buttons are icon-like text controls, so they need larger glyphs than action buttons.
+            Text label = button.GetComponentInChildren<Text>();
+            if (label == null)
+            {
+                return;
+            }
+
+            // Best fit keeps the simple plus/minus symbols centered on compact mobile-sized controls.
+            label.fontSize = 30;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 18;
+            label.resizeTextMaxSize = 30;
         }
 
         private static Vector2 AnchorFromTextAnchor(TextAnchor anchor)

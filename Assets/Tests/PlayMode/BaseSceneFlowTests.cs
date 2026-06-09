@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using LaneSurvivor.Base;
 using LaneSurvivor.Gameplay;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
@@ -123,6 +124,162 @@ namespace LaneSurvivor.Tests.PlayMode
                 // The left edge can have tiny float noise, but it should never cross outside the canvas.
                 Assert.GreaterOrEqual(labelCorners[0].x, canvasLeftEdge - 0.5f, $"{labelName} left edge should stay inside the Base HUD canvas.");
             }
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_HqLevelChangesPentagonSizeColorAndDetail()
+        {
+            // Seed a higher HQ level so the runtime visual rules have visible work to apply on load.
+            SaveGameManager.Save(new SaveGameData
+            {
+                hqLevel = 4
+            });
+
+            // Reload Base after seeding so BaseSceneBootstrap builds the level-four HQ from saved data.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // The HQ component should mirror the saved level and own a generated pentagon body child.
+            HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
+            Assert.IsNotNull(hqBuilding);
+            Assert.AreEqual(4, hqBuilding.Level);
+            Transform hqBody = hqBuilding.transform.Find("HQ Body");
+            Assert.IsNotNull(hqBody);
+
+            // The HQ body mesh should have five unique X/Z plan vertices, proving the visible footprint is pentagonal.
+            Mesh hqBodyMesh = hqBody.GetComponent<MeshFilter>()?.sharedMesh;
+            Assert.IsNotNull(hqBodyMesh);
+            Assert.AreEqual(5, CountUniquePlanVertices(hqBodyMesh));
+
+            // Higher HQ levels should be visibly larger than level one through both diameter and height.
+            Assert.AreEqual(HQBuilding.CalculateVisualDiameter(4), hqBody.localScale.x, 0.001f);
+            Assert.AreEqual(HQBuilding.CalculateVisualHeight(4), hqBody.localScale.y, 0.001f);
+            Assert.Greater(hqBody.localScale.x, HQBuilding.CalculateVisualDiameter(1));
+            Assert.Greater(hqBody.localScale.y, HQBuilding.CalculateVisualHeight(1));
+
+            // The HQ material should darken each RGB channel as levels advance from white toward black.
+            Material hqMaterial = hqBody.GetComponent<MeshRenderer>()?.sharedMaterial;
+            Assert.IsNotNull(hqMaterial);
+            AssertColorApproximately(HQBuilding.CalculateLevelColor(4), GetMaterialColor(hqMaterial));
+
+            // The world-space label should stay readable against the still-light level-four body.
+            TextMesh hqLabel = GameObject.Find("HQ Label")?.GetComponent<TextMesh>();
+            Assert.IsNotNull(hqLabel);
+            Assert.AreEqual("HQ\nLv 4", hqLabel.text);
+            AssertColorApproximately(Color.black, hqLabel.color);
+
+            // Detail rows grow with level, with one generated strip per pentagon side for each row.
+            Transform detailRoot = hqBuilding.transform.Find("HQ Detail Root");
+            Assert.IsNotNull(detailRoot);
+            Assert.AreEqual(HQBuilding.CalculateDetailRows(4) * 5, CountActiveChildren(detailRoot));
+
+            // The base footprint should also be pentagonal and include named future expansion spaces.
+            GameObject baseGround = GameObject.Find("Base Ground");
+            Assert.IsNotNull(baseGround);
+            Mesh baseGroundMesh = baseGround.GetComponent<MeshFilter>()?.sharedMesh;
+            Assert.IsNotNull(baseGroundMesh);
+            Assert.AreEqual(5, CountUniquePlanVertices(baseGroundMesh));
+            Assert.IsNotNull(GameObject.Find("Future Wall Space 1"));
+            Assert.IsNotNull(GameObject.Find("Future Moat Space 1"));
+            Assert.IsNotNull(GameObject.Find("Future Gate Space"));
+            Assert.IsNotNull(GameObject.Find("Future Resource Drop-Off Opening"));
+            Assert.IsNotNull(GameObject.Find("Future Lab Pad"));
+            Assert.IsNotNull(GameObject.Find("Future Hangar Pad"));
+            Assert.IsNotNull(GameObject.Find("Future Training Pad"));
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_ZoomControlsAdjustCameraWithoutMovingOverlayHud()
+        {
+            // Wait one frame so BaseSceneBootstrap has created the camera and overlay HUD.
+            yield return null;
+
+            // The Base camera should expose the V6 zoom controller.
+            Camera baseCamera = Camera.main;
+            Assert.IsNotNull(baseCamera);
+            BaseCameraController zoomController = baseCamera.GetComponent<BaseCameraController>();
+            Assert.IsNotNull(zoomController);
+
+            // The HUD canvas must remain screen-space overlay so camera zoom cannot push controls offscreen.
+            Canvas canvas = GameObject.Find("Base HUD Canvas")?.GetComponent<Canvas>();
+            Assert.IsNotNull(canvas);
+            Assert.AreEqual(RenderMode.ScreenSpaceOverlay, canvas.renderMode);
+
+            // Capture the Play button corners before any camera zoom changes.
+            RectTransform playButtonRect = GameObject.Find("Play Button")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(playButtonRect);
+            Vector3[] playButtonCornersBefore = GetRectCorners(playButtonRect);
+
+            // The visible zoom-in button should tighten the field of view.
+            float startingFieldOfView = baseCamera.fieldOfView;
+            Button zoomInButton = GameObject.Find("Zoom In Button")?.GetComponent<Button>();
+            Assert.IsNotNull(zoomInButton);
+            zoomInButton.onClick.Invoke();
+            yield return null;
+            Assert.Less(baseCamera.fieldOfView, startingFieldOfView);
+
+            // The controller's pinch path should also zoom in when touch distance expands.
+            float buttonZoomFieldOfView = baseCamera.fieldOfView;
+            zoomController.ApplyPinchZoom(100f, 170f);
+            Assert.Less(baseCamera.fieldOfView, buttonZoomFieldOfView);
+
+            // The visible zoom-out button should widen the field of view again.
+            Button zoomOutButton = GameObject.Find("Zoom Out Button")?.GetComponent<Button>();
+            Assert.IsNotNull(zoomOutButton);
+            zoomOutButton.onClick.Invoke();
+            yield return null;
+            Assert.Greater(baseCamera.fieldOfView, BaseCameraController.MinimumFieldOfView);
+
+            // Explicit clamping proves the controller cannot zoom beyond the authored inspection range.
+            zoomController.SetZoomNormalized(1f);
+            Assert.AreEqual(BaseCameraController.MaximumFieldOfView, baseCamera.fieldOfView, 0.001f);
+            zoomController.SetZoomNormalized(0f);
+            Assert.AreEqual(BaseCameraController.MinimumFieldOfView, baseCamera.fieldOfView, 0.001f);
+
+            // Overlay HUD geometry should not move when the world camera zoom changes.
+            Vector3[] playButtonCornersAfter = GetRectCorners(playButtonRect);
+            AssertCornersApproximately(playButtonCornersBefore, playButtonCornersAfter, "Play Button");
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_MapDragPansCameraWithoutMovingOverlayHud()
+        {
+            // Wait one frame so the runtime-built Base camera and HUD exist.
+            yield return null;
+
+            // The draggable map behavior lives on the same camera controller as zoom.
+            Camera baseCamera = Camera.main;
+            Assert.IsNotNull(baseCamera);
+            BaseCameraController cameraController = baseCamera.GetComponent<BaseCameraController>();
+            Assert.IsNotNull(cameraController);
+
+            // Capture overlay HUD geometry before moving the world camera.
+            RectTransform playButtonRect = GameObject.Find("Play Button")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(playButtonRect);
+            Vector3[] playButtonCornersBefore = GetRectCorners(playButtonRect);
+
+            // Use camera pixel bounds so the test follows the active PlayMode render target.
+            Vector2 screenCenter = new(baseCamera.pixelWidth * 0.5f, baseCamera.pixelHeight * 0.5f);
+            Vector2 draggedRight = screenCenter + new Vector2(120f, 0f);
+            Vector3 startingCameraPosition = baseCamera.transform.position;
+
+            // Dragging the map to the right should pan the camera left so the map appears to follow the pointer.
+            cameraController.ApplyMapDrag(screenCenter, draggedRight);
+            Vector3 draggedCameraPosition = baseCamera.transform.position;
+            Assert.Less(draggedCameraPosition.x, startingCameraPosition.x);
+            Assert.AreEqual(startingCameraPosition.y, draggedCameraPosition.y, 0.001f);
+            Assert.AreEqual(startingCameraPosition.z, draggedCameraPosition.z, 0.001f);
+
+            // A vertical drag should pan along the ground-plane depth axis without changing camera height.
+            Vector2 draggedDown = draggedRight + new Vector2(0f, -120f);
+            cameraController.ApplyMapDrag(draggedRight, draggedDown);
+            Vector3 secondDragCameraPosition = baseCamera.transform.position;
+            Assert.AreNotEqual(draggedCameraPosition.z, secondDragCameraPosition.z);
+            Assert.AreEqual(startingCameraPosition.y, secondDragCameraPosition.y, 0.001f);
+
+            // Even after map dragging, the overlay HUD should stay anchored to the same screen pixels.
+            Vector3[] playButtonCornersAfter = GetRectCorners(playButtonRect);
+            AssertCornersApproximately(playButtonCornersBefore, playButtonCornersAfter, "Play Button");
         }
 
         [UnityTest]
@@ -802,6 +959,89 @@ namespace LaneSurvivor.Tests.PlayMode
             equippedRect.GetWorldCorners(equippedCorners);
             heroListRect.GetWorldCorners(heroListCorners);
             Assert.Less(heroListCorners[1].y, equippedCorners[0].y, "Hero list should sit below the equipped summary.");
+        }
+
+        private static int CountUniquePlanVertices(Mesh mesh)
+        {
+            // Rounding X/Z coordinates collapses duplicated side/cap vertices into real polygon corners.
+            HashSet<string> uniquePlanPoints = new();
+            foreach (Vector3 vertex in mesh.vertices)
+            {
+                // Skip cap-center vertices because they are not part of the visible footprint.
+                if (new Vector2(vertex.x, vertex.z).sqrMagnitude < 0.0001f)
+                {
+                    continue;
+                }
+
+                // A millimeter-style precision avoids float noise while preserving distinct pentagon corners.
+                int roundedX = Mathf.RoundToInt(vertex.x * 1000f);
+                int roundedZ = Mathf.RoundToInt(vertex.z * 1000f);
+                uniquePlanPoints.Add($"{roundedX}:{roundedZ}");
+            }
+
+            return uniquePlanPoints.Count;
+        }
+
+        private static int CountActiveChildren(Transform parent)
+        {
+            // Count only active rows so delayed Play Mode destruction cannot make hidden stale details fail tests.
+            int activeChildren = 0;
+            for (int childIndex = 0; childIndex < parent.childCount; childIndex += 1)
+            {
+                if (parent.GetChild(childIndex).gameObject.activeSelf)
+                {
+                    activeChildren += 1;
+                }
+            }
+
+            return activeChildren;
+        }
+
+        private static Color GetMaterialColor(Material material)
+        {
+            // URP Lit and Unlit expose _BaseColor as the primary tint.
+            if (material.HasProperty("_BaseColor"))
+            {
+                return material.GetColor("_BaseColor");
+            }
+
+            // Built-in and fallback shaders usually expose _Color.
+            if (material.HasProperty("_Color"))
+            {
+                return material.GetColor("_Color");
+            }
+
+            return material.color;
+        }
+
+        private static Vector3[] GetRectCorners(RectTransform rectTransform)
+        {
+            // Allocate a fresh array so before/after comparisons cannot alias the same buffer.
+            Vector3[] corners = new Vector3[4];
+            rectTransform.GetWorldCorners(corners);
+            return corners;
+        }
+
+        private static void AssertColorApproximately(Color expected, Color actual)
+        {
+            // Color checks use a small tolerance because shader-backed colors can round in serialized material state.
+            Assert.AreEqual(expected.r, actual.r, 0.01f);
+            Assert.AreEqual(expected.g, actual.g, 0.01f);
+            Assert.AreEqual(expected.b, actual.b, 0.01f);
+            Assert.AreEqual(expected.a, actual.a, 0.01f);
+        }
+
+        private static void AssertCornersApproximately(Vector3[] expected, Vector3[] actual, string label)
+        {
+            // Four corners are required for Unity RectTransform world-corner comparisons.
+            Assert.AreEqual(4, expected.Length);
+            Assert.AreEqual(4, actual.Length);
+            for (int cornerIndex = 0; cornerIndex < expected.Length; cornerIndex += 1)
+            {
+                Assert.AreEqual(expected[cornerIndex].x, actual[cornerIndex].x, 0.5f, $"{label} corner {cornerIndex} x should stay fixed.");
+                Assert.AreEqual(expected[cornerIndex].y, actual[cornerIndex].y, 0.5f, $"{label} corner {cornerIndex} y should stay fixed.");
+                Assert.AreEqual(expected[cornerIndex].z, actual[cornerIndex].z, 0.5f, $"{label} corner {cornerIndex} z should stay fixed.");
+            }
         }
     }
 }

@@ -29,13 +29,16 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 ## Phase 2
 
 - Open `Assets/Scenes/Base.unity` to try the first base-building slice.
-- The base scene shows a placeholder HQ building, local coins, collect, HQ upgrade, an eight-row mission panel, direct mission buttons, a daily objective claim button, and play controls.
+- The base scene shows a draggable pentagon map with an HQ inside a pentagon base, local coins, collect, HQ upgrade, an eight-row mission panel, direct mission buttons, a daily objective claim button, world zoom controls, and play controls.
 - The Base HUD uses a narrow mobile reference layout for the placeholder controls.
 - HQ starts at level 1.
 - Collect grants local coins.
 - Upgrade HQ spends coins and starts a persisted local timer.
 - Completed HQ upgrades increase HQ level.
+- HQ upgrades visibly grow the HQ, darken it from white toward black, and add more generated detail rows.
 - Base shows feedback when an HQ upgrade completes.
+- The Base layout reserves visible future space for gates, walls, moats, resource drop-off, labs, hangars, and training areas.
+- The Base map can be dragged for inspection while overlay HUD controls stay fixed.
 - HQ levels above 1 add a visible starting squad bonus in the minigame.
 - Winning a mission marks it complete, and winning the highest unlocked mission unlocks the next local mission up to mission 8.
 - Winning the minigame grants a local coin reward and shows the reward on the completion screen.
@@ -61,7 +64,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - PlayMode scene smoke tests live in `Assets/Tests/PlayMode`.
 - Current EditMode test coverage includes Phase 1 gameplay rules, generated survivor weapon/muzzle rules, muzzle-origin shot events, Phase 2 progression/save/mission completion rules, the local daily objective, advanced mission content, and Phase 3 hero inventory rules.
 - Current EditMode visual coverage includes compact placeholder geometry, disabled depth-unsafe world effects, and responsive minigame camera FOV rules for tall portrait devices.
-- Current PlayMode test coverage includes Base collect/upgrade persistence, daily objective claiming, mission panel selection, locked mission rejection, completed-upgrade feedback, Base-to-Minigame flow, Minigame HUD edge-label placement, generated runtime weapon muzzle anchors, muzzle-aligned tracer spawning, Minigame start movement, lane-button movement, restart, rewards, mission unlocks, mission cap completion, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
+- Current PlayMode test coverage includes Base collect/upgrade persistence, daily objective claiming, mission panel selection, locked mission rejection, completed-upgrade feedback, V6 pentagon Base/HQ visuals, HQ level size/color/detail readability, Base zoom and drag controls, Base-to-Minigame flow, Minigame HUD edge-label placement, generated runtime weapon muzzle anchors, muzzle-aligned tracer spawning, Minigame start movement, lane-button movement, restart, rewards, mission unlocks, mission cap completion, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
 - A batch-mode iOS smoke build entry point exists at `LaneSurvivor.Editor.IosSmokeBuild.Run`, including optional simulator SDK export flags for local Simulator launch checks.
 

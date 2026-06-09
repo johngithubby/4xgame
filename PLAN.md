@@ -427,24 +427,47 @@ Implemented in this slice:
 - Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `17/17`, clean `git diff --check`, and iOS Simulator export/build/install/launch proof.
 - iOS Simulator verification captured `/private/tmp/4xgame-v5-weapons-20260608.mov`, `/private/tmp/4xgame-v5-weapons.gif`, `/private/tmp/4xgame-v5-combat-contact.jpg`, plus the follow-up firing-pose proof at `/private/tmp/4xgame-pose-20260608.mov`, `/private/tmp/4xgame-pose-20260608.gif`, and `/private/tmp/4xgame-pose-contact-20260608.jpg`; survivors visibly hold distinct generated weapons in firing pose, rifle/shotgun holds stay high, the SMG stays lower, and firing arms stay stable while legs run. Done.
 
-## Future Local V6: Base Readability, HQ Growth, And Camera Control
+## Local V6: Base Readability, HQ Growth, And Camera Control
 
 ### Goal
 
 Make the Base scene feel like a place the player can inspect and improve before adding deeper strategic systems.
 
-### Proposed Features
+### Current Status
 
-- HQ upgrades visibly increase the HQ size.
-- HQ upgrades visibly change the HQ color.
+Implemented in this slice:
+
+- HQ upgrades increase the generated pentagon HQ body size. Done.
+- HQ upgrades darken the HQ body from white toward black by reducing RGB channels with each level. Done.
+- HQ upgrades add more generated side-detail rows so higher levels look more visually defined. Done.
+- The HQ label switches between black and white text so the level remains readable against the current HQ color. Done.
+- The Base scene supports zooming in and out through on-screen buttons, mouse wheel, keyboard shortcuts, and two-finger pinch math. Done.
+- The map that includes the Base supports bounded dragging through mouse and one-finger touch input while ignoring HUD-origin gestures. Done.
+- The Base and HQ footprints are both generated pentagons. Done.
+- The Base layout includes visible reserved space for future gates, walls, moats, resource drop-off, labs, hangars, and training areas. Done.
+
+### Implemented Features
+
+- HQ upgrades increase the HQ size.
+- HQ upgrades visibly change the HQ color. From white to black. For each upgrade increment the rgb colour.
+- HQ upgrades visibly get more visually defined - more fine detailed.
 - The Base scene supports zooming in and out.
+- The map that includes the base is draggable.
+- The base and the HQ within, are both pentagon shaped.
 - The base layout leaves clear future space for gates, walls, moats, resource drop-off openings, labs, hangars, and training areas.
 
 ### Acceptance Criteria
 
-- HQ level changes are readable without opening a menu.
-- Base zoom works on mobile-friendly input and does not hide core HUD controls.
-- Existing HQ upgrade, mission launch, hero, and daily objective flows keep working.
+- HQ level changes are readable without opening a menu. Done.
+- Base zoom works on mobile-friendly input and does not hide core HUD controls. Done.
+- The map that includes the base is draggable. Done.
+- Existing HQ upgrade, mission launch, hero, and daily objective flows keep working. Done.
+
+### Validation
+
+- PlayMode coverage checks pentagon Base/HQ geometry, HQ level-driven size/color/detail readability, reserved future-space objects, camera zoom controls, and map dragging that leave overlay HUD controls fixed. Done.
+- Existing PlayMode coverage still checks HQ upgrade persistence, completed-upgrade feedback, mission launch, Hero navigation, and daily objective claiming. Done.
+- Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `20/20`, and clean `git diff --check`.
 
 ## Future Local V7: Human Population, Gate Intake, And Role Training
 
