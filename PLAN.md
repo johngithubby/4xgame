@@ -426,3 +426,247 @@ Implemented in this slice:
 - PlayMode coverage checks the runtime Minigame scene spawns all three weapons and muzzle anchors. Done.
 - Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `17/17`, clean `git diff --check`, and iOS Simulator export/build/install/launch proof.
 - iOS Simulator verification captured `/private/tmp/4xgame-v5-weapons-20260608.mov`, `/private/tmp/4xgame-v5-weapons.gif`, `/private/tmp/4xgame-v5-combat-contact.jpg`, plus the follow-up firing-pose proof at `/private/tmp/4xgame-pose-20260608.mov`, `/private/tmp/4xgame-pose-20260608.gif`, and `/private/tmp/4xgame-pose-contact-20260608.jpg`; survivors visibly hold distinct generated weapons in firing pose, rifle/shotgun holds stay high, the SMG stays lower, and firing arms stay stable while legs run. Done.
+
+## Future Local V6: Base Readability, HQ Growth, And Camera Control
+
+### Goal
+
+Make the Base scene feel like a place the player can inspect and improve before adding deeper strategic systems.
+
+### Proposed Features
+
+- HQ upgrades visibly increase the HQ size.
+- HQ upgrades visibly change the HQ color.
+- The Base scene supports zooming in and out.
+- The base layout leaves clear future space for gates, walls, moats, resource drop-off openings, labs, hangars, and training areas.
+
+### Acceptance Criteria
+
+- HQ level changes are readable without opening a menu.
+- Base zoom works on mobile-friendly input and does not hide core HUD controls.
+- Existing HQ upgrade, mission launch, hero, and daily objective flows keep working.
+
+## Future Local V7: Human Population, Gate Intake, And Role Training
+
+### Goal
+
+Turn rescued humans into the foundation of base growth and future staffing requirements.
+
+### Proposed Features
+
+- Saved humans increase the number of humans living in the base.
+- Rescued humans can arrive at the base gates after missions.
+- The player can let rescued humans into the base so they become members.
+- Base members can be trained into roles such as soldiers, engineers, workers, and specialists.
+- Soldiers can feed squad strength, while engineers and workers become prerequisites for construction, research, vehicles, and advanced weapons.
+
+### Acceptance Criteria
+
+- The save file persists total humans plus trained role counts.
+- A mission reward path can add rescued humans without requiring chemical systems yet.
+- Training spends or reserves humans in a clear local-only way.
+
+## Future Local V8: Truck Expeditions, Terrain Discovery, And Resource Harvesting
+
+### Goal
+
+Add the first world-facing economy loop that discovers terrain and gathers materials needed by later systems.
+
+### Proposed Features
+
+- Resource harvesting is done with trucks sent from the base.
+- Trucks are specialized by chosen resource type, such as metal ore or uranium.
+- Trucks discover terrain along their travel path.
+- When a truck finds its chosen resource type, extraction starts automatically.
+- A working truck returns to the base, unloads through a special base opening, and returns to the resource site.
+- The automatic harvest, return, unload, and repeat loop continues until the resource is exhausted.
+
+### Acceptance Criteria
+
+- The player only needs to choose and send a truck type.
+- Terrain discovery, resource site state, truck travel state, and stored resources persist locally.
+- Metals become available as a prerequisite for base defenses, drones, vehicles, and heavier weapons.
+
+## Future Local V9: Base Defense, Walls, Moats, And Horde Pressure
+
+### Goal
+
+Make the base vulnerable so construction, staffing, and resource gathering have a defensive purpose.
+
+### Proposed Features
+
+- Enemy hordes can periodically attack the base.
+- The player can construct walls, moats, and other physical obstructions.
+- Defenses require harvested resources and trained workers or engineers.
+- Horde attacks can damage or breach defenses.
+- Base defense results affect resources, population safety, and future risk.
+
+### Acceptance Criteria
+
+- A basic horde attack can resolve locally without backend systems.
+- Constructed defenses visibly change the base.
+- Existing base progression remains usable even if a defense event is pending.
+
+## Future Local V10: Squad Groups And Tactical Commands
+
+### Goal
+
+Give combat more tactical control before adding many richer enemy and strike systems.
+
+### Proposed Features
+
+- A squad can be divided into groups.
+- Tapping members of a group selects that group.
+- Selected groups can focus fire on tapped enemies.
+- Groups can be assigned roles or positions such as rear guard and attack.
+
+### Acceptance Criteria
+
+- Group selection and focus fire are readable on mobile.
+- Group commands do not break the existing automatic shooting fallback.
+- Role assignments produce visible combat behavior differences.
+
+## Future Local V11: Expanded Zombie Types And Physical Counterplay
+
+### Goal
+
+Broaden enemy behavior after the player has more tactical tools and base defenses.
+
+### Proposed Features
+
+- Add irrational foot-soldier zombies that are easy to kill.
+- Expand armored zombies beyond the current first prototype type.
+- Add rock-throwing zombies.
+- Add larger, smarter hero zombies with rudimentary armor.
+- Zombies can pile up to overcome walls and threaten helicopters or drones.
+- Zombies can use large boulders overhead as drone defense.
+
+### Acceptance Criteria
+
+- Each zombie category has a distinct visual read and gameplay role.
+- Zombie pile and boulder counterplay interact with base defenses, drones, or aviation only after those systems exist.
+- New enemy types are data-driven enough to support authored missions and horde attacks.
+
+## Future Local V12: Recon, Herd Tracking, And Threat Forecasting
+
+### Goal
+
+Let the player understand threats before battles by finding and tracking enemy herds outside the base.
+
+### Proposed Features
+
+- Recon systems can scout enemy herds before they reach the base.
+- Discovered herds appear as world threats with size, distance, and time-to-arrival information.
+- Herd tracking can warn the player about upcoming battles or base-defense events.
+- Herd records can become targets for later drone, aviation, missile, or bomb systems.
+
+### Acceptance Criteria
+
+- Herd discovery and herd status persist locally.
+- Scouted herds change the player's warning time or preparation options in a visible way.
+- The player can ignore recon and still play, but with higher risk.
+
+## Future Local V13: Drones And Drone Operators
+
+### Goal
+
+Add the first reusable remote-force system after population, resources, and recon targets exist.
+
+### Proposed Features
+
+- Bases can train drone operators.
+- Drones require metals, engineers, workers, fuel, and trained operators.
+- Drones can support recon and attack roles.
+- Drones can soften up discovered herds before battles or base-defense events.
+- Drone herd culling can reduce the risk of the base being overrun.
+- Drone losses or repairs create ongoing resource pressure.
+- Zombie anti-drone counterplay can include boulder shielding once drone combat exists.
+
+### Acceptance Criteria
+
+- Drone construction and operation use the existing population-role and resource systems.
+- Drone missions can target discovered herds or map locations.
+- Drone attacks change the later battle or base-defense encounter in a visible way.
+- Drone feedback clearly shows success, damage, loss, or return state.
+
+## Future Local V14: Aviation, Hangars, And Air Missions
+
+### Goal
+
+Expand remote-force play from drones into heavier aircraft once fuel, staffing, and recon loops are proven.
+
+### Proposed Features
+
+- Aviation can include fighters, bombers, recon aircraft, and helicopters.
+- Helicopters can support attack and recon.
+- Recon aviation can scout enemy herds before they reach the base.
+- Attack aircraft can soften herds before battles or base-defense events.
+- Aircraft require appropriate base structures, staff, fuel, and materials.
+
+### Acceptance Criteria
+
+- Aircraft roles are distinct from drone roles.
+- Air missions target discovered world threats or unexplored areas.
+- Horde and zombie counterplay can threaten aircraft without making them useless.
+
+## Future Local V15: Satellites And Strategic Intelligence
+
+### Goal
+
+Add a late intelligence layer that expands world discovery once the map, resources, enemy facilities, and herd systems exist.
+
+### Proposed Features
+
+- Satellites can discover world resources.
+- Satellites can discover enemy facilities.
+- Satellites can discover enemy herds.
+- Satellite intelligence can improve truck expedition choices, recon planning, and strike targeting.
+
+### Acceptance Criteria
+
+- Satellites augment discovery but do not replace truck expeditions or recon aviation.
+- Satellite results create actionable map information.
+- Enemy facilities become visible as future targets or threat sources.
+
+## Future Local V16: Chemical Research And Dezombification
+
+### Goal
+
+Add the high-consequence rescue system after population, combat targeting, drones, and strike delivery are already understandable.
+
+### Proposed Features
+
+- A base can build chemical warfare research labs.
+- Research labs let the player design chemical bombs or chemical drones.
+- Chemical weapons can slowly dezombify zombies.
+- Chemical potency is directly proportional to the time required for a zombie to become human again.
+- Restored humans stop in shock, look at their hands and feet, then panic when they see zombies.
+- Zombies attack restored humans.
+- If the squad kills restored humans, the player loses coins.
+- Saved restored humans grant more credits and can become base members.
+
+### Acceptance Criteria
+
+- Dezombified humans have a distinct state from zombies and squad members.
+- Combat targeting prevents accidental rules from feeling unfair, while still making rescued humans vulnerable.
+- The rescue, credit, penalty, and base-population outcomes are visible at the end of a round.
+
+## Future Local V17: Heavy Weapons, Strategic Weapons, And Endgame Escalation
+
+### Goal
+
+Reserve the most destructive and resource-intensive systems for late game, after the economy, intelligence, targeting, and enemy-threat loops are established.
+
+### Proposed Features
+
+- Weapons can progress from small arms to howitzers, rocket artillery, tanks, and other heavy systems.
+- Late-game superweapons can include earthquake triggers and weather weaponization.
+- Atomic bombs require harvested uranium, engineers, and launch vehicles.
+- Nuclear launch vehicles can include submarines, airplane bombers, or ground-launched ballistic missiles.
+- Strategic weapons should have major costs, target requirements, and consequences.
+
+### Acceptance Criteria
+
+- Heavy weapons require resources, staffing, and discovered targets.
+- Strategic weapons do not trivialize base defense, herd management, or rescue systems.
+- Nuclear and superweapon systems remain optional late-game escalation rather than core early progression.
