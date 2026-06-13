@@ -474,6 +474,42 @@ Implemented in this slice:
 - Existing PlayMode coverage still checks HQ upgrade persistence, completed-upgrade feedback, mission launch, Hero navigation, and daily objective claiming. Done.
 - Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `20/20`, and clean `git diff --check`.
 
+## Local V6-1: Bio lab upgrade
+
+### Goal
+
+Upgrade the bio lab for credits over a period of time, while keeping its visual progression readable and compact.
+
+Implemented in this slice:
+
+- The Base scene now creates an upgradeable bio lab on the former future lab pad.
+- The visible bio lab uses the generated reference image directly through `Resources/BioLab/BioLabReferenceCutout`.
+- The former procedural body, plinth, and dome remain hidden as click/progress fallback scaffolding only.
+- Tapping the bio lab reveals a grey or green upgrade symbol based on whether the saved wallet can afford the next level.
+- Clicking the green symbol starts a saved bio-lab upgrade timer and spends the upgrade cost.
+- A circular progress icon overlays the lab while the saved timer is active.
+- Completed bio-lab upgrades increase the saved lab level, clear the timer, pop the lab, play a generated local finish sound, and show a five-second pulsing aura.
+- The completion aura uses `Resources/BioLab/BioLabReferenceGlowSilhouette`, a blurred copy of the exact lab silhouette, so the glow follows the building outline.
+- Level progression grows the visible lab only slightly taller; it does not add exterior complications or extra outside structures.
+
+### Acceptance Criteria
+
+- When the bio lab is clicked, pop up a clickable upgrade symbol; if the user has enough credits, the symbol color is green, else grey. Done.
+- When the symbol is clicked and the user has enough credits, start upgrading the bio lab; show this by laying over a circular progress icon that fills progressively with time. Done.
+- The time required rises by level: level 1 takes 1 second, level 2 takes 3 seconds, level 3 takes 10 seconds, then 60 seconds, then multiplies by 5 each further level. Done.
+- When the bio lab has finished upgrading:
+  - Make it re-pop into existence. Done.
+  - Grow the building in height by a few pixels, without adding exterior complications or outside structures. Done.
+  - Make the exact building silhouette glow for 5 seconds with a pulsating blurred aura. Done.
+  - Make a finish sound. Done.
+
+### Validation
+
+- EditMode progression coverage checks bio-lab upgrade costs, timers, completion, and save persistence. Done.
+- PlayMode coverage checks grey/green upgrade symbol behavior, saved timer start, circular progress fill, height-only visual leveling, completion pop/glow/sound, reference-textured model loading, hidden occupied lab pad renderer, and no lab-pad label. Done.
+- Visual verification captured and reviewed a rendered still plus GIF of the pulsing blurred silhouette aura. Done.
+- Latest automated verification: Unity EditMode `79/79`, Unity PlayMode `23/23`, temp glow capture test `1/1`, and clean `git diff --check`.
+
 ## Future Local V7: Human Population, Gate Intake, And Role Training
 
 ### Goal
