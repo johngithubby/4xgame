@@ -15,6 +15,16 @@ namespace LaneSurvivor.Progression
 
         public const int MaxMissionLevel = 8;
 
+        private const int BioLabLevelOneDurationSeconds = 1;
+
+        private const int BioLabLevelTwoDurationSeconds = 3;
+
+        private const int BioLabLevelThreeDurationSeconds = 10;
+
+        private const int BioLabLevelFourDurationSeconds = 60;
+
+        private const int BioLabDurationGrowthMultiplier = 5;
+
         public static void CollectCoins(SaveGameData data)
         {
             // The collect button is deliberately simple for the first base-building slice.
@@ -25,6 +35,48 @@ namespace LaneSurvivor.Progression
         {
             // Costs rise slowly so the prototype can be exercised in a few taps.
             return 50 + Mathf.Max(1, hqLevel) * 25;
+        }
+
+        public static int GetBioLabUpgradeCost(int bioLabLevel)
+        {
+            // Bio-lab upgrades use the same local credit scale as early HQ upgrades for rapid prototype testing.
+            return 50 + Mathf.Max(1, bioLabLevel) * 25;
+        }
+
+        public static int GetBioLabUpgradeDurationSeconds(int bioLabLevel)
+        {
+            // The first three lab levels use the exact requested hand-authored ramp.
+            int safeLevel = Mathf.Max(1, bioLabLevel);
+            if (safeLevel == 1)
+            {
+                return BioLabLevelOneDurationSeconds;
+            }
+
+            if (safeLevel == 2)
+            {
+                return BioLabLevelTwoDurationSeconds;
+            }
+
+            if (safeLevel == 3)
+            {
+                return BioLabLevelThreeDurationSeconds;
+            }
+
+            // Level four starts the minute-scale progression requested for advanced lab upgrades.
+            long durationSeconds = BioLabLevelFourDurationSeconds;
+
+            // Every level after four multiplies the prior duration by five, with an int clamp for save safety.
+            for (int level = 5; level <= safeLevel; level += 1)
+            {
+                if (durationSeconds > int.MaxValue / BioLabDurationGrowthMultiplier)
+                {
+                    return int.MaxValue;
+                }
+
+                durationSeconds *= BioLabDurationGrowthMultiplier;
+            }
+
+            return (int)Math.Min(durationSeconds, int.MaxValue);
         }
 
         public static int TryClaimMinigameWinReward(SaveGameData data, ref bool rewardClaimed)
@@ -63,6 +115,28 @@ namespace LaneSurvivor.Progression
             return true;
         }
 
+        public static bool TryStartBioLabUpgrade(SaveGameData data, DateTime utcNow)
+        {
+            // Only one local bio-lab timer can run at a time in this slice.
+            if (data == null || data.bioLabUpgradeInProgress)
+            {
+                return false;
+            }
+
+            // Charge the current lab level's credit cost before starting the timer.
+            int cost = GetBioLabUpgradeCost(data.bioLabLevel);
+            if (!ResourceWallet.TrySpendCoins(data, cost))
+            {
+                return false;
+            }
+
+            // Persist the start time and level-derived duration so app restarts do not pause progress.
+            data.bioLabUpgradeInProgress = true;
+            data.bioLabUpgradeStartedUtcTicks = utcNow.ToUniversalTime().Ticks;
+            data.bioLabUpgradeDurationSeconds = GetBioLabUpgradeDurationSeconds(data.bioLabLevel);
+            return true;
+        }
+
         public static bool CompleteReadyHqUpgrade(SaveGameData data, DateTime utcNow)
         {
             // Completion is idempotent so callers can check from scene load and Update.
@@ -74,6 +148,20 @@ namespace LaneSurvivor.Progression
             // Level up once and clear the timer; mission unlocks now come from completed minigame runs.
             data.hqLevel += 1;
             data.ClearHqUpgrade();
+            return true;
+        }
+
+        public static bool CompleteReadyBioLabUpgrade(SaveGameData data, DateTime utcNow)
+        {
+            // Completion is idempotent so callers can check from scene load and Update.
+            if (data == null || !IsBioLabUpgradeComplete(data, utcNow))
+            {
+                return false;
+            }
+
+            // Level up once and clear the timer after the progress icon has reached completion.
+            data.bioLabLevel += 1;
+            data.ClearBioLabUpgrade();
             return true;
         }
 
@@ -283,6 +371,49 @@ namespace LaneSurvivor.Progression
             return UpgradeTimer.GetRemainingSeconds(data, utcNow);
         }
 
+        public static int GetBioLabUpgradeRemainingSeconds(SaveGameData data, DateTime utcNow)
+        {
+            // No active bio-lab timer should display remaining time.
+            if (data == null || !data.bioLabUpgradeInProgress)
+            {
+                return 0;
+            }
+
+            // Corrupted timer data cannot display a meaningful countdown, so repair and show zero.
+            if (!TryGetBioLabUpgradeCompletionUtc(data, out DateTime completesUtc))
+            {
+                data.ClearBioLabUpgrade();
+                return 0;
+            }
+
+            // Compare the valid completion timestamp with the current UTC time.
+            TimeSpan remaining = completesUtc - utcNow.ToUniversalTime();
+            return Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
+        }
+
+        public static float GetBioLabUpgradeProgress01(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive or invalid timers have no visible circular progress fill.
+            if (data == null || !data.bioLabUpgradeInProgress || data.bioLabUpgradeDurationSeconds <= 0)
+            {
+                return 0f;
+            }
+
+            // Corrupted timer data cannot produce a meaningful fill, so repair and show empty progress.
+            if (!TryGetBioLabUpgradeCompletionUtc(data, out _))
+            {
+                data.ClearBioLabUpgrade();
+                return 0f;
+            }
+
+            // Reconstructing after validation keeps the precise elapsed fill safe from out-of-range ticks.
+            DateTime startedUtc = new(data.bioLabUpgradeStartedUtcTicks, DateTimeKind.Utc);
+
+            // Use fractional seconds so the progress icon fills smoothly during short early upgrades.
+            double elapsedSeconds = (utcNow.ToUniversalTime() - startedUtc).TotalSeconds;
+            return Mathf.Clamp01((float)(elapsedSeconds / data.bioLabUpgradeDurationSeconds));
+        }
+
         private static bool TryMarkMissionCompleted(SaveGameData data, int missionLevel)
         {
             // Normalize guarantees the list exists before adding the newly completed mission.
@@ -295,6 +426,65 @@ namespace LaneSurvivor.Progression
             // Store the mission id immediately so callers can inspect the save before it is persisted.
             data.completedMissionLevels.Add(missionLevel);
             data.completedMissionLevels.Sort();
+            return true;
+        }
+
+        private static bool IsBioLabUpgradeComplete(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive lab timers cannot be complete.
+            if (data == null || !data.bioLabUpgradeInProgress)
+            {
+                return false;
+            }
+
+            // Corrupted timer data should be repaired instead of treated as a completed upgrade.
+            if (!TryGetBioLabUpgradeCompletionUtc(data, out DateTime completesUtc))
+            {
+                data.ClearBioLabUpgrade();
+                return false;
+            }
+
+            // A completion timestamp at or before now means the upgrade has finished.
+            return completesUtc <= utcNow.ToUniversalTime();
+        }
+
+        private static bool TryGetBioLabUpgradeCompletionUtc(SaveGameData data, out DateTime completesUtc)
+        {
+            // Default the out value so callers never observe an unassigned DateTime.
+            completesUtc = default;
+
+            // A missing or negative start time cannot represent a recoverable UTC DateTime.
+            if (data.bioLabUpgradeStartedUtcTicks <= DateTime.MinValue.Ticks)
+            {
+                return false;
+            }
+
+            // Ticks beyond DateTime's maximum would throw if used to build a DateTime.
+            if (data.bioLabUpgradeStartedUtcTicks > DateTime.MaxValue.Ticks)
+            {
+                return false;
+            }
+
+            // Active timers created by gameplay always have a positive duration.
+            if (data.bioLabUpgradeDurationSeconds <= 0)
+            {
+                return false;
+            }
+
+            // Convert duration seconds to ticks before adding so we can avoid AddSeconds overflow.
+            long durationTicks = (long)data.bioLabUpgradeDurationSeconds * TimeSpan.TicksPerSecond;
+
+            // A timer that completes beyond DateTime's maximum cannot be evaluated safely.
+            if (data.bioLabUpgradeStartedUtcTicks > DateTime.MaxValue.Ticks - durationTicks)
+            {
+                return false;
+            }
+
+            // Reconstruct only after range checks have proven the saved values are safe.
+            DateTime startedUtc = new(data.bioLabUpgradeStartedUtcTicks, DateTimeKind.Utc);
+
+            // Add ticks instead of seconds because the overflow has already been checked above.
+            completesUtc = startedUtc.AddTicks(durationTicks);
             return true;
         }
     }

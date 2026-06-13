@@ -20,6 +20,14 @@ namespace LaneSurvivor.Save
 
         public int hqUpgradeDurationSeconds;
 
+        public int bioLabLevel = 1;
+
+        public bool bioLabUpgradeInProgress;
+
+        public long bioLabUpgradeStartedUtcTicks;
+
+        public int bioLabUpgradeDurationSeconds;
+
         public int unlockedMinigameLevel = 1;
 
         public int currentMissionLevel = 1;
@@ -45,6 +53,7 @@ namespace LaneSurvivor.Save
             // Clamp save values after load so corrupt or older data cannot break gameplay assumptions.
             coins = Mathf.Max(0, coins);
             hqLevel = Mathf.Max(1, hqLevel);
+            bioLabLevel = Mathf.Max(1, bioLabLevel);
             NormalizeMissionProgression();
             NormalizeHeroes();
             NormalizeDailyObjective();
@@ -53,11 +62,19 @@ namespace LaneSurvivor.Save
             if (hqUpgradeInProgress && !HasRecoverableHqUpgradeTimer())
             {
                 ClearHqUpgrade();
-                return;
             }
 
             // Inactive saves do not need a duration, so clamp old negative values down to zero.
             hqUpgradeDurationSeconds = Mathf.Max(0, hqUpgradeDurationSeconds);
+
+            // Invalid persisted bio-lab timer values cannot be recovered safely, so clear that active timer.
+            if (bioLabUpgradeInProgress && !HasRecoverableBioLabUpgradeTimer())
+            {
+                ClearBioLabUpgrade();
+            }
+
+            // Inactive bio-lab saves do not need a duration, so clamp old negative values down to zero.
+            bioLabUpgradeDurationSeconds = Mathf.Max(0, bioLabUpgradeDurationSeconds);
         }
 
         public void ClearHqUpgrade()
@@ -68,6 +85,14 @@ namespace LaneSurvivor.Save
             hqUpgradeDurationSeconds = 0;
         }
 
+        public void ClearBioLabUpgrade()
+        {
+            // Keep bio-lab timer reset logic in one place so completion and data repair clear the same fields.
+            bioLabUpgradeInProgress = false;
+            bioLabUpgradeStartedUtcTicks = 0L;
+            bioLabUpgradeDurationSeconds = 0;
+        }
+
         public SaveGameData Clone()
         {
             // JsonUtility gives a compact deep copy for this simple serializable save object.
@@ -76,29 +101,41 @@ namespace LaneSurvivor.Save
 
         private bool HasRecoverableHqUpgradeTimer()
         {
+            // HQ timers use the shared UTC tick validation helper so save repair matches progression checks.
+            return HasRecoverableUpgradeTimer(hqUpgradeStartedUtcTicks, hqUpgradeDurationSeconds);
+        }
+
+        private bool HasRecoverableBioLabUpgradeTimer()
+        {
+            // Bio-lab timers use the same UTC tick validation rules as HQ timers.
+            return HasRecoverableUpgradeTimer(bioLabUpgradeStartedUtcTicks, bioLabUpgradeDurationSeconds);
+        }
+
+        private static bool HasRecoverableUpgradeTimer(long startedUtcTicks, int durationSeconds)
+        {
             // A missing or negative start time cannot represent a real UTC DateTime.
-            if (hqUpgradeStartedUtcTicks <= DateTime.MinValue.Ticks)
+            if (startedUtcTicks <= DateTime.MinValue.Ticks)
             {
                 return false;
             }
 
             // Ticks beyond DateTime's maximum would throw when reconstructing the timestamp.
-            if (hqUpgradeStartedUtcTicks > DateTime.MaxValue.Ticks)
+            if (startedUtcTicks > DateTime.MaxValue.Ticks)
             {
                 return false;
             }
 
             // Active timers created by gameplay always have a positive duration.
-            if (hqUpgradeDurationSeconds <= 0)
+            if (durationSeconds <= 0)
             {
                 return false;
             }
 
             // Convert seconds to ticks with long arithmetic so the overflow check is explicit.
-            long durationTicks = (long)hqUpgradeDurationSeconds * TimeSpan.TicksPerSecond;
+            long durationTicks = (long)durationSeconds * TimeSpan.TicksPerSecond;
 
             // The saved duration must fit inside DateTime's valid range from the saved start.
-            return hqUpgradeStartedUtcTicks <= DateTime.MaxValue.Ticks - durationTicks;
+            return startedUtcTicks <= DateTime.MaxValue.Ticks - durationTicks;
         }
 
         private void NormalizeHeroes()

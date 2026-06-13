@@ -150,7 +150,9 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(creditsDetailText);
             StringAssert.Contains("Coins: 0", creditsDetailText.text);
             StringAssert.Contains("HQ Level: 1", creditsDetailText.text);
-            StringAssert.Contains("Upgrade: Ready", creditsDetailText.text);
+            StringAssert.Contains("Bio Lab: 1", creditsDetailText.text);
+            StringAssert.Contains("HQ Upgrade: Ready", creditsDetailText.text);
+            StringAssert.Contains("Bio Upgrade: Ready", creditsDetailText.text);
             AssertColorApproximately(Color.black, creditsDetailText.color);
 
             // Tapping again should collapse the details without requiring a save or scene refresh.
@@ -231,6 +233,215 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.Greater(trainingOffsetFromHq.z, 2.8f);
             Assert.Greater(Mathf.Abs(trainingOffsetFromHq.x), 1.4f);
             Assert.Greater(trainingOffsetFromHq.magnitude, 3.3f);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_BioLabShowsGreyUpgradeSymbolWhenCreditsAreInsufficient()
+        {
+            // Wait one frame so BaseSceneBootstrap can build the runtime lab and HUD.
+            yield return null;
+
+            // Fresh saves should create the generated bio lab on the future lab pad.
+            BioLabBuilding bioLab = GameObject.Find("Bio Lab")?.GetComponent<BioLabBuilding>();
+            Assert.IsNotNull(bioLab);
+            Assert.AreEqual(1, bioLab.Level);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+
+            // Tapping the lab should reveal the start-upgrade symbol even when it cannot be afforded.
+            bioLab.ShowUpgradeSymbol();
+            Assert.IsTrue(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsFalse(bioLab.CanAffordDisplayedUpgrade);
+
+            // The visible symbol should be grey when the wallet cannot pay the level-one cost.
+            Renderer symbolStemRenderer = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Upgrade Symbol/Bio Lab Upgrade Symbol Stem")?.GetComponent<Renderer>();
+            Assert.IsNotNull(symbolStemRenderer);
+            Color symbolColor = GetMaterialColor(symbolStemRenderer.sharedMaterial);
+            Assert.Less(Mathf.Abs(symbolColor.r - symbolColor.g), 0.05f);
+            Assert.Less(Mathf.Abs(symbolColor.g - symbolColor.b), 0.05f);
+
+            // Clicking the grey symbol should fail safely and leave the local save without an active lab timer.
+            bool started = bioLab.RequestUpgradeFromVisibleSymbol();
+            yield return null;
+            SaveGameData saveData = SaveGameManager.Load();
+            Assert.IsFalse(started);
+            Assert.IsFalse(saveData.bioLabUpgradeInProgress);
+            Assert.AreEqual(1, saveData.bioLabLevel);
+            Assert.IsTrue(bioLab.IsUpgradeSymbolVisible);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_BioLabUpgradeSymbolStartsTimedProgressWhenAffordable()
+        {
+            // Seed a level-three lab so the PlayMode progress assertion has a ten-second timer window.
+            SaveGameManager.Save(new SaveGameData
+            {
+                coins = PlayerProgression.GetBioLabUpgradeCost(3),
+                bioLabLevel = 3
+            });
+
+            // Reload Base after seeding so the generated lab reflects the saved level and wallet.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // The lab should render as level three with no exterior add-on pieces.
+            BioLabBuilding bioLab = GameObject.Find("Bio Lab")?.GetComponent<BioLabBuilding>();
+            Assert.IsNotNull(bioLab);
+            Assert.AreEqual(3, bioLab.Level);
+            Transform detailRoot = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Detail Root");
+            Assert.IsNotNull(detailRoot);
+            Assert.AreEqual(0, CountActiveChildren(detailRoot));
+            Assert.IsNull(GameObject.Find("Future Lab Pad Label"));
+            Renderer labPadRenderer = GameObject.Find("Future Lab Pad")?.GetComponent<Renderer>();
+            Assert.IsNotNull(labPadRenderer);
+            Assert.IsFalse(labPadRenderer.enabled);
+
+            // Upgrades should keep the lab footprint fixed and only lift the body by a few pixels.
+            Transform bodyTransform = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Body");
+            Assert.IsNotNull(bodyTransform);
+            Assert.AreEqual(BioLabBuilding.CalculateVisualWidth(1), bodyTransform.localScale.x, 0.001f);
+            Assert.AreEqual(BioLabBuilding.CalculateVisualWidth(1) * 0.82f, bodyTransform.localScale.z, 0.001f);
+            Assert.AreEqual(BioLabBuilding.CalculateVisualHeight(3), bodyTransform.localScale.y, 0.001f);
+            Assert.AreEqual(BioLabBuilding.ModelYawDegrees, Mathf.DeltaAngle(0f, bodyTransform.localEulerAngles.y), 0.001f);
+            Assert.Greater(bodyTransform.localScale.y, BioLabBuilding.CalculateVisualHeight(1));
+            Assert.LessOrEqual(bodyTransform.localScale.y - BioLabBuilding.CalculateVisualHeight(1), 0.06f);
+
+            // The reference-textured model is the visible source of truth for matching the generated concept image.
+            Transform referenceModel = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Reference Model");
+            Assert.IsNotNull(referenceModel);
+            MeshRenderer referenceRenderer = referenceModel.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(referenceRenderer);
+            Assert.IsTrue(referenceRenderer.enabled);
+            Assert.IsNotNull(referenceRenderer.sharedMaterial?.mainTexture);
+
+            // The procedural details stay present as the upgrade/click/glow scaffold, but their renderers stay hidden.
+            Transform plinthRoot = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Plinth Root");
+            Assert.IsNotNull(plinthRoot);
+            Assert.IsNotNull(plinthRoot.Find("Bio Lab Plinth Stone Deck"));
+            Assert.IsNotNull(plinthRoot.Find("Bio Lab Plinth Front Left Corner Cap"));
+            Assert.IsNotNull(bodyTransform.Find("Bio Lab Front Sign Panel"));
+            Assert.IsNotNull(bodyTransform.Find("Bio Lab Front Door Panel"));
+            Assert.IsNotNull(bodyTransform.Find("Bio Lab Front Entry Lower Step"));
+            Assert.IsNotNull(bodyTransform.Find("Bio Lab Roof Front Left Corner Block"));
+            Assert.IsNotNull(bodyTransform.Find("Bio Lab Front Left Vertical Light Strip"));
+            Assert.IsNotNull(bodyTransform.Find("Bio Lab Left Side Upper Light Strip"));
+            Assert.IsNotNull(bodyTransform.Find("Bio Lab Upper Utility Vent"));
+            Assert.IsNotNull(bodyTransform.Find("Bio Lab Left Side Upper Vent"));
+            Transform domeTransform = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Dome");
+            Assert.IsNotNull(domeTransform);
+            Assert.AreEqual(BioLabBuilding.ModelYawDegrees, Mathf.DeltaAngle(0f, domeTransform.localEulerAngles.y), 0.001f);
+            Assert.IsNotNull(domeTransform.Find("Bio Lab Dome Lower Socket"));
+            Assert.IsNotNull(domeTransform.Find("Bio Lab Dome Base Ring Segment 1"));
+            Assert.IsNotNull(domeTransform.Find("Bio Lab Front Back Dome Rib"));
+            Assert.IsNotNull(domeTransform.Find("Bio Lab Left Right Dome Rib"));
+            Assert.IsNotNull(domeTransform.Find("Bio Lab Dome Glass Glint"));
+            Assert.IsFalse(bodyTransform.GetComponent<Renderer>().enabled);
+            Assert.IsFalse(domeTransform.GetComponent<Renderer>().enabled);
+            TextMesh bioLabSignText = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Label")?.GetComponent<TextMesh>();
+            Assert.IsNotNull(bioLabSignText);
+            Assert.IsFalse(bioLabSignText.gameObject.activeSelf);
+            Assert.AreEqual(string.Empty, bioLabSignText.text);
+
+            // Revealing the symbol with enough credits should color it green.
+            bioLab.ShowUpgradeSymbol();
+            Assert.IsTrue(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsTrue(bioLab.CanAffordDisplayedUpgrade);
+            Renderer symbolStemRenderer = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Upgrade Symbol/Bio Lab Upgrade Symbol Stem")?.GetComponent<Renderer>();
+            Assert.IsNotNull(symbolStemRenderer);
+            Color symbolColor = GetMaterialColor(symbolStemRenderer.sharedMaterial);
+            Assert.Greater(symbolColor.g, symbolColor.r);
+            Assert.Greater(symbolColor.g, symbolColor.b);
+
+            // Clicking the visible green symbol should spend credits and start the saved timer.
+            bool started = bioLab.RequestUpgradeFromVisibleSymbol();
+            yield return null;
+            Assert.IsTrue(started);
+            SaveGameData startedData = SaveGameManager.Load();
+            Assert.AreEqual(0, startedData.coins);
+            Assert.IsTrue(startedData.bioLabUpgradeInProgress);
+            Assert.AreEqual(10, startedData.bioLabUpgradeDurationSeconds);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsTrue(bioLab.IsProgressVisible);
+
+            // Let a small amount of PlayMode time pass so the circular fill advances but cannot complete.
+            yield return new WaitForSeconds(0.2f);
+            Assert.Greater(bioLab.ProgressFillAmount, 0.01f);
+            Assert.Less(bioLab.ProgressFillAmount, 0.8f);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_CompletedBioLabUpgradeRebuildsGlowPopAndSaves()
+        {
+            // Seed a bio-lab timer that should complete as soon as the Base scene opens.
+            SaveGameManager.Save(new SaveGameData
+            {
+                bioLabLevel = 1,
+                bioLabUpgradeInProgress = true,
+                bioLabUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-2).Ticks,
+                bioLabUpgradeDurationSeconds = 1
+            });
+
+            // Reload Base so the bootstrap executes the same ready-upgrade path as an app reopen.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // The save should now reflect the completed lab level and cleared timer.
+            SaveGameData completedData = SaveGameManager.Load();
+            Assert.AreEqual(2, completedData.bioLabLevel);
+            Assert.IsFalse(completedData.bioLabUpgradeInProgress);
+            Assert.AreEqual(0, completedData.bioLabUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, completedData.bioLabUpgradeDurationSeconds);
+
+            // The generated lab should rebuild for level two and trigger local completion effects.
+            BioLabBuilding bioLab = GameObject.Find("Bio Lab")?.GetComponent<BioLabBuilding>();
+            Assert.IsNotNull(bioLab);
+            Assert.AreEqual(2, bioLab.Level);
+            Assert.IsTrue(bioLab.IsCompletionGlowVisible);
+            Assert.IsTrue(bioLab.IsPopAnimating);
+            Assert.AreEqual(1, bioLab.CompletionEffectPlayCount);
+            Assert.AreEqual(1, bioLab.CompletionSoundRequestCount);
+            Assert.IsTrue(bioLab.HasCompletionSoundSource);
+            Assert.IsTrue(bioLab.HasGeneratedCompletionSoundClip);
+            Assert.IsFalse(bioLab.IsProgressVisible);
+
+            // The completion glow should be a mesh-free root with one reference-silhouette aura, not fallback strips.
+            Transform glowRoot = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Completion Glow");
+            Assert.IsNotNull(glowRoot);
+            Assert.IsNull(glowRoot.GetComponent<MeshFilter>());
+            Transform referenceModel = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Reference Model");
+            Transform referenceAura = glowRoot.Find("Bio Lab Completion Reference Aura");
+            Assert.IsNotNull(referenceModel);
+            Assert.IsNotNull(referenceAura);
+            Assert.IsNull(glowRoot.Find("Bio Lab Completion Body Outline"));
+            Assert.IsNull(glowRoot.Find("Bio Lab Completion Dome Outline"));
+            Assert.Greater(referenceAura.localScale.x, referenceModel.localScale.x);
+            Assert.Greater(referenceAura.localScale.y, referenceModel.localScale.y);
+            Assert.Greater(referenceAura.localPosition.z, referenceModel.localPosition.z);
+            MeshRenderer auraRenderer = referenceAura.GetComponent<MeshRenderer>();
+            MeshRenderer referenceRenderer = referenceModel.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(auraRenderer);
+            Assert.IsNotNull(referenceRenderer);
+            Assert.IsNotNull(auraRenderer.sharedMaterial?.mainTexture);
+            Assert.Less(auraRenderer.sharedMaterial.renderQueue, referenceRenderer.sharedMaterial.renderQueue);
+
+            // The aura should visibly pulse instead of staying as a static outline.
+            yield return new WaitForSeconds(0.15f);
+            Assert.Greater(bioLab.CompletionGlowPulseScale, 1.03f);
+            Assert.Greater(bioLab.CompletionGlowAlpha, 0.32f);
+
+            // Level two should stay free of exterior structure and only grow slightly taller.
+            Transform detailRoot = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Detail Root");
+            Assert.IsNotNull(detailRoot);
+            Assert.AreEqual(0, CountActiveChildren(detailRoot));
+            Transform bodyTransform = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Body");
+            Assert.IsNotNull(bodyTransform);
+            Assert.AreEqual(BioLabBuilding.CalculateVisualWidth(1), bodyTransform.localScale.x, 0.001f);
+            Assert.AreEqual(BioLabBuilding.CalculateVisualHeight(2), bodyTransform.localScale.y, 0.001f);
+            Assert.LessOrEqual(bodyTransform.localScale.y - BioLabBuilding.CalculateVisualHeight(1), 0.03f);
+
+            // The visible Base feedback should mention the completed lab upgrade.
+            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
+            Assert.IsNotNull(statusText);
+            StringAssert.Contains("Bio lab upgrade complete", statusText.text);
         }
 
         [UnityTest]
@@ -408,8 +619,8 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, upgradedData.hqUpgradeDurationSeconds);
 
             // The visible HUD should now show a running countdown instead of the ready state.
-            StringAssert.Contains("Upgrade: ", creditsDetailText.text);
-            Assert.IsFalse(creditsDetailText.text.Contains("Upgrade: Ready"), creditsDetailText.text);
+            StringAssert.Contains("HQ Upgrade: ", creditsDetailText.text);
+            Assert.IsFalse(creditsDetailText.text.Contains("HQ Upgrade: Ready"), creditsDetailText.text);
         }
 
         [UnityTest]

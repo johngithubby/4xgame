@@ -163,6 +163,76 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void BioLabUpgradeDuration_UsesRequestedExponentialCurve()
+        {
+            Assert.AreEqual(1, PlayerProgression.GetBioLabUpgradeDurationSeconds(1));
+            Assert.AreEqual(3, PlayerProgression.GetBioLabUpgradeDurationSeconds(2));
+            Assert.AreEqual(10, PlayerProgression.GetBioLabUpgradeDurationSeconds(3));
+            Assert.AreEqual(60, PlayerProgression.GetBioLabUpgradeDurationSeconds(4));
+            Assert.AreEqual(60 * 5, PlayerProgression.GetBioLabUpgradeDurationSeconds(5));
+            Assert.AreEqual(60 * 5 * 5, PlayerProgression.GetBioLabUpgradeDurationSeconds(6));
+            Assert.AreEqual(60 * 5 * 5 * 5, PlayerProgression.GetBioLabUpgradeDurationSeconds(7));
+        }
+
+        [Test]
+        public void StartBioLabUpgrade_SpendsCoinsAndStartsLevelDurationTimer()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = PlayerProgression.GetBioLabUpgradeCost(2),
+                bioLabLevel = 2
+            };
+            DateTime now = new(2026, 6, 13, 12, 0, 0, DateTimeKind.Utc);
+
+            bool started = PlayerProgression.TryStartBioLabUpgrade(saveData, now);
+
+            Assert.IsTrue(started);
+            Assert.AreEqual(0, saveData.coins);
+            Assert.IsTrue(saveData.bioLabUpgradeInProgress);
+            Assert.AreEqual(now.Ticks, saveData.bioLabUpgradeStartedUtcTicks);
+            Assert.AreEqual(3, saveData.bioLabUpgradeDurationSeconds);
+            Assert.AreEqual(3, PlayerProgression.GetBioLabUpgradeRemainingSeconds(saveData, now));
+            Assert.AreEqual(0.5f, PlayerProgression.GetBioLabUpgradeProgress01(saveData, now.AddSeconds(1.5)), 0.01f);
+        }
+
+        [Test]
+        public void StartBioLabUpgrade_FailsWhenCoinsAreInsufficient()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = PlayerProgression.GetBioLabUpgradeCost(1) - 1,
+                bioLabLevel = 1
+            };
+
+            bool started = PlayerProgression.TryStartBioLabUpgrade(saveData, DateTime.UtcNow);
+
+            Assert.IsFalse(started);
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeCost(1) - 1, saveData.coins);
+            Assert.IsFalse(saveData.bioLabUpgradeInProgress);
+            Assert.AreEqual(1, saveData.bioLabLevel);
+        }
+
+        [Test]
+        public void CompleteReadyBioLabUpgrade_IncreasesLevelAndClearsTimer()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = PlayerProgression.GetBioLabUpgradeCost(1),
+                bioLabLevel = 1
+            };
+            DateTime now = new(2026, 6, 13, 12, 0, 0, DateTimeKind.Utc);
+
+            PlayerProgression.TryStartBioLabUpgrade(saveData, now);
+            bool completed = PlayerProgression.CompleteReadyBioLabUpgrade(saveData, now.AddSeconds(1.1));
+
+            Assert.IsTrue(completed);
+            Assert.AreEqual(2, saveData.bioLabLevel);
+            Assert.IsFalse(saveData.bioLabUpgradeInProgress);
+            Assert.AreEqual(0, saveData.bioLabUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, saveData.bioLabUpgradeDurationSeconds);
+        }
+
+        [Test]
         public void Normalize_DefaultsMissionProgressionToFirstMission()
         {
             SaveGameData saveData = new()
@@ -386,6 +456,25 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void Normalize_ClearsMalformedBioLabTimerWithoutLeveling()
+        {
+            SaveGameData saveData = new()
+            {
+                bioLabLevel = 2,
+                bioLabUpgradeInProgress = true,
+                bioLabUpgradeStartedUtcTicks = long.MaxValue,
+                bioLabUpgradeDurationSeconds = 3
+            };
+
+            saveData.Normalize();
+
+            Assert.AreEqual(2, saveData.bioLabLevel);
+            Assert.IsFalse(saveData.bioLabUpgradeInProgress);
+            Assert.AreEqual(0, saveData.bioLabUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, saveData.bioLabUpgradeDurationSeconds);
+        }
+
+        [Test]
         public void SaveGameManager_PreservesLocalProgress()
         {
             tempSavePath = Path.Combine(Path.GetTempPath(), $"lane-survivor-save-{Guid.NewGuid():N}.json");
@@ -397,6 +486,10 @@ namespace LaneSurvivor.Tests.EditMode
                 hqUpgradeInProgress = true,
                 hqUpgradeStartedUtcTicks = new DateTime(2026, 5, 30, 12, 0, 0, DateTimeKind.Utc).Ticks,
                 hqUpgradeDurationSeconds = 20,
+                bioLabLevel = 4,
+                bioLabUpgradeInProgress = true,
+                bioLabUpgradeStartedUtcTicks = new DateTime(2026, 6, 13, 12, 0, 0, DateTimeKind.Utc).Ticks,
+                bioLabUpgradeDurationSeconds = 60,
                 unlockedMinigameLevel = 3,
                 currentMissionLevel = 2,
                 highestUnlockedMissionLevel = 3,
@@ -411,6 +504,10 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsTrue(loadedData.hqUpgradeInProgress);
             Assert.AreEqual(saveData.hqUpgradeStartedUtcTicks, loadedData.hqUpgradeStartedUtcTicks);
             Assert.AreEqual(20, loadedData.hqUpgradeDurationSeconds);
+            Assert.AreEqual(4, loadedData.bioLabLevel);
+            Assert.IsTrue(loadedData.bioLabUpgradeInProgress);
+            Assert.AreEqual(saveData.bioLabUpgradeStartedUtcTicks, loadedData.bioLabUpgradeStartedUtcTicks);
+            Assert.AreEqual(60, loadedData.bioLabUpgradeDurationSeconds);
             Assert.AreEqual(3, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(2, loadedData.currentMissionLevel);
             Assert.AreEqual(3, loadedData.highestUnlockedMissionLevel);
@@ -429,6 +526,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(0, loadedData.coins);
             Assert.AreEqual(1, loadedData.hqLevel);
             Assert.IsFalse(loadedData.hqUpgradeInProgress);
+            Assert.AreEqual(1, loadedData.bioLabLevel);
+            Assert.IsFalse(loadedData.bioLabUpgradeInProgress);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(1, loadedData.currentMissionLevel);
             Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);
@@ -460,12 +559,16 @@ namespace LaneSurvivor.Tests.EditMode
             // Both the returned object and persisted file should match first-launch progress.
             Assert.AreEqual(0, resetData.coins);
             Assert.AreEqual(1, resetData.hqLevel);
+            Assert.AreEqual(1, resetData.bioLabLevel);
+            Assert.IsFalse(resetData.bioLabUpgradeInProgress);
             Assert.AreEqual(1, resetData.unlockedMinigameLevel);
             Assert.AreEqual(1, resetData.currentMissionLevel);
             Assert.AreEqual(1, resetData.highestUnlockedMissionLevel);
             Assert.AreEqual(0, resetData.completedMissionLevels.Count);
             Assert.AreEqual(0, loadedData.coins);
             Assert.AreEqual(1, loadedData.hqLevel);
+            Assert.AreEqual(1, loadedData.bioLabLevel);
+            Assert.IsFalse(loadedData.bioLabUpgradeInProgress);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(1, loadedData.currentMissionLevel);
             Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);

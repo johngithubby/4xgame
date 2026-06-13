@@ -159,13 +159,15 @@ namespace LaneSurvivor.Base
 #endif
         }
 
-        public void UpdateView(SaveGameData saveData, int remainingSeconds, string statusOverride)
+        public void UpdateView(SaveGameData saveData, int remainingSeconds, int bioLabRemainingSeconds, string statusOverride)
         {
             // Normalize the value read by UI so null data still shows a sensible first-launch state.
             int hqLevel = Mathf.Max(1, saveData?.hqLevel ?? 1);
+            int bioLabLevel = Mathf.Max(1, saveData?.bioLabLevel ?? 1);
             int coins = Mathf.Max(0, saveData?.coins ?? 0);
             int upgradeCost = PlayerProgression.GetHqUpgradeCost(hqLevel);
             bool upgradeRunning = saveData != null && saveData.hqUpgradeInProgress;
+            bool bioLabUpgradeRunning = saveData != null && saveData.bioLabUpgradeInProgress;
             bool canAffordUpgrade = coins >= upgradeCost;
             int selectedMissionLevel = PlayerProgression.GetSelectedMissionLevel(saveData);
             HeroDefinition equippedHero = HeroInventory.GetEquippedHero(saveData);
@@ -176,12 +178,15 @@ namespace LaneSurvivor.Base
             // Build the default status separately so action feedback can override it cleanly.
             string fallbackStatus = upgradeRunning
                 ? "HQ upgrade in progress"
-                : $"Next HQ upgrade: {upgradeCost} coins";
+                : bioLabUpgradeRunning
+                    ? "Bio lab upgrade in progress"
+                    : $"Next HQ upgrade: {upgradeCost} coins";
 
             titleText.text = "Base";
-            string upgradeStatus = upgradeRunning ? $"Upgrade: {remainingSeconds}s" : "Upgrade: Ready";
+            string upgradeStatus = upgradeRunning ? $"HQ Upgrade: {remainingSeconds}s" : "HQ Upgrade: Ready";
+            string bioLabStatus = bioLabUpgradeRunning ? $"Bio Upgrade: {bioLabRemainingSeconds}s" : "Bio Upgrade: Ready";
             creditsButtonText.text = $"Credits: {coins}";
-            creditsDetailText.text = BuildCreditsDetailText(coins, hqLevel, upgradeStatus);
+            creditsDetailText.text = BuildCreditsDetailText(coins, hqLevel, bioLabLevel, upgradeStatus, bioLabStatus);
             creditsDetailPanel.SetActive(creditsExpanded);
             heroPanelTitleText.text = "Owned Heroes";
             heroPanelText.text = BuildHeroPanelText(saveData, ownedHeroes, equippedHero);
@@ -222,10 +227,10 @@ namespace LaneSurvivor.Base
             creditsDetailPanel.SetActive(creditsExpanded);
         }
 
-        private static string BuildCreditsDetailText(int coins, int hqLevel, string upgradeStatus)
+        private static string BuildCreditsDetailText(int coins, int hqLevel, int bioLabLevel, string upgradeStatus, string bioLabStatus)
         {
             // Keep the expanded panel short so it replaces the old left text stack without becoming another wall.
-            return $"Coins: {coins}\nHQ Level: {hqLevel}\n{upgradeStatus}";
+            return $"Coins: {coins}\nHQ Level: {hqLevel}\nBio Lab: {bioLabLevel}\n{upgradeStatus}\n{bioLabStatus}";
         }
 
         private static void ConfigureMissionButton(Button missionButton, SaveGameData saveData, int missionLevel, int selectedMissionLevel)
