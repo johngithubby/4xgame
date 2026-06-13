@@ -75,7 +75,7 @@ namespace LaneSurvivor.Base
 
         public void ZoomOut()
         {
-            // Higher normalized zoom means a wider field of view that exposes more of the pentagon base.
+            // Higher normalized zoom means a wider field of view that exposes more of the base floor.
             SetZoomNormalized(zoomNormalized + ButtonZoomStep);
         }
 

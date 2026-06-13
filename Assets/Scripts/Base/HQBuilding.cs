@@ -8,13 +8,13 @@ namespace LaneSurvivor.Base
     {
         private const float BaseVisualDiameter = 2f;
 
-        private const float DiameterPerLevel = 0.2f;
+        private const float DiameterPerLevel = 0.025f;
 
         private const float BaseVisualHeight = 1.8f;
 
-        private const float HeightPerLevel = 0.16f;
+        private const float HeightPerLevel = 0.02f;
 
-        private const int LevelThatReachesBlack = 8;
+        private const int LevelThatReachesBlack = 50;
 
         private const int MaximumDetailRows = 7;
 
@@ -41,21 +41,21 @@ namespace LaneSurvivor.Base
 
         public static float CalculateVisualDiameter(int level)
         {
-            // HQ level one uses the authored baseline, and each upgrade grows the footprint evenly.
+            // HQ level one uses the authored baseline, and each upgrade adds only a small visual step.
             int safeLevel = Mathf.Max(1, level);
             return BaseVisualDiameter + (safeLevel - 1) * DiameterPerLevel;
         }
 
         public static float CalculateVisualHeight(int level)
         {
-            // Height grows more slowly than diameter so higher HQs remain readable under the fixed Base camera.
+            // Height uses a tiny per-upgrade increment so double-digit HQ levels do not become towers.
             int safeLevel = Mathf.Max(1, level);
             return BaseVisualHeight + (safeLevel - 1) * HeightPerLevel;
         }
 
         public static Color CalculateLevelColor(int level)
         {
-            // Level one starts white, then every upgrade darkens all RGB channels toward black.
+            // Level one starts white, then every upgrade slowly lowers RGB channels toward black.
             int safeLevel = Mathf.Max(1, level);
             float colorProgress = Mathf.Clamp01((safeLevel - 1) / (float)(LevelThatReachesBlack - 1));
             float channel = 1f - colorProgress;
@@ -117,7 +117,7 @@ namespace LaneSurvivor.Base
             float visualDiameter = CalculateVisualDiameter(Level);
             float visualHeight = CalculateVisualHeight(Level);
 
-            // The prism mesh is centered vertically, so lift it by half-height to keep its base on the ground.
+            // The body mesh is centered vertically, so lift it by half-height to keep its base on the ground.
             bodyTransform.localScale = new Vector3(visualDiameter, visualHeight, visualDiameter);
             bodyTransform.localPosition = new Vector3(0f, visualHeight * 0.5f, 0f);
 
@@ -130,7 +130,7 @@ namespace LaneSurvivor.Base
             // Keep the label just above the roof and in front of the camera-facing side as the HQ grows.
             PositionLabel(visualDiameter, visualHeight);
 
-            // More HQ levels add more generated side bands, giving higher levels a finer silhouette.
+            // More HQ levels add generated side bands, restoring the earlier HQ definition without changing base borders.
             RebuildDetailRows(visualDiameter, visualHeight, CalculateDetailRows(Level));
         }
 

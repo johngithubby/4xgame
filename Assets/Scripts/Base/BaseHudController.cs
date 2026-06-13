@@ -15,25 +15,19 @@ namespace LaneSurvivor.Base
         private Text titleText;
 
         [SerializeField]
-        private Text coinsText;
+        private Button creditsButton;
 
         [SerializeField]
-        private Text hqText;
+        private Text creditsButtonText;
 
         [SerializeField]
-        private Text timerText;
+        private GameObject creditsDetailPanel;
 
         [SerializeField]
-        private Text heroText;
+        private Text creditsDetailText;
 
         [SerializeField]
-        private Text missionPanelTitleText;
-
-        [SerializeField]
-        private Text missionPanelText;
-
-        [SerializeField]
-        private Text objectiveText;
+        private bool creditsExpanded;
 
         [SerializeField]
         private Text heroPanelTitleText;
@@ -79,13 +73,10 @@ namespace LaneSurvivor.Base
 
         public void Configure(
             Text title,
-            Text coins,
-            Text hq,
-            Text timer,
-            Text hero,
-            Text missionPanelTitle,
-            Text missionPanel,
-            Text objective,
+            Button credits,
+            Text creditsLabel,
+            GameObject creditsDetails,
+            Text creditsDetailsText,
             Text heroPanelTitle,
             Text heroPanel,
             Text status,
@@ -102,13 +93,10 @@ namespace LaneSurvivor.Base
             Button zoomOut)
         {
             titleText = title;
-            coinsText = coins;
-            hqText = hq;
-            timerText = timer;
-            heroText = hero;
-            missionPanelTitleText = missionPanelTitle;
-            missionPanelText = missionPanel;
-            objectiveText = objective;
+            creditsButton = credits;
+            creditsButtonText = creditsLabel;
+            creditsDetailPanel = creditsDetails;
+            creditsDetailText = creditsDetailsText;
             heroPanelTitleText = heroPanelTitle;
             heroPanelText = heroPanel;
             statusText = status;
@@ -128,6 +116,7 @@ namespace LaneSurvivor.Base
         public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action claimObjectiveAction, Action<int> selectMissionAction, Action resetAction, Action equipHeroAction, Action heroesAction, Action zoomInAction, Action zoomOutAction)
         {
             // Replace listeners so scene rebuilds or test setup cannot accidentally duplicate clicks.
+            creditsButton.onClick.RemoveAllListeners();
             collectButton.onClick.RemoveAllListeners();
             upgradeButton.onClick.RemoveAllListeners();
             playButton.onClick.RemoveAllListeners();
@@ -144,6 +133,7 @@ namespace LaneSurvivor.Base
             zoomOutButton.onClick.RemoveAllListeners();
 
             // Button listeners stay tiny and delegate all state changes to the bootstrap.
+            creditsButton.onClick.AddListener(ToggleCreditsPanel);
             collectButton.onClick.AddListener(() => collectAction?.Invoke());
             upgradeButton.onClick.AddListener(() => upgradeAction?.Invoke());
             playButton.onClick.AddListener(() => playAction?.Invoke());
@@ -178,7 +168,6 @@ namespace LaneSurvivor.Base
             bool upgradeRunning = saveData != null && saveData.hqUpgradeInProgress;
             bool canAffordUpgrade = coins >= upgradeCost;
             int selectedMissionLevel = PlayerProgression.GetSelectedMissionLevel(saveData);
-            int highestUnlockedMissionLevel = PlayerProgression.GetHighestUnlockedMissionLevel(saveData);
             HeroDefinition equippedHero = HeroInventory.GetEquippedHero(saveData);
             IReadOnlyList<HeroDefinition> ownedHeroes = HeroInventory.GetOwnedHeroes(saveData);
             bool firstHeroOwned = HeroInventory.OwnsHero(saveData, HeroCatalog.FirstWinHeroId);
@@ -190,15 +179,10 @@ namespace LaneSurvivor.Base
                 : $"Next HQ upgrade: {upgradeCost} coins";
 
             titleText.text = "Base";
-            coinsText.text = $"Coins: {coins}";
-            hqText.text = $"HQ Level: {hqLevel}";
-            timerText.text = upgradeRunning ? $"Upgrade: {remainingSeconds}s" : "Upgrade: Ready";
-            heroText.text = equippedHero != null
-                ? $"Hero: {equippedHero.displayName} Lv {HeroInventory.GetHeroLevel(saveData, equippedHero.id)} (+{equippedHero.startingSquadBonus} squad)"
-                : "Hero: None";
-            missionPanelTitleText.text = $"Missions {highestUnlockedMissionLevel}/{PlayerProgression.MaxMissionLevel}";
-            missionPanelText.text = BuildMissionPanelText(saveData);
-            objectiveText.text = DailyObjectiveProgression.BuildStatusLabel(objectiveStatus);
+            string upgradeStatus = upgradeRunning ? $"Upgrade: {remainingSeconds}s" : "Upgrade: Ready";
+            creditsButtonText.text = $"Credits: {coins}";
+            creditsDetailText.text = BuildCreditsDetailText(coins, hqLevel, upgradeStatus);
+            creditsDetailPanel.SetActive(creditsExpanded);
             heroPanelTitleText.text = "Owned Heroes";
             heroPanelText.text = BuildHeroPanelText(saveData, ownedHeroes, equippedHero);
             statusText.text = !string.IsNullOrWhiteSpace(statusOverride)
@@ -229,22 +213,19 @@ namespace LaneSurvivor.Base
             zoomOutButton.interactable = true;
         }
 
-        private static string BuildMissionPanelText(SaveGameData saveData)
+        private void ToggleCreditsPanel()
         {
-            // The panel always lists all authored local missions so locked goals are visible before they unlock.
-            List<string> missionLines = new();
-            int selectedMissionLevel = PlayerProgression.GetSelectedMissionLevel(saveData);
-            for (int missionLevel = 1; missionLevel <= PlayerProgression.MaxMissionLevel; missionLevel += 1)
-            {
-                // A leading marker keeps selection visible even when a completed mission is selected for replay.
-                string selectedMarker = missionLevel == selectedMissionLevel ? "> " : "  ";
-                string missionName = PlayerProgression.GetMissionName(missionLevel);
-                string statusLabel = PlayerProgression.GetMissionStatusLabel(saveData, missionLevel);
-                string rewardHint = PlayerProgression.GetMissionRewardHint(saveData, missionLevel);
-                missionLines.Add($"{selectedMarker}M{missionLevel} {missionName} [{statusLabel}] {rewardHint}");
-            }
+            // Store the expanded state locally because the bootstrap may refresh HUD text every frame during upgrades.
+            creditsExpanded = !creditsExpanded;
 
-            return string.Join("\n", missionLines);
+            // Apply the visibility immediately so a tap responds even when no save-backed value changed.
+            creditsDetailPanel.SetActive(creditsExpanded);
+        }
+
+        private static string BuildCreditsDetailText(int coins, int hqLevel, string upgradeStatus)
+        {
+            // Keep the expanded panel short so it replaces the old left text stack without becoming another wall.
+            return $"Coins: {coins}\nHQ Level: {hqLevel}\n{upgradeStatus}";
         }
 
         private static void ConfigureMissionButton(Button missionButton, SaveGameData saveData, int missionLevel, int selectedMissionLevel)

@@ -69,10 +69,12 @@ namespace LaneSurvivor.Tests.PlayMode
             // Runtime-built objects prove the bootstrap ran successfully.
             Assert.IsNotNull(GameObject.Find("Base HUD Canvas"));
             Assert.IsNotNull(GameObject.Find("HQ Building"));
-            Text missionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
-            Assert.IsNotNull(missionPanelText);
-            StringAssert.Contains("> M1 Outskirts [SELECTED] Win: +50c + M2", missionPanelText.text);
-            StringAssert.Contains("M2 Market Run [LOCKED] Unlock: clear M1", missionPanelText.text);
+            Button missionOneButton = GameObject.Find("Mission 1 Button")?.GetComponent<Button>();
+            Button missionTwoButton = GameObject.Find("Mission 2 Button")?.GetComponent<Button>();
+            Assert.IsNotNull(missionOneButton);
+            Assert.IsNotNull(missionTwoButton);
+            Assert.AreEqual(">M1", missionOneButton.GetComponentInChildren<Text>()?.text);
+            Assert.IsFalse(missionTwoButton.interactable);
 
             // Invoke the real UI button listener so this verifies the same navigation path as a tap.
             Button playButton = GameObject.Find("Play Button")?.GetComponent<Button>();
@@ -89,7 +91,7 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator BaseScene_TopLeftHudLabelsStayInsideCanvas()
+        public IEnumerator BaseScene_CreditsButtonExpandsWithoutLeftStatusLabels()
         {
             // Wait one frame so the runtime-built Base HUD exists before inspecting its RectTransforms.
             yield return null;
@@ -100,9 +102,10 @@ namespace LaneSurvivor.Tests.PlayMode
             Vector3[] canvasCorners = new Vector3[4];
             canvasRect.GetWorldCorners(canvasCorners);
             float canvasLeftEdge = canvasCorners[0].x;
+            float canvasTopEdge = canvasCorners[1].y;
 
-            // These labels use upper-left anchoring and are the group that regressed offscreen in the editor view.
-            string[] topLeftHudLabels =
+            // These former left-side labels should no longer exist in the generated Base HUD.
+            string[] removedLeftHudLabels =
             {
                 "Coins Text",
                 "HQ Text",
@@ -113,79 +116,121 @@ namespace LaneSurvivor.Tests.PlayMode
                 "Objective Text"
             };
 
-            foreach (string labelName in topLeftHudLabels)
+            foreach (string labelName in removedLeftHudLabels)
             {
-                // Fetch each generated label by name so the test follows the runtime scene structure directly.
-                RectTransform labelRect = GameObject.Find(labelName)?.GetComponent<RectTransform>();
-                Assert.IsNotNull(labelRect, labelName);
-                Vector3[] labelCorners = new Vector3[4];
-                labelRect.GetWorldCorners(labelCorners);
-
-                // The left edge can have tiny float noise, but it should never cross outside the canvas.
-                Assert.GreaterOrEqual(labelCorners[0].x, canvasLeftEdge - 0.5f, $"{labelName} left edge should stay inside the Base HUD canvas.");
+                // The replacement design uses a collapsible credits control instead of persistent white text.
+                Assert.IsNull(GameObject.Find(labelName), $"{labelName} should not be generated on the left side of the Base HUD.");
             }
+
+            // The Credits button should be the only top-left status entry point.
+            Button creditsButton = GameObject.Find("Credits Button")?.GetComponent<Button>();
+            Assert.IsNotNull(creditsButton);
+            Text creditsButtonText = creditsButton.GetComponentInChildren<Text>();
+            Assert.IsNotNull(creditsButtonText);
+            Assert.AreEqual("Credits: 0", creditsButtonText.text);
+            AssertColorApproximately(Color.black, creditsButtonText.color);
+
+            // Button geometry should stay inside the same mobile-reference canvas bounds.
+            RectTransform creditsButtonRect = creditsButton.GetComponent<RectTransform>();
+            Vector3[] creditsButtonCorners = GetRectCorners(creditsButtonRect);
+            Assert.GreaterOrEqual(creditsButtonCorners[0].x, canvasLeftEdge - 0.5f, "Credits button left edge should stay inside the Base HUD canvas.");
+            Assert.LessOrEqual(creditsButtonCorners[1].y, canvasTopEdge + 0.5f, "Credits button top edge should stay inside the Base HUD canvas.");
+
+            // Inactive children cannot be found globally, so inspect the generated panel through the canvas hierarchy.
+            Transform creditsDetailTransform = canvasRect.transform.Find("Credits Detail Panel");
+            Assert.IsNotNull(creditsDetailTransform);
+            Assert.IsFalse(creditsDetailTransform.gameObject.activeSelf);
+
+            // Tapping the Credits button should expand the summary with the requested local base values.
+            creditsButton.onClick.Invoke();
+            yield return null;
+            Assert.IsTrue(creditsDetailTransform.gameObject.activeSelf);
+
+            Text creditsDetailText = creditsDetailTransform.Find("Credits Detail Text")?.GetComponent<Text>();
+            Assert.IsNotNull(creditsDetailText);
+            StringAssert.Contains("Coins: 0", creditsDetailText.text);
+            StringAssert.Contains("HQ Level: 1", creditsDetailText.text);
+            StringAssert.Contains("Upgrade: Ready", creditsDetailText.text);
+            AssertColorApproximately(Color.black, creditsDetailText.color);
+
+            // Tapping again should collapse the details without requiring a save or scene refresh.
+            creditsButton.onClick.Invoke();
+            yield return null;
+            Assert.IsFalse(creditsDetailTransform.gameObject.activeSelf);
         }
 
         [UnityTest]
         public IEnumerator BaseScene_HqLevelChangesPentagonSizeColorAndDetail()
         {
-            // Seed a higher HQ level so the runtime visual rules have visible work to apply on load.
+            // Seed a double-digit HQ level because tall/black level-14 visuals are the regression target.
             SaveGameManager.Save(new SaveGameData
             {
-                hqLevel = 4
+                hqLevel = 14
             });
 
-            // Reload Base after seeding so BaseSceneBootstrap builds the level-four HQ from saved data.
+            // Reload Base after seeding so BaseSceneBootstrap builds the level-fourteen HQ from saved data.
             SceneManager.LoadScene("Base");
             yield return null;
 
-            // The HQ component should mirror the saved level and own a generated pentagon body child.
+            // The HQ component should mirror the saved level and own its restored pentagon body child.
             HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
             Assert.IsNotNull(hqBuilding);
-            Assert.AreEqual(4, hqBuilding.Level);
+            Assert.AreEqual(14, hqBuilding.Level);
             Transform hqBody = hqBuilding.transform.Find("HQ Body");
             Assert.IsNotNull(hqBody);
 
-            // The HQ body mesh should have five unique X/Z plan vertices, proving the visible footprint is pentagonal.
+            // The HQ body mesh should have five unique X/Z plan vertices, proving its structure is restored.
             Mesh hqBodyMesh = hqBody.GetComponent<MeshFilter>()?.sharedMesh;
             Assert.IsNotNull(hqBodyMesh);
             Assert.AreEqual(5, CountUniquePlanVertices(hqBodyMesh));
 
             // Higher HQ levels should be visibly larger than level one through both diameter and height.
-            Assert.AreEqual(HQBuilding.CalculateVisualDiameter(4), hqBody.localScale.x, 0.001f);
-            Assert.AreEqual(HQBuilding.CalculateVisualHeight(4), hqBody.localScale.y, 0.001f);
+            Assert.AreEqual(HQBuilding.CalculateVisualDiameter(14), hqBody.localScale.x, 0.001f);
+            Assert.AreEqual(HQBuilding.CalculateVisualHeight(14), hqBody.localScale.y, 0.001f);
             Assert.Greater(hqBody.localScale.x, HQBuilding.CalculateVisualDiameter(1));
             Assert.Greater(hqBody.localScale.y, HQBuilding.CalculateVisualHeight(1));
+            Assert.LessOrEqual(HQBuilding.CalculateVisualDiameter(14) - HQBuilding.CalculateVisualDiameter(1), 0.35f);
+            Assert.LessOrEqual(HQBuilding.CalculateVisualHeight(14) - HQBuilding.CalculateVisualHeight(1), 0.27f);
 
-            // The HQ material should darken each RGB channel as levels advance from white toward black.
+            // The HQ material should darken gradually, staying far from black at level fourteen.
             Material hqMaterial = hqBody.GetComponent<MeshRenderer>()?.sharedMaterial;
             Assert.IsNotNull(hqMaterial);
-            AssertColorApproximately(HQBuilding.CalculateLevelColor(4), GetMaterialColor(hqMaterial));
+            Color hqColor = GetMaterialColor(hqMaterial);
+            AssertColorApproximately(HQBuilding.CalculateLevelColor(14), hqColor);
+            Assert.Greater(hqColor.r, 0.7f);
+            Assert.Less(hqColor.r, 1f);
 
-            // The world-space label should stay readable against the still-light level-four body.
+            // The world-space label should stay readable against the still-light level-fourteen body.
             TextMesh hqLabel = GameObject.Find("HQ Label")?.GetComponent<TextMesh>();
             Assert.IsNotNull(hqLabel);
-            Assert.AreEqual("HQ\nLv 4", hqLabel.text);
+            Assert.AreEqual("HQ\nLv 14", hqLabel.text);
             AssertColorApproximately(Color.black, hqLabel.color);
 
             // Detail rows grow with level, with one generated strip per pentagon side for each row.
             Transform detailRoot = hqBuilding.transform.Find("HQ Detail Root");
             Assert.IsNotNull(detailRoot);
-            Assert.AreEqual(HQBuilding.CalculateDetailRows(4) * 5, CountActiveChildren(detailRoot));
+            Assert.AreEqual(HQBuilding.CalculateDetailRows(14) * 5, CountActiveChildren(detailRoot));
 
-            // The base footprint should also be pentagonal and include named future expansion spaces.
+            // The base floor should also be a simple unoutlined slab rather than a visible pentagon footprint.
             GameObject baseGround = GameObject.Find("Base Ground");
             Assert.IsNotNull(baseGround);
             Mesh baseGroundMesh = baseGround.GetComponent<MeshFilter>()?.sharedMesh;
             Assert.IsNotNull(baseGroundMesh);
-            Assert.AreEqual(5, CountUniquePlanVertices(baseGroundMesh));
-            Assert.IsNotNull(GameObject.Find("Future Wall Space 1"));
-            Assert.IsNotNull(GameObject.Find("Future Moat Space 1"));
+            Assert.AreEqual(4, CountUniquePlanVertices(baseGroundMesh));
+            Assert.IsNull(GameObject.Find("Future Wall Space 1"));
+            Assert.IsNull(GameObject.Find("Future Moat Space 1"));
             Assert.IsNotNull(GameObject.Find("Future Gate Space"));
             Assert.IsNotNull(GameObject.Find("Future Resource Drop-Off Opening"));
             Assert.IsNotNull(GameObject.Find("Future Lab Pad"));
             Assert.IsNotNull(GameObject.Find("Future Hangar Pad"));
-            Assert.IsNotNull(GameObject.Find("Future Training Pad"));
+            GameObject trainingPad = GameObject.Find("Future Training Pad");
+            Assert.IsNotNull(trainingPad);
+
+            // Training should sit diagonally behind the HQ so its pad is not hidden directly under the restored HQ.
+            Vector3 trainingOffsetFromHq = trainingPad.transform.position - hqBuilding.transform.position;
+            Assert.Greater(trainingOffsetFromHq.z, 2.8f);
+            Assert.Greater(Mathf.Abs(trainingOffsetFromHq.x), 1.4f);
+            Assert.Greater(trainingOffsetFromHq.magnitude, 3.3f);
         }
 
         [UnityTest]
@@ -283,7 +328,7 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator BaseScene_MissionPanelButtonsPersistUnlockedSelectionAndRejectLockedRows()
+        public IEnumerator BaseScene_MissionButtonsPersistUnlockedSelectionAndRejectLockedRows()
         {
             // Seed mission two as unlocked so the Base HUD can select it while mission three remains locked.
             SaveGameManager.Save(new SaveGameData
@@ -305,13 +350,13 @@ namespace LaneSurvivor.Tests.PlayMode
             missionTwoButton.onClick.Invoke();
             yield return null;
 
-            // Selecting mission 2 should save immediately and update the visible mission panel.
+            // Selecting mission 2 should save immediately and update the visible mission controls.
             SaveGameData missionTwoData = SaveGameManager.Load();
             Assert.AreEqual(2, missionTwoData.currentMissionLevel);
-            Text missionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
-            Assert.IsNotNull(missionPanelText);
-            StringAssert.Contains("M1 Outskirts [DONE] Replay: +50c", missionPanelText.text);
-            StringAssert.Contains("> M2 Market Run [SELECTED] Win: +50c + M3", missionPanelText.text);
+            Assert.AreEqual(">M2", missionTwoButton.GetComponentInChildren<Text>()?.text);
+            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
+            Assert.IsNotNull(statusText);
+            StringAssert.Contains("Mission 2: Market Run", statusText.text);
 
             // Mission three should be visible but disabled until mission two is completed.
             Button missionThreeButton = GameObject.Find("Mission 3 Button")?.GetComponent<Button>();
@@ -323,8 +368,6 @@ namespace LaneSurvivor.Tests.PlayMode
             // A direct listener invoke should still fail safely through the progression guard and leave selection alone.
             SaveGameData lockedAttemptData = SaveGameManager.Load();
             Assert.AreEqual(2, lockedAttemptData.currentMissionLevel);
-            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
-            Assert.IsNotNull(statusText);
             StringAssert.Contains("Mission 3 locked", statusText.text);
         }
 
@@ -335,9 +378,8 @@ namespace LaneSurvivor.Tests.PlayMode
             yield return null;
 
             // Fresh local progress should show the first HQ level before any actions run.
-            Text hqText = GameObject.Find("HQ Text")?.GetComponent<Text>();
-            Assert.IsNotNull(hqText);
-            Assert.AreEqual("HQ Level: 1", hqText.text);
+            Text creditsDetailText = ExpandCreditsDetailPanel();
+            StringAssert.Contains("HQ Level: 1", creditsDetailText.text);
 
             // The real Collect button listener should grant coins and save after each click.
             Button collectButton = GameObject.Find("Collect Button")?.GetComponent<Button>();
@@ -366,10 +408,8 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, upgradedData.hqUpgradeDurationSeconds);
 
             // The visible HUD should now show a running countdown instead of the ready state.
-            Text timerText = GameObject.Find("Timer Text")?.GetComponent<Text>();
-            Assert.IsNotNull(timerText);
-            StringAssert.StartsWith("Upgrade: ", timerText.text);
-            Assert.AreNotEqual("Upgrade: Ready", timerText.text);
+            StringAssert.Contains("Upgrade: ", creditsDetailText.text);
+            Assert.IsFalse(creditsDetailText.text.Contains("Upgrade: Ready"), creditsDetailText.text);
         }
 
         [UnityTest]
@@ -386,10 +426,6 @@ namespace LaneSurvivor.Tests.PlayMode
 
             SceneManager.LoadScene("Base");
             yield return null;
-
-            Text objectiveText = GameObject.Find("Objective Text")?.GetComponent<Text>();
-            Assert.IsNotNull(objectiveText);
-            StringAssert.Contains("claim", objectiveText.text);
 
             Button claimObjectiveButton = GameObject.Find("Claim Objective Button")?.GetComponent<Button>();
             Assert.IsNotNull(claimObjectiveButton);
@@ -751,10 +787,13 @@ namespace LaneSurvivor.Tests.PlayMode
             // Returning to Base should rebuild the local hub instead of leaving the player in the minigame.
             Assert.AreEqual("Base", SceneManager.GetActiveScene().name);
             Assert.IsNotNull(GameObject.Find("Base HUD Canvas"));
-            Text returnedMissionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
-            Assert.IsNotNull(returnedMissionPanelText);
-            StringAssert.Contains("M1 Outskirts [DONE] Replay: +50c", returnedMissionPanelText.text);
-            StringAssert.Contains("> M2 Market Run [SELECTED] Win: +50c + M3", returnedMissionPanelText.text);
+            Button returnedMissionOneButton = GameObject.Find("Mission 1 Button")?.GetComponent<Button>();
+            Button returnedMissionTwoButton = GameObject.Find("Mission 2 Button")?.GetComponent<Button>();
+            Assert.IsNotNull(returnedMissionOneButton);
+            Assert.IsNotNull(returnedMissionTwoButton);
+            Assert.IsTrue(returnedMissionOneButton.interactable);
+            Assert.IsTrue(returnedMissionTwoButton.interactable);
+            Assert.AreEqual(">M2", returnedMissionTwoButton.GetComponentInChildren<Text>()?.text);
         }
 
         [UnityTest]
@@ -808,9 +847,10 @@ namespace LaneSurvivor.Tests.PlayMode
             yield return null;
 
             Assert.AreEqual("Base", SceneManager.GetActiveScene().name);
-            Text returnedMissionPanelText = GameObject.Find("Mission Panel Text")?.GetComponent<Text>();
-            Assert.IsNotNull(returnedMissionPanelText);
-            StringAssert.Contains("> M8 Final Hold [DONE SELECTED] Replay: +50c", returnedMissionPanelText.text);
+            Button returnedFinalMissionButton = GameObject.Find("Mission 8 Button")?.GetComponent<Button>();
+            Assert.IsNotNull(returnedFinalMissionButton);
+            Assert.IsTrue(returnedFinalMissionButton.interactable);
+            Assert.AreEqual(">M8", returnedFinalMissionButton.GetComponentInChildren<Text>()?.text);
         }
 
         [UnityTest]
@@ -973,7 +1013,7 @@ namespace LaneSurvivor.Tests.PlayMode
                     continue;
                 }
 
-                // A millimeter-style precision avoids float noise while preserving distinct pentagon corners.
+                // A millimeter-style precision avoids float noise while preserving distinct footprint corners.
                 int roundedX = Mathf.RoundToInt(vertex.x * 1000f);
                 int roundedZ = Mathf.RoundToInt(vertex.z * 1000f);
                 uniquePlanPoints.Add($"{roundedX}:{roundedZ}");
@@ -1020,6 +1060,26 @@ namespace LaneSurvivor.Tests.PlayMode
             Vector3[] corners = new Vector3[4];
             rectTransform.GetWorldCorners(corners);
             return corners;
+        }
+
+        private static Text ExpandCreditsDetailPanel()
+        {
+            // The credits details start inactive, so discover the panel from the active canvas hierarchy.
+            RectTransform canvasRect = GameObject.Find("Base HUD Canvas")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(canvasRect);
+            Transform creditsDetailTransform = canvasRect.transform.Find("Credits Detail Panel");
+            Assert.IsNotNull(creditsDetailTransform);
+
+            // Invoke the production button listener so tests cover the same expand path as a player tap.
+            Button creditsButton = GameObject.Find("Credits Button")?.GetComponent<Button>();
+            Assert.IsNotNull(creditsButton);
+            creditsButton.onClick.Invoke();
+
+            // Once expanded, the inactive detail text becomes inspectable through the cached transform.
+            Assert.IsTrue(creditsDetailTransform.gameObject.activeSelf);
+            Text creditsDetailText = creditsDetailTransform.Find("Credits Detail Text")?.GetComponent<Text>();
+            Assert.IsNotNull(creditsDetailText);
+            return creditsDetailText;
         }
 
         private static void AssertColorApproximately(Color expected, Color actual)

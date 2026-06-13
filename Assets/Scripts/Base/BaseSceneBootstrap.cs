@@ -49,7 +49,6 @@ namespace LaneSurvivor.Base
             }
 
             Material groundMaterial = CreateMaterial(new Color(0.18f, 0.25f, 0.24f));
-            Material perimeterMaterial = CreateMaterial(new Color(0.08f, 0.13f, 0.12f));
             Material reservedSpaceMaterial = CreateMaterial(new Color(0.30f, 0.35f, 0.32f));
             Material hqMaterial = CreateMaterial(Color.white);
             Material hqDetailMaterial = CreateMaterial(new Color(0.95f, 0.72f, 0.22f));
@@ -57,7 +56,7 @@ namespace LaneSurvivor.Base
             cameraController = CreateCamera();
             CreateLight();
             CreateEventSystem();
-            CreateGround(groundMaterial, perimeterMaterial, reservedSpaceMaterial);
+            CreateGround(groundMaterial, reservedSpaceMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial, hqDetailMaterial);
             hudController = CreateHud();
             hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ClaimDailyObjective, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes, cameraController.ZoomIn, cameraController.ZoomOut);
@@ -244,16 +243,10 @@ namespace LaneSurvivor.Base
             eventSystemObject.AddComponent<StandaloneInputModule>();
         }
 
-        private static void CreateGround(Material groundMaterial, Material perimeterMaterial, Material reservedSpaceMaterial)
+        private static void CreateGround(Material groundMaterial, Material reservedSpaceMaterial)
         {
-            // The base footprint is now a pentagon so future defenses and openings have a clear perimeter.
-            PrototypeGeometryFactory.CreateRegularPrism("Base Ground", new Vector3(0f, -0.06f, 0f), new Vector3(12f, 0.12f, 12f), 5, groundMaterial);
-
-            // Low perimeter strips reserve wall placement without implementing full base-defense systems yet.
-            CreatePentagonPerimeterSegments("Future Wall Space", 5.45f, 0.04f, 0.13f, 0.18f, perimeterMaterial);
-
-            // A larger second ring marks future moat space while leaving the playable base interior clear.
-            CreatePentagonPerimeterSegments("Future Moat Space", 6.2f, 0.005f, 0.055f, 0.15f, perimeterMaterial);
+            // The base floor is intentionally oversized and rectangular so no footprint border or outline is visible.
+            PrototypeGeometryFactory.CreateCube("Base Ground", new Vector3(0f, -0.06f, 0f), new Vector3(24f, 0.12f, 24f), groundMaterial);
 
             // Reserve a front opening where later rescued humans, trucks, or resources can enter the base.
             CreateReservedPad("Future Gate Space", new Vector3(0f, 0.04f, -4.25f), new Vector3(1.55f, 0.08f, 0.54f), reservedSpaceMaterial);
@@ -264,29 +257,9 @@ namespace LaneSurvivor.Base
             // Future lab, hangar, and training pads keep strategic expansion space visible from the first Base slice.
             CreateReservedPad("Future Lab Pad", new Vector3(-2.35f, 0.04f, 0.75f), new Vector3(1.35f, 0.08f, 1.05f), reservedSpaceMaterial);
             CreateReservedPad("Future Hangar Pad", new Vector3(2.35f, 0.04f, 0.75f), new Vector3(1.45f, 0.08f, 1.12f), reservedSpaceMaterial);
-            CreateReservedPad("Future Training Pad", new Vector3(0f, 0.04f, 3.25f), new Vector3(1.75f, 0.08f, 0.9f), reservedSpaceMaterial);
-        }
 
-        private static void CreatePentagonPerimeterSegments(string namePrefix, float radius, float yPosition, float height, float thickness, Material material)
-        {
-            for (int sideIndex = 0; sideIndex < 5; sideIndex += 1)
-            {
-                // Adjacent pentagon points define one perimeter segment.
-                Vector2 firstPoint = GetPentagonPoint(radius, sideIndex);
-                Vector2 secondPoint = GetPentagonPoint(radius, (sideIndex + 1) % 5);
-                Vector2 edge = secondPoint - firstPoint;
-                Vector2 midpoint = (firstPoint + secondPoint) * 0.5f;
-
-                // Shorten each strip a little so future gate and moat breaks remain readable.
-                GameObject segment = PrototypeGeometryFactory.CreateCube(
-                    $"{namePrefix} {sideIndex + 1}",
-                    new Vector3(midpoint.x, yPosition, midpoint.y),
-                    new Vector3(edge.magnitude * 0.78f, height, thickness),
-                    material);
-
-                // Rotate the cube's local X axis onto the pentagon edge.
-                segment.transform.rotation = Quaternion.Euler(0f, Mathf.Atan2(-edge.y, edge.x) * Mathf.Rad2Deg, 0f);
-            }
+            // Offset training diagonally behind the HQ so the restored HQ no longer hides most of the facility.
+            CreateReservedPad("Future Training Pad", new Vector3(1.55f, 0.04f, 3f), new Vector3(1.75f, 0.08f, 0.9f), reservedSpaceMaterial);
         }
 
         private static void CreateReservedPad(string name, Vector3 position, Vector3 scale, Material material)
@@ -339,19 +312,12 @@ namespace LaneSurvivor.Base
             return "FUTURE";
         }
 
-        private static Vector2 GetPentagonPoint(float radius, int pointIndex)
-        {
-            // Match the regular-prism mesh orientation so perimeter markers track the ground edge directions.
-            float angle = Mathf.PI * 0.5f + pointIndex * Mathf.PI * 2f / 5f;
-            return new Vector2(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius);
-        }
-
         private static HQBuilding CreateHqBuilding(Material hqMaterial, Material hqDetailMaterial)
         {
             // The HQ root owns unscaled labels and detail rows while the body child grows per level.
             GameObject hqObject = new("HQ Building");
 
-            // A five-sided prism makes the HQ read as part of the pentagon base plan.
+            // The HQ keeps its prior five-sided prism structure; only the surrounding base floor lost its outline.
             GameObject hqBodyObject = PrototypeGeometryFactory.CreateRegularPrism("HQ Body", Vector3.zero, Vector3.one, 5, hqMaterial);
             hqBodyObject.transform.SetParent(hqObject.transform, false);
 
@@ -384,18 +350,10 @@ namespace LaneSurvivor.Base
             Font font = GetUiFont();
 
             Text titleText = CreateText(canvas.transform, "Title Text", "Base", font, new Vector2(0f, -18f), TextAnchor.UpperCenter, new Vector2(160f, 36f));
-            Text coinsText = CreateText(canvas.transform, "Coins Text", "Coins: 0", font, new Vector2(16f, -58f), TextAnchor.UpperLeft, new Vector2(240f, 34f));
-            Text hqText = CreateText(canvas.transform, "HQ Text", "HQ Level: 1", font, new Vector2(16f, -90f), TextAnchor.UpperLeft, new Vector2(240f, 34f));
-            Text timerText = CreateText(canvas.transform, "Timer Text", "Upgrade: Ready", font, new Vector2(16f, -122f), TextAnchor.UpperLeft, new Vector2(280f, 34f));
-            Text heroText = CreateText(canvas.transform, "Hero Text", "Hero: None", font, new Vector2(16f, -154f), TextAnchor.UpperLeft, new Vector2(340f, 34f));
-            Text missionPanelTitleText = CreateText(canvas.transform, "Mission Panel Title Text", "Missions", font, new Vector2(16f, -190f), TextAnchor.UpperLeft, new Vector2(184f, 28f));
-            Text missionPanelText = CreateText(canvas.transform, "Mission Panel Text", "M1 Outskirts", font, new Vector2(16f, -224f), TextAnchor.UpperLeft, new Vector2(358f, 150f));
-            Text objectiveText = CreateText(canvas.transform, "Objective Text", "Daily: 0/2 wins", font, new Vector2(16f, -384f), TextAnchor.UpperLeft, new Vector2(268f, 34f));
-            // Eight mission rows need compact type so the panel still fits the phone-sized reference HUD.
-            missionPanelTitleText.fontSize = 22;
-            missionPanelText.fontSize = 12;
-            missionPanelText.lineSpacing = 0.86f;
-            objectiveText.fontSize = 15;
+            Button creditsButton = CreateButton(canvas.transform, "Credits Button", "Credits: 0", font, new Vector2(108f, -82f), new Vector2(0f, 1f), new Vector2(184f, 42f));
+            Text creditsButtonText = creditsButton.GetComponentInChildren<Text>();
+            GameObject creditsDetailPanel = CreateCreditsDetailPanel(canvas.transform, font, out Text creditsDetailText);
+            ConfigureCreditsButtonLabel(creditsButton);
             Text heroPanelTitleText = CreateText(canvas.transform, "Hero Panel Title Text", "Owned Heroes", font, new Vector2(0f, 260f), TextAnchor.LowerCenter, new Vector2(360f, 30f));
             Text heroPanelText = CreateText(canvas.transform, "Hero Panel Text", "None earned yet", font, new Vector2(0f, 214f), TextAnchor.LowerCenter, new Vector2(360f, 58f));
             Text statusText = CreateText(canvas.transform, "Status Text", "Next HQ upgrade", font, new Vector2(0f, 92f), TextAnchor.LowerCenter, new Vector2(360f, 34f));
@@ -414,8 +372,37 @@ namespace LaneSurvivor.Base
             ConfigureZoomButtonLabel(zoomOutButton);
 
             BaseHudController hud = canvas.gameObject.AddComponent<BaseHudController>();
-            hud.Configure(titleText, coinsText, hqText, timerText, heroText, missionPanelTitleText, missionPanelText, objectiveText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, claimObjectiveButton, missionButtons, resetButton, equipHeroButton, heroesButton, zoomInButton, zoomOutButton);
+            hud.Configure(titleText, creditsButton, creditsButtonText, creditsDetailPanel, creditsDetailText, heroPanelTitleText, heroPanelText, statusText, playHintText, collectButton, upgradeButton, playButton, claimObjectiveButton, missionButtons, resetButton, equipHeroButton, heroesButton, zoomInButton, zoomOutButton);
             return hud;
+        }
+
+        private static GameObject CreateCreditsDetailPanel(Transform parent, Font font, out Text detailText)
+        {
+            // The detail panel replaces the former left-side white text stack with one compact expanded surface.
+            GameObject panelObject = new("Credits Detail Panel");
+            panelObject.transform.SetParent(parent, false);
+
+            // Match the existing gold controls while adding enough opacity for black text to stay readable.
+            Image panelImage = panelObject.AddComponent<Image>();
+            panelImage.color = new Color(0.96f, 0.82f, 0.28f, 0.94f);
+
+            // Upper-left anchoring keeps the panel visually attached to the Credits button on mobile layouts.
+            RectTransform panelRect = panelObject.GetComponent<RectTransform>();
+            panelRect.anchorMin = new Vector2(0f, 1f);
+            panelRect.anchorMax = new Vector2(0f, 1f);
+            panelRect.pivot = new Vector2(0f, 1f);
+            panelRect.anchoredPosition = new Vector2(16f, -116f);
+            panelRect.sizeDelta = new Vector2(238f, 94f);
+
+            // The three requested values are grouped into a short black-text summary instead of separate HUD labels.
+            detailText = CreateText(panelObject.transform, "Credits Detail Text", "Coins: 0\nHQ Level: 1\nUpgrade: Ready", font, new Vector2(12f, -10f), TextAnchor.UpperLeft, new Vector2(214f, 72f));
+            detailText.color = Color.black;
+            detailText.fontSize = 18;
+            detailText.lineSpacing = 1f;
+
+            // Start collapsed so the Base view opens without the old left-side text wall.
+            panelObject.SetActive(false);
+            return panelObject;
         }
 
         private static Button[] CreateMissionButtons(Transform parent, Font font)
@@ -427,7 +414,7 @@ namespace LaneSurvivor.Base
                 // Buttons are anchored to the top-right so the row grows inward and stays visible on narrow screens.
                 int missionLevel = index + 1;
                 float xOffset = -326f + index * 42f;
-                Button missionButton = CreateButton(parent, $"Mission {missionLevel} Button", $"M{missionLevel}", font, new Vector2(xOffset, -196f), new Vector2(1f, 1f), new Vector2(38f, 32f));
+                Button missionButton = CreateButton(parent, $"Mission {missionLevel} Button", $"M{missionLevel}", font, new Vector2(xOffset, -232f), new Vector2(1f, 1f), new Vector2(38f, 32f));
                 ConfigureCompactButtonLabel(missionButton);
                 buttons[index] = missionButton;
             }
@@ -523,6 +510,22 @@ namespace LaneSurvivor.Base
             }
 
             // Best-fit keeps the compact mission row stable while still naming the selected mission.
+            label.fontSize = 18;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 12;
+            label.resizeTextMaxSize = 18;
+        }
+
+        private static void ConfigureCreditsButtonLabel(Button button)
+        {
+            // Credit totals can grow during testing, so let the button text shrink before it can clip.
+            Text label = button.GetComponentInChildren<Text>();
+            if (label == null)
+            {
+                return;
+            }
+
+            // Keep the credits control readable while preserving its compact top-left footprint.
             label.fontSize = 18;
             label.resizeTextForBestFit = true;
             label.resizeTextMinSize = 12;

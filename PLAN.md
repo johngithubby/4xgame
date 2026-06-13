@@ -84,7 +84,7 @@ The first tiny Phase 2 slice is implemented:
 - HQ upgrade spends coins and starts a local persisted timer.
 - Ready upgrades complete from scene load or while the base scene is open.
 - HQ level grants a starting squad bonus in the minigame.
-- Base shows an eight-row mission panel and allows direct button selection among unlocked missions.
+- Base shows direct mission buttons and keeps coins, HQ level, and upgrade status inside an expandable Credits control.
 - Base scene can launch Minigame.
 - Base scene can launch the dedicated Heroes screen.
 - Minigame win/loss screen can return to Base.
@@ -94,7 +94,7 @@ The first tiny Phase 2 slice is implemented:
 - Editor and development builds expose a local save reset button for prototype iteration.
 - Base HUD spacing has been tightened around a phone-sized reference layout.
 - Save, wallet, timer, and progression rules have EditMode coverage.
-- Base collection/upgrade, mission panel selection, locked mission rejection, completed-upgrade feedback, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
+- Base collection/upgrade, Credits expansion, mission button selection, locked mission rejection, completed-upgrade feedback, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
 
 ### Smallest Useful Slice
 
@@ -170,7 +170,7 @@ SaveGameData
 
 - Add EditMode tests for resource spending, insufficient funds, timer completion, mission selection/unlocks, minigame win rewards, save reset, and save/load persistence. Done.
 - Run Unity EditMode tests with the documented temp-copy batch workflow. Done.
-- Run Unity PlayMode smoke tests for Base collect/upgrade persistence, mission panel selection, locked mission rejection, completed-upgrade feedback, Base -> Minigame scene loading, minigame win rewards/unlocks/completion, mission cap behavior, and Minigame end-screen -> Base return. Done.
+- Run Unity PlayMode smoke tests for Base collect/upgrade persistence, Credits expansion, mission button selection, locked mission rejection, completed-upgrade feedback, Base -> Minigame scene loading, minigame win rewards/unlocks/completion, mission cap behavior, and Minigame end-screen -> Base return. Done.
 - Manual Play Mode pass remains useful for visual polish, but the key Base and Minigame UI paths now have automated smoke coverage.
 
 ## Phase 3: Heroes
@@ -250,9 +250,9 @@ The mission select v2 slice is implemented:
 - Save data tracks completed mission levels separately from the highest unlocked mission.
 - The legacy `unlockedMinigameLevel` field is retained as a compatibility mirror.
 - Older sequential mission progress backfills completed predecessor missions after load.
-- Base HUD shows an eight-row mission panel with selected, done, ready, and locked states.
+- Base HUD shows direct mission buttons with selected and locked states.
 - Base HUD direct mission buttons select among unlocked missions and persist immediately.
-- Base mission rows show per-mission reward or unlock hints.
+- Base reward and unlock hints remain visible through play/reward/status feedback.
 - Minigame launches the selected mission from local save data.
 - Eight local mission layouts exist with distinct gate/zombie pacing.
 - Clearing the highest unlocked mission unlocks the next mission up to mission 8 and auto-selects it for the Base return.
@@ -262,7 +262,7 @@ The mission select v2 slice is implemented:
 ### Validation
 
 - EditMode tests cover mission defaults, legacy migration, completed mission repair, status/reward labels, locked selection rejection, unlocked selection persistence, frontier mission unlocks, replay behavior, mission cap behavior, save persistence, and level definition selection for missions 3, 4, and 8 as part of the full `70/70` EditMode Unity run.
-- PlayMode smoke tests cover Base mission panel display, direct mission selection, locked mission rejection, Minigame win mission unlocks, completed mission persistence, mission 8 cap completion, save persistence, world-space combat feedback spawning, and Base return showing the newly selected/completed mission as part of the full `16/16` PlayMode Unity run.
+- PlayMode smoke tests cover Base Credits expansion, direct mission selection, locked mission rejection, Minigame win mission unlocks, completed mission persistence, mission 8 cap completion, save persistence, world-space combat feedback spawning, and Base return showing the newly selected/completed mission button as part of the PlayMode Unity run.
 - iOS smoke export succeeds and produces an Xcode project without adding backend or networking dependencies.
 - iOS Simulator SDK export builds, installs, and launches on a booted iPhone 17 simulator through XcodeBuildMCP; world-space shot tracers, damage labels, and miss labels were captured in simulator video proof.
 
@@ -312,7 +312,7 @@ The first Local V3 slice is implemented:
 
 - Local daily objective state is persisted in the save file.
 - Minigame wins advance a two-win UTC-day objective.
-- Base HUD shows daily objective progress.
+- Base HUD exposes a local claim button for completed daily objective rewards.
 - Base HUD includes a local `CLAIM` button for completed daily objective rewards.
 - Daily objective claims grant local coins once for the current UTC day.
 - Mission progression now supports eight authored local missions.
@@ -437,35 +437,40 @@ Make the Base scene feel like a place the player can inspect and improve before 
 
 Implemented in this slice:
 
-- HQ upgrades increase the generated pentagon HQ body size. Done.
-- HQ upgrades darken the HQ body from white toward black by reducing RGB channels with each level. Done.
-- HQ upgrades add more generated side-detail rows so higher levels look more visually defined. Done.
+- HQ upgrades increase the generated pentagon HQ body size by small per-upgrade steps. Done.
+- HQ upgrades slowly darken the HQ body from white toward black by reducing RGB channels with each level. Done.
+- HQ upgrades add generated side-detail rows so higher levels regain the previous HQ definition. Done.
 - The HQ label switches between black and white text so the level remains readable against the current HQ color. Done.
 - The Base scene supports zooming in and out through on-screen buttons, mouse wheel, keyboard shortcuts, and two-finger pinch math. Done.
 - The map that includes the Base supports bounded dragging through mouse and one-finger touch input while ignoring HUD-origin gestures. Done.
-- The Base and HQ footprints are both generated pentagons. Done.
-- The Base layout includes visible reserved space for future gates, walls, moats, resource drop-off, labs, hangars, and training areas. Done.
+- The HQ body keeps its pentagon structure, while the Base floor has no visible border or outline. Done.
+- The Base layout includes visible reserved space for future gates, resource drop-off, labs, hangars, and training areas without drawing wall/moat rings. Done.
+- The former left-side white status text stack has been replaced with an expandable Credits button that reveals coins, HQ level, and upgrade status on tap. Done.
 
 ### Implemented Features
 
-- HQ upgrades increase the HQ size.
-- HQ upgrades visibly change the HQ color. From white to black. For each upgrade increment the rgb colour.
-- HQ upgrades visibly get more visually defined - more fine detailed.
+- HQ upgrades increase the HQ size subtly.
+- HQ upgrades visibly change the HQ color slowly from white toward black by incrementing the darkening amount.
+- HQ upgrades visibly regain the previous detail-row definition.
 - The Base scene supports zooming in and out.
 - The map that includes the base is draggable.
-- The base and the HQ within, are both pentagon shaped.
-- The base layout leaves clear future space for gates, walls, moats, resource drop-off openings, labs, hangars, and training areas.
+- The HQ remains pentagon shaped, but the base floor is unoutlined.
+- The base layout leaves clear future space for gates, resource drop-off openings, labs, hangars, and training areas without visible perimeter borders.
+- The Base HUD uses a Credits button instead of always-visible left-side status text.
 
 ### Acceptance Criteria
 
-- HQ level changes are readable without opening a menu. Done.
+- HQ level changes are readable without opening a menu, while level 14 remains compact and far from black. Done.
 - Base zoom works on mobile-friendly input and does not hide core HUD controls. Done.
 - The map that includes the base is draggable. Done.
+- The base floor has no visible pentagon border or outline. Done.
+- The Credits button expands to show coins, HQ level, and upgrade status. Done.
 - Existing HQ upgrade, mission launch, hero, and daily objective flows keep working. Done.
 
 ### Validation
 
-- PlayMode coverage checks pentagon Base/HQ geometry, HQ level-driven size/color/detail readability, reserved future-space objects, camera zoom controls, and map dragging that leave overlay HUD controls fixed. Done.
+- PlayMode coverage checks the unoutlined Base floor, restored pentagon HQ geometry, compact level-14 HQ size/color/detail readability, reserved future-space objects, camera zoom controls, and map dragging that leave overlay HUD controls fixed. Done.
+- PlayMode coverage checks the Credits button expansion and verifies the old left-side Base status labels are not generated. Done.
 - Existing PlayMode coverage still checks HQ upgrade persistence, completed-upgrade feedback, mission launch, Hero navigation, and daily objective claiming. Done.
 - Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `20/20`, and clean `git diff --check`.
 
