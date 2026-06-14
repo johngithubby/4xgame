@@ -2,7 +2,7 @@
 
 ## Files
 
-- `SaveGameData.cs`: Stores local prototype progress such as coins, HQ level, active HQ upgrade timer, bio-lab level, active bio-lab upgrade timer, hangar level, active hangar upgrade timer, training facility level, active training upgrade timer, selected mission, highest unlocked mission, completed mission levels, legacy unlocked minigame level, owned heroes, equipped hero, per-hero level/XP, and local daily objective state; it also normalizes corrupted timer, mission, hero, and daily objective data after load.
+- `SaveGameData.cs`: Stores local prototype progress such as coins, HQ level, active HQ upgrade timer, bio-lab level, active bio-lab upgrade timer, hangar level, active hangar upgrade timer, training facility level, active training upgrade timer, living-quarters level, active living-quarters upgrade timer, selected mission, highest unlocked mission, completed mission levels, legacy unlocked minigame level, owned heroes, equipped hero, per-hero level/XP, and local daily objective state; it also normalizes corrupted timer, mission, hero, and daily objective data after load.
 - `SaveGameManager.cs`: Loads, saves, and resets `SaveGameData` as local JSON in Unity's persistent data path, with a test-only custom path override.
 
 ## Compile
@@ -11,4 +11,4 @@ Unity compiles these files as part of the `LaneSurvivor.Runtime` assembly.
 
 ## Behavior
 
-The save system is intentionally local-only. It repairs malformed or impossible local data to keep prototype scene startup resilient, including HQ, bio-lab, hangar, and training timer repair, migrates the older `unlockedMinigameLevel` field into the current mission fields, backfills completed predecessor missions from sequential unlock progress, tracks the current UTC-day objective locally, and includes a development reset helper, but it does not use accounts, cloud save, networking, or server validation in early phases.
+The save system is intentionally local-only. It repairs malformed or impossible local data to keep prototype scene startup resilient, including HQ, bio-lab, hangar, training, and living-quarters timer repair, migrates the older `unlockedMinigameLevel` field into the current mission fields, backfills completed predecessor missions from sequential unlock progress, tracks the current UTC-day objective locally, and includes a development reset helper, but it does not use accounts, cloud save, networking, or server validation in early phases.

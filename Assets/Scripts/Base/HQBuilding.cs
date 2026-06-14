@@ -93,6 +93,9 @@ namespace LaneSurvivor.Base
         [SerializeField]
         private Renderer[] glowRenderers = Array.Empty<Renderer>();
 
+        [SerializeField]
+        private Component audioSource;
+
         private Func<bool> requestUpgradeAction;
 
         private int appliedVisualLevel = -1;
@@ -123,9 +126,15 @@ namespace LaneSurvivor.Base
 
         public int CompletionEffectPlayCount { get; private set; }
 
+        public int CompletionSoundRequestCount { get; private set; }
+
         public float CompletionGlowPulseScale { get; private set; } = 1f;
 
         public float CompletionGlowAlpha { get; private set; } = 0.40f;
+
+        public bool HasCompletionSoundSource => audioSource != null;
+
+        public bool HasGeneratedCompletionSoundClip => UpgradeCompletionSound.HasGeneratedCompletionSoundClip;
 
         public bool IsCompletionGlowVisible => glowRoot != null && glowRoot.gameObject.activeSelf;
 
@@ -185,6 +194,7 @@ namespace LaneSurvivor.Base
             Transform progressContainer = null,
             MeshFilter progressFill = null,
             Transform glowContainer = null,
+            Component soundSource = null,
             Func<bool> startUpgradeAction = null)
         {
             // Keep every generated reference optional so older tests can still instantiate a label-only HQ.
@@ -204,6 +214,7 @@ namespace LaneSurvivor.Base
             glowRenderers = glowRoot != null ? glowRoot.GetComponentsInChildren<Renderer>(true) : Array.Empty<Renderer>();
             glowBaseColor = glowRenderers.Length > 0 && glowRenderers[0] != null ? GetMaterialColor(glowRenderers[0].sharedMaterial) : glowBaseColor;
             CompletionGlowAlpha = glowBaseColor.a;
+            audioSource = soundSource;
             requestUpgradeAction = startUpgradeAction;
 
             // The upgrade symbol should appear only after the player taps the HQ body.
@@ -270,6 +281,18 @@ namespace LaneSurvivor.Base
             // Show the glow immediately so the completion frame is readable.
             glowRoot?.gameObject.SetActive(true);
             UpdateCompletionGlowPulse();
+
+            // Play the same generated local chime as every other building upgrade completion.
+            PlayFinishSound();
+        }
+
+        private void PlayFinishSound()
+        {
+            // Record every finish-sound request even when an audio module is unavailable in a test runner.
+            CompletionSoundRequestCount += 1;
+
+            // The shared helper handles optional AudioModule reflection and playback.
+            UpgradeCompletionSound.Play(audioSource);
         }
 
         public void ShowUpgradeSymbol()

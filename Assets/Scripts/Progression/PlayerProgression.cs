@@ -11,8 +11,6 @@ namespace LaneSurvivor.Progression
 
         public const int MinigameWinCoins = 50;
 
-        public const int HqUpgradeDurationSeconds = 20;
-
         public const int MaxMissionLevel = 8;
 
         private const int BioLabLevelOneDurationSeconds = 1;
@@ -43,6 +41,12 @@ namespace LaneSurvivor.Progression
             return 50 + Mathf.Max(1, bioLabLevel) * 25;
         }
 
+        public static int GetHqUpgradeDurationSeconds(int hqLevel)
+        {
+            // HQ timers now use the same level-based curve as the other upgradeable Base buildings.
+            return GetBioLabUpgradeDurationSeconds(hqLevel);
+        }
+
         public static int GetHangarUpgradeCost(int hangarLevel)
         {
             // Hangar upgrades follow the bio-lab credit scale so all popup-arrow buildings use the same local rule.
@@ -53,6 +57,12 @@ namespace LaneSurvivor.Progression
         {
             // Training upgrades follow the bio-lab credit scale so all popup-arrow buildings use the same local rule.
             return GetBioLabUpgradeCost(trainingFacilityLevel);
+        }
+
+        public static int GetLivingQuartersUpgradeCost(int livingQuartersLevel)
+        {
+            // Living-quarters upgrades follow the same local credit scale as every same-rule Base building.
+            return GetBioLabUpgradeCost(livingQuartersLevel);
         }
 
         public static int GetBioLabUpgradeDurationSeconds(int bioLabLevel)
@@ -103,6 +113,12 @@ namespace LaneSurvivor.Progression
             return GetBioLabUpgradeDurationSeconds(trainingFacilityLevel);
         }
 
+        public static int GetLivingQuartersUpgradeDurationSeconds(int livingQuartersLevel)
+        {
+            // Living-quarters timers reuse the bio-lab ramp so same-rule building upgrades feel consistent.
+            return GetBioLabUpgradeDurationSeconds(livingQuartersLevel);
+        }
+
         public static int TryClaimMinigameWinReward(SaveGameData data, ref bool rewardClaimed)
         {
             // A null save cannot receive rewards, and each minigame run should pay out at most once.
@@ -134,8 +150,8 @@ namespace LaneSurvivor.Progression
                 return false;
             }
 
-            // Persist the start time so closing the game does not pause progress.
-            UpgradeTimer.Start(data, utcNow, HqUpgradeDurationSeconds);
+            // Persist the level-derived duration so HQ upgrades follow the same curve as other buildings.
+            UpgradeTimer.Start(data, utcNow, GetHqUpgradeDurationSeconds(data.hqLevel));
             return true;
         }
 
@@ -205,6 +221,28 @@ namespace LaneSurvivor.Progression
             return true;
         }
 
+        public static bool TryStartLivingQuartersUpgrade(SaveGameData data, DateTime utcNow)
+        {
+            // Only one local living-quarters timer can run at a time, matching the other facility rule.
+            if (data == null || data.livingQuartersUpgradeInProgress)
+            {
+                return false;
+            }
+
+            // Charge the current living-quarters level's credit cost before starting the timer.
+            int cost = GetLivingQuartersUpgradeCost(data.livingQuartersLevel);
+            if (!ResourceWallet.TrySpendCoins(data, cost))
+            {
+                return false;
+            }
+
+            // Persist the start time and level-derived duration so app restarts do not pause progress.
+            data.livingQuartersUpgradeInProgress = true;
+            data.livingQuartersUpgradeStartedUtcTicks = utcNow.ToUniversalTime().Ticks;
+            data.livingQuartersUpgradeDurationSeconds = GetLivingQuartersUpgradeDurationSeconds(data.livingQuartersLevel);
+            return true;
+        }
+
         public static bool CompleteReadyHqUpgrade(SaveGameData data, DateTime utcNow)
         {
             // Completion is idempotent so callers can check from scene load and Update.
@@ -258,6 +296,20 @@ namespace LaneSurvivor.Progression
             // Level up once and clear the training timer after the circular progress reaches completion.
             data.trainingFacilityLevel += 1;
             data.ClearTrainingFacilityUpgrade();
+            return true;
+        }
+
+        public static bool CompleteReadyLivingQuartersUpgrade(SaveGameData data, DateTime utcNow)
+        {
+            // Completion is idempotent so callers can check from scene load and Update.
+            if (data == null || !IsLivingQuartersUpgradeComplete(data, utcNow))
+            {
+                return false;
+            }
+
+            // Level up once and clear the living-quarters timer after the circular progress reaches completion.
+            data.livingQuartersLevel += 1;
+            data.ClearLivingQuartersUpgrade();
             return true;
         }
 
@@ -533,6 +585,26 @@ namespace LaneSurvivor.Progression
             return Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
         }
 
+        public static int GetLivingQuartersUpgradeRemainingSeconds(SaveGameData data, DateTime utcNow)
+        {
+            // No active living-quarters timer should display remaining time.
+            if (data == null || !data.livingQuartersUpgradeInProgress)
+            {
+                return 0;
+            }
+
+            // Corrupted timer data cannot display a meaningful countdown, so repair and show zero.
+            if (!TryGetUpgradeCompletionUtc(data.livingQuartersUpgradeStartedUtcTicks, data.livingQuartersUpgradeDurationSeconds, out DateTime completesUtc))
+            {
+                data.ClearLivingQuartersUpgrade();
+                return 0;
+            }
+
+            // Compare the valid completion timestamp with the current UTC time.
+            TimeSpan remaining = completesUtc - utcNow.ToUniversalTime();
+            return Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
+        }
+
         public static float GetBioLabUpgradeProgress01(SaveGameData data, DateTime utcNow)
         {
             // Inactive or invalid timers have no visible circular progress fill.
@@ -602,6 +674,29 @@ namespace LaneSurvivor.Progression
             return Mathf.Clamp01((float)(elapsedSeconds / data.trainingFacilityUpgradeDurationSeconds));
         }
 
+        public static float GetLivingQuartersUpgradeProgress01(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive or invalid timers have no visible circular progress fill.
+            if (data == null || !data.livingQuartersUpgradeInProgress || data.livingQuartersUpgradeDurationSeconds <= 0)
+            {
+                return 0f;
+            }
+
+            // Corrupted timer data cannot produce a meaningful fill, so repair and show empty progress.
+            if (!TryGetUpgradeCompletionUtc(data.livingQuartersUpgradeStartedUtcTicks, data.livingQuartersUpgradeDurationSeconds, out _))
+            {
+                data.ClearLivingQuartersUpgrade();
+                return 0f;
+            }
+
+            // Reconstructing after validation keeps the precise elapsed fill safe from out-of-range ticks.
+            DateTime startedUtc = new(data.livingQuartersUpgradeStartedUtcTicks, DateTimeKind.Utc);
+
+            // Use fractional seconds so the progress icon fills smoothly during short early upgrades.
+            double elapsedSeconds = (utcNow.ToUniversalTime() - startedUtc).TotalSeconds;
+            return Mathf.Clamp01((float)(elapsedSeconds / data.livingQuartersUpgradeDurationSeconds));
+        }
+
         private static bool TryMarkMissionCompleted(SaveGameData data, int missionLevel)
         {
             // Normalize guarantees the list exists before adding the newly completed mission.
@@ -667,6 +762,25 @@ namespace LaneSurvivor.Progression
             if (!TryGetUpgradeCompletionUtc(data.trainingFacilityUpgradeStartedUtcTicks, data.trainingFacilityUpgradeDurationSeconds, out DateTime completesUtc))
             {
                 data.ClearTrainingFacilityUpgrade();
+                return false;
+            }
+
+            // A completion timestamp at or before now means the upgrade has finished.
+            return completesUtc <= utcNow.ToUniversalTime();
+        }
+
+        private static bool IsLivingQuartersUpgradeComplete(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive living-quarters timers cannot be complete.
+            if (data == null || !data.livingQuartersUpgradeInProgress)
+            {
+                return false;
+            }
+
+            // Corrupted timer data should be repaired instead of treated as a completed upgrade.
+            if (!TryGetUpgradeCompletionUtc(data.livingQuartersUpgradeStartedUtcTicks, data.livingQuartersUpgradeDurationSeconds, out DateTime completesUtc))
+            {
+                data.ClearLivingQuartersUpgrade();
                 return false;
             }
 

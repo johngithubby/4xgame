@@ -12,6 +12,7 @@ using LaneSurvivor.Retention;
 using LaneSurvivor.Save;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
@@ -153,10 +154,12 @@ namespace LaneSurvivor.Tests.PlayMode
             StringAssert.Contains("Bio Lab: 1", creditsDetailText.text);
             StringAssert.Contains("Hangar: 1", creditsDetailText.text);
             StringAssert.Contains("Training: 1", creditsDetailText.text);
-            StringAssert.Contains("HQ Upgrade: Ready", creditsDetailText.text);
+            StringAssert.Contains("Living Qtrs: 1", creditsDetailText.text);
+            StringAssert.Contains("HQ Upgrade: Need 75c", creditsDetailText.text);
             StringAssert.Contains("Bio Upgrade: Ready", creditsDetailText.text);
             StringAssert.Contains("Hangar Upgrade: Ready", creditsDetailText.text);
             StringAssert.Contains("Training Upgrade: Ready", creditsDetailText.text);
+            StringAssert.Contains("LQ Upgrade: Ready", creditsDetailText.text);
             AssertColorApproximately(Color.black, creditsDetailText.color);
 
             // Tapping again should collapse the details without requiring a save or scene refresh.
@@ -255,8 +258,14 @@ namespace LaneSurvivor.Tests.PlayMode
             Renderer trainingPadRenderer = trainingPad.GetComponent<Renderer>();
             Assert.IsNotNull(trainingPadRenderer);
             Assert.IsFalse(trainingPadRenderer.enabled);
+            GameObject livingQuartersPad = GameObject.Find("Future Living Quarters Pad");
+            Assert.IsNotNull(livingQuartersPad);
+            Renderer livingQuartersPadRenderer = livingQuartersPad.GetComponent<Renderer>();
+            Assert.IsNotNull(livingQuartersPadRenderer);
+            Assert.IsFalse(livingQuartersPadRenderer.enabled);
             Assert.IsNull(GameObject.Find("Future Hangar Pad Label"));
             Assert.IsNull(GameObject.Find("Future Training Pad Label"));
+            Assert.IsNull(GameObject.Find("Future Living Quarters Pad Label"));
 
             // The lab and hangar should no longer crowd the HQ; their logical pads should follow the same slots.
             BioLabBuilding bioLab = GameObject.Find("Bio Lab")?.GetComponent<BioLabBuilding>();
@@ -277,6 +286,18 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.Greater(trainingOffsetFromHq.z, 2.8f);
             Assert.Greater(Mathf.Abs(trainingOffsetFromHq.x), 1.4f);
             Assert.Greater(trainingOffsetFromHq.magnitude, 3.3f);
+
+            // Living quarters should sit in a rear-left residential slot with comfortable spacing from every existing building.
+            UpgradeableFacilityBuilding livingQuarters = GameObject.Find("Living Quarters")?.GetComponent<UpgradeableFacilityBuilding>();
+            Assert.IsNotNull(livingQuarters);
+            Assert.Less(livingQuarters.transform.position.x, -2f);
+            Assert.Greater(livingQuarters.transform.position.z, 4f);
+            Assert.Greater(Vector3.Distance(livingQuarters.transform.position, hqBuilding.transform.position), 4.8f);
+            Assert.Greater(Vector3.Distance(livingQuarters.transform.position, bioLab.transform.position), 3.5f);
+            Assert.Greater(Vector3.Distance(livingQuarters.transform.position, hangar.transform.position), 5.0f);
+            Assert.Greater(Vector3.Distance(livingQuarters.transform.position, trainingFacility.transform.position), 3.5f);
+            Assert.AreEqual(livingQuarters.transform.position.x, livingQuartersPad.transform.position.x, 0.001f);
+            Assert.AreEqual(livingQuarters.transform.position.z, livingQuartersPad.transform.position.z, 0.001f);
         }
 
         [UnityTest]
@@ -339,7 +360,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(0, startedData.coins);
             Assert.IsTrue(startedData.hqUpgradeInProgress);
             Assert.AreEqual(1, startedData.hqLevel);
-            Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, startedData.hqUpgradeDurationSeconds);
+            Assert.AreEqual(PlayerProgression.GetHqUpgradeDurationSeconds(1), startedData.hqUpgradeDurationSeconds);
             Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
             Assert.IsTrue(hqBuilding.IsProgressVisible);
 
@@ -353,12 +374,14 @@ namespace LaneSurvivor.Tests.PlayMode
         public IEnumerator BaseScene_HqRunningUpgradeShowsCircularProgressIcon()
         {
             // Seed a valid in-progress HQ timer so the scene should render the same circular progress treatment as the lab.
+            int hqLevelWithStableTimer = 4;
+            int hqDurationSeconds = PlayerProgression.GetHqUpgradeDurationSeconds(hqLevelWithStableTimer);
             SaveGameManager.Save(new SaveGameData
             {
-                hqLevel = 1,
+                hqLevel = hqLevelWithStableTimer,
                 hqUpgradeInProgress = true,
-                hqUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-PlayerProgression.HqUpgradeDurationSeconds * 0.5f).Ticks,
-                hqUpgradeDurationSeconds = PlayerProgression.HqUpgradeDurationSeconds
+                hqUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-hqDurationSeconds * 0.5f).Ticks,
+                hqUpgradeDurationSeconds = hqDurationSeconds
             });
 
             // Reload Base so bootstrap applies the saved timer to the generated HQ.
@@ -394,11 +417,13 @@ namespace LaneSurvivor.Tests.PlayMode
             BioLabBuilding bioLab = GameObject.Find("Bio Lab")?.GetComponent<BioLabBuilding>();
             UpgradeableFacilityBuilding hangar = GameObject.Find("Hangar")?.GetComponent<UpgradeableFacilityBuilding>();
             UpgradeableFacilityBuilding trainingFacility = GameObject.Find("Training Facility")?.GetComponent<UpgradeableFacilityBuilding>();
+            UpgradeableFacilityBuilding livingQuarters = GameObject.Find("Living Quarters")?.GetComponent<UpgradeableFacilityBuilding>();
             Camera baseCamera = Camera.main;
             Assert.IsNotNull(hqBuilding);
             Assert.IsNotNull(bioLab);
             Assert.IsNotNull(hangar);
             Assert.IsNotNull(trainingFacility);
+            Assert.IsNotNull(livingQuarters);
             Assert.IsNotNull(baseCamera);
 
             // Tapping the HQ reveals the HQ arrow.
@@ -410,6 +435,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
             Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
             Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsFalse(livingQuarters.IsUpgradeSymbolVisible);
 
             // Tapping the lab is a different building click, so the HQ arrow closes and the lab arrow opens.
             Vector3 labWorldPoint = bioLab.transform.position + new Vector3(0f, BioLabBuilding.CalculateVisualHeight(bioLab.Level) * 0.55f, 0f);
@@ -422,6 +448,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsTrue(bioLab.IsUpgradeSymbolVisible);
             Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
             Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsFalse(livingQuarters.IsUpgradeSymbolVisible);
 
             // Tapping the hangar should close the lab arrow and open only the hangar arrow.
             Renderer hangarReferenceRenderer = hangar.transform.Find("Hangar Visual Root/Hangar Reference Model")?.GetComponent<Renderer>();
@@ -435,6 +462,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
             Assert.IsTrue(hangar.IsUpgradeSymbolVisible);
             Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsFalse(livingQuarters.IsUpgradeSymbolVisible);
 
             // Tapping the training facility should close the hangar arrow and open only the training arrow.
             Renderer trainingReferenceRenderer = trainingFacility.transform.Find("Training Facility Visual Root/Training Facility Reference Model")?.GetComponent<Renderer>();
@@ -444,10 +472,27 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(bioLab.TryHandleWorldClick(new Vector2(trainingScreenPoint.x, trainingScreenPoint.y)));
             Assert.IsFalse(hangar.TryHandleBuildingClick(new Vector2(trainingScreenPoint.x, trainingScreenPoint.y)));
             Assert.IsTrue(trainingFacility.TryHandleBuildingClick(new Vector2(trainingScreenPoint.x, trainingScreenPoint.y)));
+            Assert.IsFalse(livingQuarters.TryHandleBuildingClick(new Vector2(trainingScreenPoint.x, trainingScreenPoint.y)));
             Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
             Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
             Assert.IsTrue(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsFalse(livingQuarters.IsUpgradeSymbolVisible);
+
+            // Tapping living quarters should close the training arrow and open only the living-quarters arrow.
+            Renderer livingQuartersReferenceRenderer = livingQuarters.transform.Find("Living Quarters Visual Root/Living Quarters Reference Model")?.GetComponent<Renderer>();
+            Assert.IsNotNull(livingQuartersReferenceRenderer);
+            Vector3 livingQuartersScreenPoint = baseCamera.WorldToScreenPoint(livingQuartersReferenceRenderer.bounds.center);
+            Assert.IsFalse(hqBuilding.TryHandleBuildingClick(new Vector2(livingQuartersScreenPoint.x, livingQuartersScreenPoint.y)));
+            Assert.IsFalse(bioLab.TryHandleWorldClick(new Vector2(livingQuartersScreenPoint.x, livingQuartersScreenPoint.y)));
+            Assert.IsFalse(hangar.TryHandleBuildingClick(new Vector2(livingQuartersScreenPoint.x, livingQuartersScreenPoint.y)));
+            Assert.IsFalse(trainingFacility.TryHandleBuildingClick(new Vector2(livingQuartersScreenPoint.x, livingQuartersScreenPoint.y)));
+            Assert.IsTrue(livingQuarters.TryHandleBuildingClick(new Vector2(livingQuartersScreenPoint.x, livingQuartersScreenPoint.y)));
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
+            Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsTrue(livingQuarters.IsUpgradeSymbolVisible);
 
             // A later tap on empty map space should dismiss every building popup arrow.
             Vector2 emptyMapScreenPoint = new(10f, 10f);
@@ -455,10 +500,12 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(bioLab.TryHandleWorldClick(emptyMapScreenPoint));
             Assert.IsFalse(hangar.TryHandleBuildingClick(emptyMapScreenPoint));
             Assert.IsFalse(trainingFacility.TryHandleBuildingClick(emptyMapScreenPoint));
+            Assert.IsFalse(livingQuarters.TryHandleBuildingClick(emptyMapScreenPoint));
             Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
             Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
             Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsFalse(livingQuarters.IsUpgradeSymbolVisible);
 
             // The Credits toggle is a HUD action too, so it should dismiss popups before expanding details.
             Assert.IsTrue(hqBuilding.TryHandleBuildingClick(new Vector2(hqScreenPoint.x, hqScreenPoint.y)));
@@ -471,6 +518,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
             Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
             Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsFalse(livingQuarters.IsUpgradeSymbolVisible);
 
             // Other HUD clicks are also elsewhere, so they should close a newly opened world arrow.
             Assert.IsTrue(hqBuilding.TryHandleBuildingClick(new Vector2(hqScreenPoint.x, hqScreenPoint.y)));
@@ -483,6 +531,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
             Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
             Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsFalse(livingQuarters.IsUpgradeSymbolVisible);
         }
 
         [UnityTest]
@@ -679,14 +728,15 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator BaseScene_HangarAndTrainingUseReferenceModelsAndTimedUpgradeArrows()
+        public IEnumerator BaseScene_GenericFacilitiesUseReferenceModelsAndTimedUpgradeArrows()
         {
-            // Seed both facilities with exact credits so their same-rule popup arrows can start timers.
+            // Seed facilities with exact credits so their same-rule popup arrows can start timers.
             SaveGameManager.Save(new SaveGameData
             {
-                coins = PlayerProgression.GetHangarUpgradeCost(2) + PlayerProgression.GetTrainingFacilityUpgradeCost(3),
+                coins = PlayerProgression.GetHangarUpgradeCost(2) + PlayerProgression.GetTrainingFacilityUpgradeCost(3) + PlayerProgression.GetLivingQuartersUpgradeCost(4),
                 hangarLevel = 2,
-                trainingFacilityLevel = 3
+                trainingFacilityLevel = 3,
+                livingQuartersLevel = 4
             });
 
             // Reload Base after seeding so the runtime buildings reflect saved levels and wallet state.
@@ -696,46 +746,66 @@ namespace LaneSurvivor.Tests.PlayMode
             // The new facilities should replace the future pads with reference-textured models.
             UpgradeableFacilityBuilding hangar = GameObject.Find("Hangar")?.GetComponent<UpgradeableFacilityBuilding>();
             UpgradeableFacilityBuilding trainingFacility = GameObject.Find("Training Facility")?.GetComponent<UpgradeableFacilityBuilding>();
+            UpgradeableFacilityBuilding livingQuarters = GameObject.Find("Living Quarters")?.GetComponent<UpgradeableFacilityBuilding>();
             Assert.IsNotNull(hangar);
             Assert.IsNotNull(trainingFacility);
+            Assert.IsNotNull(livingQuarters);
             Assert.AreEqual(2, hangar.Level);
             Assert.AreEqual(3, trainingFacility.Level);
+            Assert.AreEqual(4, livingQuarters.Level);
             AssertFacilityReferenceModel(hangar, "Hangar");
             AssertFacilityReferenceModel(trainingFacility, "Training Facility");
+            AssertFacilityReferenceModel(livingQuarters, "Living Quarters");
 
             // Occupied future pads should remain as logical slots but draw no slab or label.
             Renderer hangarPadRenderer = GameObject.Find("Future Hangar Pad")?.GetComponent<Renderer>();
             Renderer trainingPadRenderer = GameObject.Find("Future Training Pad")?.GetComponent<Renderer>();
+            Renderer livingQuartersPadRenderer = GameObject.Find("Future Living Quarters Pad")?.GetComponent<Renderer>();
             Assert.IsNotNull(hangarPadRenderer);
             Assert.IsNotNull(trainingPadRenderer);
+            Assert.IsNotNull(livingQuartersPadRenderer);
             Assert.IsFalse(hangarPadRenderer.enabled);
             Assert.IsFalse(trainingPadRenderer.enabled);
+            Assert.IsFalse(livingQuartersPadRenderer.enabled);
             Assert.IsNull(GameObject.Find("Future Hangar Pad Label"));
             Assert.IsNull(GameObject.Find("Future Training Pad Label"));
+            Assert.IsNull(GameObject.Find("Future Living Quarters Pad Label"));
 
             // Higher levels should stretch the concept images and hidden scaffolds upward without changing footprint.
             Transform hangarReference = hangar.transform.Find("Hangar Visual Root/Hangar Reference Model");
             Transform trainingReference = trainingFacility.transform.Find("Training Facility Visual Root/Training Facility Reference Model");
+            Transform livingQuartersReference = livingQuarters.transform.Find("Living Quarters Visual Root/Living Quarters Reference Model");
             Transform hangarBody = hangar.transform.Find("Hangar Visual Root/Hangar Body");
             Transform trainingBody = trainingFacility.transform.Find("Training Facility Visual Root/Training Facility Body");
+            Transform livingQuartersBody = livingQuarters.transform.Find("Living Quarters Visual Root/Living Quarters Body");
             Assert.IsNotNull(hangarBody);
             Assert.IsNotNull(trainingBody);
+            Assert.IsNotNull(livingQuartersBody);
             Assert.Greater(hangar.CurrentReferenceHeight, hangar.CalculateReferenceModelHeight(1));
             Assert.Greater(trainingFacility.CurrentReferenceHeight, trainingFacility.CalculateReferenceModelHeight(1));
+            Assert.Greater(livingQuarters.CurrentReferenceHeight, livingQuarters.CalculateReferenceModelHeight(1));
             Assert.AreEqual(hangar.CurrentReferenceHeight, hangarReference.localScale.y, 0.001f);
             Assert.AreEqual(trainingFacility.CurrentReferenceHeight, trainingReference.localScale.y, 0.001f);
+            Assert.AreEqual(livingQuarters.CurrentReferenceHeight, livingQuartersReference.localScale.y, 0.001f);
             Assert.AreEqual(1.42f, hangarBody.localScale.x, 0.001f);
             Assert.AreEqual(1.48f, trainingBody.localScale.x, 0.001f);
+            Assert.AreEqual(1.56f, livingQuartersBody.localScale.x, 0.001f);
             Assert.AreEqual(hangar.CurrentVisualHeight, hangarBody.localScale.y, 0.001f);
             Assert.AreEqual(trainingFacility.CurrentVisualHeight, trainingBody.localScale.y, 0.001f);
+            Assert.AreEqual(livingQuarters.CurrentVisualHeight, livingQuartersBody.localScale.y, 0.001f);
 
-            // Hangar and training use distinct tints so their reference art does not collapse into one color scheme.
+            // Generic facilities use distinct tints so their reference art does not collapse into one color scheme.
             Color hangarTint = GetMaterialColor(hangarReference.GetComponent<MeshRenderer>().sharedMaterial);
             Color trainingTint = GetMaterialColor(trainingReference.GetComponent<MeshRenderer>().sharedMaterial);
+            Color livingQuartersTint = GetMaterialColor(livingQuartersReference.GetComponent<MeshRenderer>().sharedMaterial);
             Assert.Greater(hangarTint.r, hangarTint.b);
             Assert.Less(hangarTint.b, hangarTint.g);
             Assert.Greater(trainingTint.b, trainingTint.r);
+            Assert.Greater(livingQuartersTint.r, livingQuartersTint.g);
+            Assert.Greater(livingQuartersTint.b, livingQuartersTint.g);
             Assert.Greater(Vector4.Distance(hangarTint, trainingTint), 0.30f);
+            Assert.Greater(Vector4.Distance(livingQuartersTint, hangarTint), 0.30f);
+            Assert.Greater(Vector4.Distance(livingQuartersTint, trainingTint), 0.30f);
 
             // Revealing the hangar symbol with enough credits should color its 2D arrow green.
             hangar.ShowUpgradeSymbol();
@@ -778,24 +848,52 @@ namespace LaneSurvivor.Tests.PlayMode
             yield return null;
             SaveGameData bothStartedData = SaveGameManager.Load();
             Assert.IsTrue(trainingStarted);
-            Assert.AreEqual(0, bothStartedData.coins);
+            Assert.AreEqual(PlayerProgression.GetLivingQuartersUpgradeCost(4), bothStartedData.coins);
             Assert.IsTrue(bothStartedData.hangarUpgradeInProgress);
             Assert.IsTrue(bothStartedData.trainingFacilityUpgradeInProgress);
             Assert.AreEqual(10, bothStartedData.trainingFacilityUpgradeDurationSeconds);
             Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
             Assert.IsTrue(trainingFacility.IsProgressVisible);
 
-            // Let a small amount of PlayMode time pass so both circular fills advance without completing.
+            // The living-quarters symbol should remain affordable from the final credits and use the same 2D arrow.
+            livingQuarters.ShowUpgradeSymbol();
+            Assert.IsTrue(livingQuarters.IsUpgradeSymbolVisible);
+            Assert.IsTrue(livingQuarters.CanAffordDisplayedUpgrade);
+            Transform livingQuartersStem = livingQuarters.transform.Find("Living Quarters Visual Root/Living Quarters Upgrade Symbol/Living Quarters Upgrade Symbol Stem");
+            Renderer livingQuartersStemRenderer = livingQuartersStem?.GetComponent<Renderer>();
+            Assert.IsNotNull(livingQuartersStemRenderer);
+            AssertFlatSymbolMesh(livingQuartersStem, "Living quarters upgrade symbol stem");
+            AssertFlatSymbolMesh(livingQuarters.transform.Find("Living Quarters Visual Root/Living Quarters Upgrade Symbol/Living Quarters Upgrade Symbol Arrow Head"), "Living quarters upgrade symbol head");
+            Color livingQuartersSymbolColor = GetMaterialColor(livingQuartersStemRenderer.sharedMaterial);
+            Assert.Greater(livingQuartersSymbolColor.g, livingQuartersSymbolColor.r);
+            Assert.Greater(livingQuartersSymbolColor.g, livingQuartersSymbolColor.b);
+
+            // Clicking the visible green living-quarters symbol should spend the final credits and start its timer.
+            bool livingQuartersStarted = livingQuarters.RequestUpgradeFromVisibleSymbol();
+            yield return null;
+            SaveGameData allStartedData = SaveGameManager.Load();
+            Assert.IsTrue(livingQuartersStarted);
+            Assert.AreEqual(0, allStartedData.coins);
+            Assert.IsTrue(allStartedData.hangarUpgradeInProgress);
+            Assert.IsTrue(allStartedData.trainingFacilityUpgradeInProgress);
+            Assert.IsTrue(allStartedData.livingQuartersUpgradeInProgress);
+            Assert.AreEqual(60, allStartedData.livingQuartersUpgradeDurationSeconds);
+            Assert.IsFalse(livingQuarters.IsUpgradeSymbolVisible);
+            Assert.IsTrue(livingQuarters.IsProgressVisible);
+
+            // Let a small amount of PlayMode time pass so all circular fills advance without completing.
             yield return new WaitForSeconds(0.2f);
             Assert.Greater(hangar.ProgressFillAmount, 0.01f);
             Assert.Greater(trainingFacility.ProgressFillAmount, 0.01f);
+            Assert.Greater(livingQuarters.ProgressFillAmount, 0.001f);
             Assert.Less(trainingFacility.ProgressFillAmount, 0.8f);
+            Assert.Less(livingQuarters.ProgressFillAmount, 0.1f);
         }
 
         [UnityTest]
-        public IEnumerator BaseScene_CompletedHangarAndTrainingUpgradesPlayReferenceGlowAndSave()
+        public IEnumerator BaseScene_CompletedGenericFacilityUpgradesPlayReferenceGlowAndSave()
         {
-            // Seed both timers as already complete so Base load runs the same app-reopen completion path.
+            // Seed generic facility timers as already complete so Base load runs the same app-reopen completion path.
             SaveGameManager.Save(new SaveGameData
             {
                 hangarLevel = 1,
@@ -805,7 +903,11 @@ namespace LaneSurvivor.Tests.PlayMode
                 trainingFacilityLevel = 1,
                 trainingFacilityUpgradeInProgress = true,
                 trainingFacilityUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-2).Ticks,
-                trainingFacilityUpgradeDurationSeconds = 1
+                trainingFacilityUpgradeDurationSeconds = 1,
+                livingQuartersLevel = 1,
+                livingQuartersUpgradeInProgress = true,
+                livingQuartersUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-2).Ticks,
+                livingQuartersUpgradeDurationSeconds = 1
             });
 
             // Reload Base so the bootstrap completes and saves both facility upgrades.
@@ -816,26 +918,34 @@ namespace LaneSurvivor.Tests.PlayMode
             SaveGameData completedData = SaveGameManager.Load();
             Assert.AreEqual(2, completedData.hangarLevel);
             Assert.AreEqual(2, completedData.trainingFacilityLevel);
+            Assert.AreEqual(2, completedData.livingQuartersLevel);
             Assert.IsFalse(completedData.hangarUpgradeInProgress);
             Assert.IsFalse(completedData.trainingFacilityUpgradeInProgress);
+            Assert.IsFalse(completedData.livingQuartersUpgradeInProgress);
             Assert.AreEqual(0, completedData.hangarUpgradeStartedUtcTicks);
             Assert.AreEqual(0, completedData.trainingFacilityUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, completedData.livingQuartersUpgradeStartedUtcTicks);
 
-            // Both generated facilities should trigger a mesh-free reference-silhouette glow and pop.
+            // Generated facilities should trigger a mesh-free reference-silhouette glow and pop.
             UpgradeableFacilityBuilding hangar = GameObject.Find("Hangar")?.GetComponent<UpgradeableFacilityBuilding>();
             UpgradeableFacilityBuilding trainingFacility = GameObject.Find("Training Facility")?.GetComponent<UpgradeableFacilityBuilding>();
+            UpgradeableFacilityBuilding livingQuarters = GameObject.Find("Living Quarters")?.GetComponent<UpgradeableFacilityBuilding>();
             Assert.IsNotNull(hangar);
             Assert.IsNotNull(trainingFacility);
+            Assert.IsNotNull(livingQuarters);
             Assert.AreEqual(2, hangar.Level);
             Assert.AreEqual(2, trainingFacility.Level);
+            Assert.AreEqual(2, livingQuarters.Level);
             AssertFacilityGlowActive(hangar, "Hangar");
             AssertFacilityGlowActive(trainingFacility, "Training Facility");
+            AssertFacilityGlowActive(livingQuarters, "Living Quarters");
 
-            // The visible Base feedback should mention both completed upgrades.
+            // The visible Base feedback should mention every completed generic facility upgrade.
             Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
             Assert.IsNotNull(statusText);
             StringAssert.Contains("Hangar upgrade complete", statusText.text);
             StringAssert.Contains("Training upgrade complete", statusText.text);
+            StringAssert.Contains("Living quarters upgrade complete", statusText.text);
         }
 
         [UnityTest]
@@ -1086,11 +1196,83 @@ namespace LaneSurvivor.Tests.PlayMode
             SaveGameData upgradedData = SaveGameManager.Load();
             Assert.AreEqual(0, upgradedData.coins);
             Assert.IsTrue(upgradedData.hqUpgradeInProgress);
-            Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, upgradedData.hqUpgradeDurationSeconds);
+            Assert.AreEqual(PlayerProgression.GetHqUpgradeDurationSeconds(1), upgradedData.hqUpgradeDurationSeconds);
 
             // The visible HUD should now show a running countdown instead of the ready state.
             StringAssert.Contains("HQ Upgrade: ", creditsDetailText.text);
             Assert.IsFalse(creditsDetailText.text.Contains("HQ Upgrade: Ready"), creditsDetailText.text);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_HighLevelHqUpgradeAndResetButtonsAcceptVisibleClicks()
+        {
+            // Seed the exact late-HQ wallet state from the reported screenshot.
+            SaveGameManager.Save(new SaveGameData
+            {
+                coins = 300,
+                hqLevel = 9,
+                bioLabLevel = 6,
+                hangarLevel = 6,
+                trainingFacilityLevel = 6
+            });
+
+            // Reload Base after seeding so generated HUD interactability comes from the saved level-nine cost.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // Keep the credits panel open because the reported issue happened with expanded building details visible.
+            Text creditsDetailText = ExpandCreditsDetailPanel();
+            StringAssert.Contains("Coins: 300", creditsDetailText.text);
+            StringAssert.Contains("HQ Level: 9", creditsDetailText.text);
+            StringAssert.Contains("HQ Upgrade: Ready (275c)", creditsDetailText.text);
+
+            // The visible upgrade button should be the click receiver and should not clip its label.
+            Button upgradeButton = GameObject.Find("Upgrade Button")?.GetComponent<Button>();
+            Assert.IsNotNull(upgradeButton);
+            Assert.IsTrue(upgradeButton.interactable);
+            AssertButtonCanHandlePointerClick(upgradeButton, "Upgrade Button");
+            AssertButtonLabelUsesBestFit(upgradeButton, "UPGRADE");
+
+            // A real UI-style click should start the level-nine HQ timer and spend only that level's cost.
+            ClickButtonThroughEventSystem(upgradeButton, "Upgrade Button");
+            yield return null;
+            SaveGameData startedData = SaveGameManager.Load();
+            Assert.AreEqual(25, startedData.coins);
+            Assert.IsTrue(startedData.hqUpgradeInProgress);
+            Assert.AreEqual(PlayerProgression.GetHqUpgradeDurationSeconds(9), startedData.hqUpgradeDurationSeconds);
+            StringAssert.Contains("Coins: 25", creditsDetailText.text);
+            Assert.IsFalse(creditsDetailText.text.Contains("HQ Upgrade: Ready"), creditsDetailText.text);
+
+            // The reset button should sit fully inside the HUD canvas and receive the top raycast as well.
+            Button resetButton = GameObject.Find("Reset Save Button")?.GetComponent<Button>();
+            RectTransform canvasRect = GameObject.Find("Base HUD Canvas")?.GetComponent<RectTransform>();
+            Assert.IsNotNull(resetButton);
+            Assert.IsNotNull(canvasRect);
+            AssertRectInsideCanvas(resetButton.GetComponent<RectTransform>(), canvasRect, "Reset Save Button");
+            AssertButtonCanHandlePointerClick(resetButton, "Reset Save Button");
+            AssertButtonLabelUsesBestFit(resetButton, "RESET");
+
+            // Clicking reset should persist fresh defaults and refresh the still-open detail panel immediately.
+            ClickButtonThroughEventSystem(resetButton, "Reset Save Button");
+            yield return null;
+            SaveGameData resetData = SaveGameManager.Load();
+            Assert.AreEqual(0, resetData.coins);
+            Assert.AreEqual(1, resetData.hqLevel);
+            Assert.IsFalse(resetData.hqUpgradeInProgress);
+            StringAssert.Contains("Coins: 0", creditsDetailText.text);
+            StringAssert.Contains("HQ Level: 1", creditsDetailText.text);
+            StringAssert.Contains("HQ Upgrade: Need 75c", creditsDetailText.text);
+
+            // The idle HQ button should now respond even when unaffordable by explaining the missing credits.
+            Assert.IsTrue(upgradeButton.interactable);
+            ClickButtonThroughEventSystem(upgradeButton, "Upgrade Button");
+            yield return null;
+            SaveGameData failedStartData = SaveGameManager.Load();
+            Assert.AreEqual(0, failedStartData.coins);
+            Assert.IsFalse(failedStartData.hqUpgradeInProgress);
+            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
+            Assert.IsNotNull(statusText);
+            StringAssert.Contains("HQ needs 75 credits", statusText.text);
         }
 
         [UnityTest]
@@ -1132,8 +1314,8 @@ namespace LaneSurvivor.Tests.PlayMode
                 hqLevel = 1,
                 unlockedMinigameLevel = 1,
                 hqUpgradeInProgress = true,
-                hqUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-PlayerProgression.HqUpgradeDurationSeconds - 1).Ticks,
-                hqUpgradeDurationSeconds = PlayerProgression.HqUpgradeDurationSeconds
+                hqUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-PlayerProgression.GetHqUpgradeDurationSeconds(1) - 1).Ticks,
+                hqUpgradeDurationSeconds = PlayerProgression.GetHqUpgradeDurationSeconds(1)
             };
             SaveGameManager.Save(saveData);
 
@@ -1157,6 +1339,11 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsTrue(hqBuilding.IsCompletionGlowVisible);
             Assert.IsTrue(hqBuilding.IsPopAnimating);
             Assert.AreEqual(1, hqBuilding.CompletionEffectPlayCount);
+
+            // HQ completion should now exercise the shared upgrade chime, not just the bio-lab path.
+            Assert.AreEqual(1, hqBuilding.CompletionSoundRequestCount);
+            Assert.IsTrue(hqBuilding.HasCompletionSoundSource);
+            Assert.IsTrue(hqBuilding.HasGeneratedCompletionSoundClip);
 
             // The completion glow should be a mesh-free root with one reference-silhouette aura, not generated clutter.
             Transform glowRoot = hqBuilding.transform.Find("HQ Visual Root/HQ Completion Glow");
@@ -1823,6 +2010,11 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsTrue(facilityBuilding.IsPopAnimating, $"{displayName} pop should be active.");
             Assert.AreEqual(1, facilityBuilding.CompletionEffectPlayCount, $"{displayName} completion effect should play once.");
 
+            // Hangar/training completion should use the same shared generated chime as HQ and bio lab.
+            Assert.AreEqual(1, facilityBuilding.CompletionSoundRequestCount, $"{displayName} completion sound should play once.");
+            Assert.IsTrue(facilityBuilding.HasCompletionSoundSource, $"{displayName} should have a completion sound source.");
+            Assert.IsTrue(facilityBuilding.HasGeneratedCompletionSoundClip, $"{displayName} completion sound clip should be generated.");
+
             // The glow root should be a mesh-free holder with a padded reference-silhouette child.
             Transform glowRoot = facilityBuilding.transform.Find($"{displayName} Visual Root/{displayName} Completion Glow");
             Transform referenceModel = facilityBuilding.transform.Find($"{displayName} Visual Root/{displayName} Reference Model");
@@ -1849,6 +2041,46 @@ namespace LaneSurvivor.Tests.PlayMode
             Vector3[] corners = new Vector3[4];
             rectTransform.GetWorldCorners(corners);
             return corners;
+        }
+
+        private static void AssertRectInsideCanvas(RectTransform rectTransform, RectTransform canvasRect, string displayName)
+        {
+            // World corners let this check match what the player sees in Screen Space Overlay.
+            Vector3[] rectCorners = GetRectCorners(rectTransform);
+            Vector3[] canvasCorners = GetRectCorners(canvasRect);
+            Assert.GreaterOrEqual(rectCorners[0].x, canvasCorners[0].x - 0.5f, $"{displayName} left edge should stay inside the canvas.");
+            Assert.GreaterOrEqual(rectCorners[0].y, canvasCorners[0].y - 0.5f, $"{displayName} bottom edge should stay inside the canvas.");
+            Assert.LessOrEqual(rectCorners[2].x, canvasCorners[2].x + 0.5f, $"{displayName} right edge should stay inside the canvas.");
+            Assert.LessOrEqual(rectCorners[2].y, canvasCorners[2].y + 0.5f, $"{displayName} top edge should stay inside the canvas.");
+        }
+
+        private static void AssertButtonLabelUsesBestFit(Button button, string expectedText)
+        {
+            // Best-fit labels keep compact HUD controls from visually truncating action names.
+            Text label = button.GetComponentInChildren<Text>();
+            Assert.IsNotNull(label);
+            Assert.AreEqual(expectedText, label.text);
+            Assert.IsTrue(label.resizeTextForBestFit, $"{expectedText} label should shrink before clipping.");
+        }
+
+        private static void AssertButtonCanHandlePointerClick(Button button, string displayName)
+        {
+            // Active/interactable Button objects should be able to receive Unity EventSystem pointer clicks.
+            Assert.IsNotNull(EventSystem.current, $"{displayName} requires an active EventSystem.");
+            Assert.IsTrue(button.gameObject.activeInHierarchy, $"{displayName} should be active in the HUD.");
+            Assert.IsTrue(button.interactable, $"{displayName} should be interactable for this scenario.");
+            Assert.IsTrue(ExecuteEvents.CanHandleEvent<IPointerClickHandler>(button.gameObject), $"{displayName} should handle pointer clicks.");
+        }
+
+        private static void ClickButtonThroughEventSystem(Button button, string displayName)
+        {
+            // Execute the same pointer-click interface Unity's EventSystem dispatches after a visible tap.
+            AssertButtonCanHandlePointerClick(button, displayName);
+            PointerEventData eventData = new(EventSystem.current)
+            {
+                button = PointerEventData.InputButton.Left
+            };
+            ExecuteEvents.Execute(button.gameObject, eventData, ExecuteEvents.pointerClickHandler);
         }
 
         private static Text ExpandCreditsDetailPanel()

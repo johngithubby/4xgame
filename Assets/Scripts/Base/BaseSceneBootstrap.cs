@@ -1,5 +1,4 @@
 using System;
-using System.Reflection;
 using LaneSurvivor.Heroes;
 using LaneSurvivor.Progression;
 using LaneSurvivor.Rendering;
@@ -23,6 +22,9 @@ namespace LaneSurvivor.Base
 
         // Training stays behind the HQ because its long obstacle-course silhouette reads best in the rear slot.
         private static readonly Vector3 TrainingFacilitySlotPosition = new(1.60f, 0.10f, 4.85f);
+
+        // Living quarters occupy the rear-left dorm slot, away from the HQ, lab, hangar, and training facility.
+        private static readonly Vector3 LivingQuartersSlotPosition = new(-2.55f, 0.10f, 4.65f);
 
         // The HQ uses a warm tint so the command building no longer shares the lab/hangar teal family.
         private static readonly Color HqReferenceTint = new(1f, 0.68f, 0.36f, 1f);
@@ -48,6 +50,12 @@ namespace LaneSurvivor.Base
         // Training completion uses a blue aura so its feedback stays aligned with the building tint.
         private static readonly Color TrainingCompletionGlowTint = new(0.45f, 0.74f, 1f, 0.40f);
 
+        // Living quarters keep their warm residential coral palette distinct from the other Base buildings.
+        private static readonly Color LivingQuartersReferenceTint = new(1f, 0.74f, 0.84f, 1f);
+
+        // Living quarters completion glow uses the same coral-magenta accent as the approved concept art.
+        private static readonly Color LivingQuartersCompletionGlowTint = new(1f, 0.26f, 0.42f, 0.40f);
+
         private SaveGameData saveData;
 
         private HQBuilding hqBuilding;
@@ -57,6 +65,8 @@ namespace LaneSurvivor.Base
         private UpgradeableFacilityBuilding hangarBuilding;
 
         private UpgradeableFacilityBuilding trainingFacilityBuilding;
+
+        private UpgradeableFacilityBuilding livingQuartersBuilding;
 
         private BaseHudController hudController;
 
@@ -73,6 +83,7 @@ namespace LaneSurvivor.Base
             bool bioLabCompletedOnLoad = false;
             bool hangarCompletedOnLoad = false;
             bool trainingCompletedOnLoad = false;
+            bool livingQuartersCompletedOnLoad = false;
 
             // Complete any timer that finished while the app was closed.
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
@@ -108,6 +119,14 @@ namespace LaneSurvivor.Base
             {
                 AppendStatusMessage("Training upgrade complete");
                 trainingCompletedOnLoad = true;
+                saveDirty = true;
+            }
+
+            // Complete ready living-quarters timers before visuals are built so the loaded art matches saved level.
+            if (PlayerProgression.CompleteReadyLivingQuartersUpgrade(saveData, DateTime.UtcNow))
+            {
+                AppendStatusMessage("Living quarters upgrade complete");
+                livingQuartersCompletedOnLoad = true;
                 saveDirty = true;
             }
 
@@ -149,6 +168,12 @@ namespace LaneSurvivor.Base
             Material trainingProgressFillMaterial = CreateMaterial(new Color(0.12f, 0.92f, 0.34f));
             Material trainingReferenceMaterial = CreateTrainingReferenceMaterial();
             Material trainingReferenceGlowMaterial = CreateTrainingReferenceGlowMaterial();
+            Material livingQuartersBodyMaterial = CreateMaterial(new Color(0.31f, 0.30f, 0.29f));
+            Material livingQuartersSymbolMaterial = CreateMaterial(new Color(0.44f, 0.46f, 0.48f));
+            Material livingQuartersProgressBackMaterial = CreateMaterial(new Color(0.10f, 0.12f, 0.13f));
+            Material livingQuartersProgressFillMaterial = CreateMaterial(new Color(0.12f, 0.92f, 0.34f));
+            Material livingQuartersReferenceMaterial = CreateLivingQuartersReferenceMaterial();
+            Material livingQuartersReferenceGlowMaterial = CreateLivingQuartersReferenceGlowMaterial();
 
             cameraController = CreateCamera();
             CreateLight();
@@ -158,6 +183,7 @@ namespace LaneSurvivor.Base
             bioLabBuilding = CreateBioLabBuilding(bioLabMaterial, bioLabDetailMaterial, bioLabTrimMaterial, bioLabDarkMaterial, bioLabLightMaterial, bioLabReferenceMaterial, bioLabReferenceGlowMaterial, bioLabSymbolMaterial, bioLabProgressBackMaterial, bioLabProgressFillMaterial, bioLabGlowMaterial, StartBioLabUpgrade);
             hangarBuilding = CreateHangarBuilding(hangarBodyMaterial, hangarReferenceMaterial, hangarReferenceGlowMaterial, hangarSymbolMaterial, hangarProgressBackMaterial, hangarProgressFillMaterial, StartHangarUpgrade);
             trainingFacilityBuilding = CreateTrainingFacilityBuilding(trainingBodyMaterial, trainingReferenceMaterial, trainingReferenceGlowMaterial, trainingSymbolMaterial, trainingProgressBackMaterial, trainingProgressFillMaterial, StartTrainingFacilityUpgrade);
+            livingQuartersBuilding = CreateLivingQuartersBuilding(livingQuartersBodyMaterial, livingQuartersReferenceMaterial, livingQuartersReferenceGlowMaterial, livingQuartersSymbolMaterial, livingQuartersProgressBackMaterial, livingQuartersProgressFillMaterial, StartLivingQuartersUpgrade);
             hudController = CreateHud();
             hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ClaimDailyObjective, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes, ZoomInFromHud, ZoomOutFromHud, HideBuildingUpgradeSymbols);
 
@@ -183,6 +209,11 @@ namespace LaneSurvivor.Base
             {
                 trainingFacilityBuilding.PlayCompletionEffects();
             }
+
+            if (livingQuartersCompletedOnLoad)
+            {
+                livingQuartersBuilding.PlayCompletionEffects();
+            }
         }
 
         private void Update()
@@ -193,6 +224,7 @@ namespace LaneSurvivor.Base
             bool completedBioLabUpgrade = false;
             bool completedHangarUpgrade = false;
             bool completedTrainingUpgrade = false;
+            bool completedLivingQuartersUpgrade = false;
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
             {
                 AppendStatusMessage("HQ upgrade complete");
@@ -201,7 +233,7 @@ namespace LaneSurvivor.Base
                 completedHqUpgrade = true;
             }
 
-            // Bio-lab completion adds local visual/sound feedback after the saved level increases.
+            // Bio-lab completion adds the same local feedback path as the other upgradeable buildings.
             if (PlayerProgression.CompleteReadyBioLabUpgrade(saveData, DateTime.UtcNow))
             {
                 AppendStatusMessage("Bio lab upgrade complete");
@@ -223,6 +255,14 @@ namespace LaneSurvivor.Base
                 AppendStatusMessage("Training upgrade complete");
                 completedAnyUpgrade = true;
                 completedTrainingUpgrade = true;
+            }
+
+            // Living-quarters completion uses the same local timer polling as the other same-rule buildings.
+            if (PlayerProgression.CompleteReadyLivingQuartersUpgrade(saveData, DateTime.UtcNow))
+            {
+                AppendStatusMessage("Living quarters upgrade complete");
+                completedAnyUpgrade = true;
+                completedLivingQuartersUpgrade = true;
             }
 
             if (completedAnyUpgrade)
@@ -248,11 +288,16 @@ namespace LaneSurvivor.Base
                 {
                     trainingFacilityBuilding.PlayCompletionEffects();
                 }
+
+                if (completedLivingQuartersUpgrade)
+                {
+                    livingQuartersBuilding.PlayCompletionEffects();
+                }
                 return;
             }
 
             // Refresh countdowns each frame while an upgrade is active.
-            if (saveData.hqUpgradeInProgress || saveData.bioLabUpgradeInProgress || saveData.hangarUpgradeInProgress || saveData.trainingFacilityUpgradeInProgress)
+            if (saveData.hqUpgradeInProgress || saveData.bioLabUpgradeInProgress || saveData.hangarUpgradeInProgress || saveData.trainingFacilityUpgradeInProgress || saveData.livingQuartersUpgradeInProgress)
             {
                 RefreshScene();
             }
@@ -355,6 +400,26 @@ namespace LaneSurvivor.Base
             statusMessage = saveData.trainingFacilityUpgradeInProgress
                 ? "Training upgrade in progress"
                 : $"Training needs {neededCredits} credits";
+            RefreshScene();
+            return false;
+        }
+
+        private bool StartLivingQuartersUpgrade()
+        {
+            // The progression layer handles credit cost, duration curve, and duplicate-timer validation.
+            if (PlayerProgression.TryStartLivingQuartersUpgrade(saveData, DateTime.UtcNow))
+            {
+                SaveGameManager.Save(saveData);
+                statusMessage = "Living quarters upgrade started";
+                RefreshScene();
+                return true;
+            }
+
+            // Failed starts keep the visible popup symbol but tell the player why nothing happened.
+            int neededCredits = PlayerProgression.GetLivingQuartersUpgradeCost(saveData.livingQuartersLevel);
+            statusMessage = saveData.livingQuartersUpgradeInProgress
+                ? "Living quarters upgrade in progress"
+                : $"Living quarters need {neededCredits} credits";
             RefreshScene();
             return false;
         }
@@ -491,6 +556,7 @@ namespace LaneSurvivor.Base
             bioLabBuilding?.HideUpgradeSymbol();
             hangarBuilding?.HideUpgradeSymbol();
             trainingFacilityBuilding?.HideUpgradeSymbol();
+            livingQuartersBuilding?.HideUpgradeSymbol();
         }
 
         private void RefreshScene()
@@ -500,11 +566,13 @@ namespace LaneSurvivor.Base
             int bioLabRemainingSeconds = PlayerProgression.GetBioLabUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
             int hangarRemainingSeconds = PlayerProgression.GetHangarUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
             int trainingRemainingSeconds = PlayerProgression.GetTrainingFacilityUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
+            int livingQuartersRemainingSeconds = PlayerProgression.GetLivingQuartersUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
             hqBuilding.ApplySaveData(saveData, DateTime.UtcNow);
             bioLabBuilding.ApplySaveData(saveData, DateTime.UtcNow);
             hangarBuilding.ApplyState(saveData.hangarLevel, saveData.coins, saveData.hangarUpgradeInProgress, PlayerProgression.GetHangarUpgradeCost(saveData.hangarLevel), PlayerProgression.GetHangarUpgradeProgress01(saveData, DateTime.UtcNow));
             trainingFacilityBuilding.ApplyState(saveData.trainingFacilityLevel, saveData.coins, saveData.trainingFacilityUpgradeInProgress, PlayerProgression.GetTrainingFacilityUpgradeCost(saveData.trainingFacilityLevel), PlayerProgression.GetTrainingFacilityUpgradeProgress01(saveData, DateTime.UtcNow));
-            hudController.UpdateView(saveData, remainingSeconds, bioLabRemainingSeconds, hangarRemainingSeconds, trainingRemainingSeconds, statusMessage);
+            livingQuartersBuilding.ApplyState(saveData.livingQuartersLevel, saveData.coins, saveData.livingQuartersUpgradeInProgress, PlayerProgression.GetLivingQuartersUpgradeCost(saveData.livingQuartersLevel), PlayerProgression.GetLivingQuartersUpgradeProgress01(saveData, DateTime.UtcNow));
+            hudController.UpdateView(saveData, remainingSeconds, bioLabRemainingSeconds, hangarRemainingSeconds, trainingRemainingSeconds, livingQuartersRemainingSeconds, statusMessage);
         }
 
         private void AppendStatusMessage(string message)
@@ -535,13 +603,13 @@ namespace LaneSurvivor.Base
         private static void CreateOptionalAudioListener(GameObject cameraObject)
         {
             // Resolve AudioListener lazily so the runtime assembly still compiles without AudioModule references.
-            Type audioListenerType = BioLabBuilding.FindOptionalUnityAudioType("UnityEngine.AudioListener");
+            Type audioListenerType = UpgradeCompletionSound.FindOptionalUnityAudioType("UnityEngine.AudioListener");
             if (audioListenerType == null)
             {
                 return;
             }
 
-            // One listener on the Base camera is enough for the generated bio-lab completion chime.
+            // One listener on the Base camera is enough for all generated building-completion chimes.
             if (cameraObject.GetComponent(audioListenerType) == null)
             {
                 cameraObject.AddComponent(audioListenerType);
@@ -588,6 +656,9 @@ namespace LaneSurvivor.Base
 
             // Offset training diagonally behind the HQ so the restored HQ no longer hides most of the facility.
             CreateReservedPad("Future Training Pad", ToPadPosition(TrainingFacilitySlotPosition), new Vector3(1.75f, 0.08f, 0.9f), reservedSpaceMaterial, false, false);
+
+            // Living quarters reserve a rear-left residential slot without drawing an occupied pad slab.
+            CreateReservedPad("Future Living Quarters Pad", ToPadPosition(LivingQuartersSlotPosition), new Vector3(1.72f, 0.08f, 1.06f), reservedSpaceMaterial, false, false);
         }
 
         private static Vector3 ToPadPosition(Vector3 buildingSlotPosition)
@@ -660,6 +731,11 @@ namespace LaneSurvivor.Base
                 return "TRAIN";
             }
 
+            if (name.Contains("Living Quarters"))
+            {
+                return "LQ";
+            }
+
             return "FUTURE";
         }
 
@@ -711,8 +787,11 @@ namespace LaneSurvivor.Base
             // The completion glow is a blurred duplicate of the exact HQ silhouette.
             GameObject glowObject = CreateHqCompletionGlow(visualRootObject.transform, referenceGlowMaterial, glowMaterial);
 
+            // Generated audio lets every building upgrade finish with the same local chime.
+            Component audioSource = UpgradeCompletionSound.CreateOptionalAudioSource(hqObject);
+
             HQBuilding hqBuilding = hqObject.AddComponent<HQBuilding>();
-            hqBuilding.Configure(visualRootObject.transform, label, hqBodyObject.transform, hqBodyObject.GetComponent<Renderer>(), detailRootObject.transform, referenceModelObject != null ? referenceModelObject.transform : null, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, startUpgradeAction);
+            hqBuilding.Configure(visualRootObject.transform, label, hqBodyObject.transform, hqBodyObject.GetComponent<Renderer>(), detailRootObject.transform, referenceModelObject != null ? referenceModelObject.transform : null, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, audioSource, startUpgradeAction);
             return hqBuilding;
         }
 
@@ -982,7 +1061,7 @@ namespace LaneSurvivor.Base
             GameObject glowObject = CreateBioLabCompletionGlow(visualRootObject.transform, glowMaterial, referenceModelObject != null ? referenceGlowMaterial : null);
 
             // Generated audio lets the upgrade finish with sound without adding imported files.
-            Component audioSource = CreateOptionalBioLabAudioSource(labObject);
+            Component audioSource = UpgradeCompletionSound.CreateOptionalAudioSource(labObject);
 
             BioLabBuilding bioLab = labObject.AddComponent<BioLabBuilding>();
             bioLab.Configure(visualRootObject.transform, label, bodyObject.transform, bodyObject.GetComponent<Renderer>(), domeObject.transform, referenceModelObject != null ? referenceModelObject.transform : null, detailRootObject.transform, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, audioSource, startUpgradeAction);
@@ -1049,6 +1128,36 @@ namespace LaneSurvivor.Base
                 new Color(0.30f, 0.33f, 0.32f));
         }
 
+        private static UpgradeableFacilityBuilding CreateLivingQuartersBuilding(Material bodyMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, Func<bool> startUpgradeAction)
+        {
+            // Living quarters occupy the rear-left residential slot so they are readable without crowding the lab.
+            return CreateUpgradeableFacilityBuilding(
+                "Living Quarters",
+                LivingQuartersSlotPosition,
+                bodyMaterial,
+                referenceMaterial,
+                referenceGlowMaterial,
+                symbolMaterial,
+                progressBackMaterial,
+                progressFillMaterial,
+                startUpgradeAction,
+                new Vector2(154f, 126f),
+                new Vector3(0f, 0.96f, -0.54f),
+                new Vector3(0f, 0.96f, -0.49f),
+                new Vector3(0f, 1.70f, -0.18f),
+                new Vector3(0f, 1.80f, -0.02f),
+                new Vector3(0f, 1.28f, -0.36f),
+                1.56f,
+                1.04f,
+                0.94f,
+                0.025f,
+                2.28f,
+                1.90f,
+                0.035f,
+                0.08f,
+                new Color(0.31f, 0.30f, 0.29f));
+        }
+
         private static UpgradeableFacilityBuilding CreateUpgradeableFacilityBuilding(string displayName, Vector3 rootPosition, Material bodyMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, Func<bool> startUpgradeAction, Vector2 clickSizePixels, Vector3 referenceLocalPosition, Vector3 glowReferenceLocalPosition, Vector3 symbolLocalPosition, Vector3 progressLocalPosition, Vector3 labelLocalPosition, float visualWidth, float visualDepth, float visualHeight, float heightPerLevel, float referenceWidth, float referenceHeight, float referenceHeightPerLevel, float referenceGlowPadding, Color bodyColor)
         {
             // The facility root owns map placement while its visual root can pop on upgrade completion.
@@ -1094,8 +1203,11 @@ namespace LaneSurvivor.Base
             // The completion glow uses the same reference silhouette when the exact concept model is visible.
             GameObject glowObject = CreateFacilityCompletionGlow(displayName, visualRootObject.transform, referenceModelObject != null ? referenceGlowMaterial : null);
 
+            // Generated audio lets every generic facility finish upgrades with the same local chime.
+            Component audioSource = UpgradeCompletionSound.CreateOptionalAudioSource(facilityObject);
+
             UpgradeableFacilityBuilding facilityBuilding = facilityObject.AddComponent<UpgradeableFacilityBuilding>();
-            facilityBuilding.Configure(displayName, visualRootObject.transform, label, bodyObject.transform, bodyObject.GetComponent<Renderer>(), referenceModelObject != null ? referenceModelObject.transform : null, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, startUpgradeAction, clickSizePixels, referenceLocalPosition, glowReferenceLocalPosition, symbolLocalPosition, progressLocalPosition, labelLocalPosition, visualWidth, visualDepth, visualHeight, heightPerLevel, referenceWidth, referenceHeight, referenceHeightPerLevel, referenceGlowPadding, bodyColor);
+            facilityBuilding.Configure(displayName, visualRootObject.transform, label, bodyObject.transform, bodyObject.GetComponent<Renderer>(), referenceModelObject != null ? referenceModelObject.transform : null, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, audioSource, startUpgradeAction, clickSizePixels, referenceLocalPosition, glowReferenceLocalPosition, symbolLocalPosition, progressLocalPosition, labelLocalPosition, visualWidth, visualDepth, visualHeight, heightPerLevel, referenceWidth, referenceHeight, referenceHeightPerLevel, referenceGlowPadding, bodyColor);
             return facilityBuilding;
         }
 
@@ -1208,6 +1320,18 @@ namespace LaneSurvivor.Base
         {
             // The training aura follows the tactical blue tint while preserving the exact silhouette.
             return CreateTexturedTransparentMaterial("Training/TrainingFacilityReferenceGlowSilhouette", "Training Facility Reference Glow Silhouette Material", TrainingCompletionGlowTint, (int)RenderQueue.Transparent - 10);
+        }
+
+        private static Material CreateLivingQuartersReferenceMaterial()
+        {
+            // The living-quarters art stays warm and residential so it differs from command, lab, hangar, and training palettes.
+            return CreateTexturedTransparentMaterial("LivingQuarters/LivingQuartersReferenceCutout", "Living Quarters Reference Cutout Material", LivingQuartersReferenceTint, (int)RenderQueue.Transparent);
+        }
+
+        private static Material CreateLivingQuartersReferenceGlowMaterial()
+        {
+            // The living-quarters aura preserves the approved building silhouette and tints it coral-magenta.
+            return CreateTexturedTransparentMaterial("LivingQuarters/LivingQuartersReferenceGlowSilhouette", "Living Quarters Reference Glow Silhouette Material", LivingQuartersCompletionGlowTint, (int)RenderQueue.Transparent - 10);
         }
 
         private static Material CreateTexturedTransparentMaterial(string resourcePath, string materialName, Color tintColor, int renderQueue)
@@ -1653,36 +1777,6 @@ namespace LaneSurvivor.Base
             stripObject.transform.localPosition = localPosition;
         }
 
-        private static Component CreateOptionalBioLabAudioSource(GameObject labObject)
-        {
-            // Resolve AudioSource lazily so the prototype can compile even when AudioModule is not referenced.
-            Type audioSourceType = BioLabBuilding.FindOptionalUnityAudioType("UnityEngine.AudioSource");
-            if (audioSourceType == null)
-            {
-                return null;
-            }
-
-            // Add the reflected component to the lab root so completion sound follows the building.
-            Component audioSource = labObject.AddComponent(audioSourceType);
-            SetReflectedProperty(audioSource, "playOnAwake", false);
-            SetReflectedProperty(audioSource, "spatialBlend", 0.15f);
-            SetReflectedProperty(audioSource, "volume", 0.55f);
-            return audioSource;
-        }
-
-        private static void SetReflectedProperty(object target, string propertyName, object value)
-        {
-            // Optional audio properties differ by Unity module version, so silently skip missing setters.
-            PropertyInfo propertyInfo = target?.GetType().GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public);
-            if (propertyInfo == null || !propertyInfo.CanWrite)
-            {
-                return;
-            }
-
-            // Apply simple bool/float values to the reflected AudioSource component.
-            propertyInfo.SetValue(target, value);
-        }
-
         private static void SetRenderersEnabled(Transform root, bool isEnabled)
         {
             // Missing roots are valid when the reference material fails and the procedural fallback is in use.
@@ -1811,11 +1905,18 @@ namespace LaneSurvivor.Base
             Button playButton = CreateButton(canvas.transform, "Play Button", "PLAY", font, new Vector2(126f, 34f), new Vector2(0.5f, 0f), new Vector2(114f, 46f));
             Button claimObjectiveButton = CreateButton(canvas.transform, "Claim Objective Button", "CLAIM", font, new Vector2(-46f, -401f), new Vector2(1f, 1f), new Vector2(76f, 32f));
             Button[] missionButtons = CreateMissionButtons(canvas.transform, font);
-            Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-58f, -18f), new Vector2(1f, 1f), new Vector2(72f, 34f));
+            Button resetButton = CreateButton(canvas.transform, "Reset Save Button", "RESET", font, new Vector2(-68f, -28f), new Vector2(1f, 1f), new Vector2(90f, 36f));
             Button equipHeroButton = CreateButton(canvas.transform, "Equip Hero Button", "EQUIP", font, new Vector2(-56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
             Button heroesButton = CreateButton(canvas.transform, "Heroes Button", "HEROES", font, new Vector2(56f, 166f), new Vector2(0.5f, 0f), new Vector2(96f, 36f));
             Button zoomInButton = CreateButton(canvas.transform, "Zoom In Button", "+", font, new Vector2(-30f, 42f), new Vector2(1f, 0.5f), new Vector2(44f, 44f));
             Button zoomOutButton = CreateButton(canvas.transform, "Zoom Out Button", "-", font, new Vector2(-30f, -8f), new Vector2(1f, 0.5f), new Vector2(44f, 44f));
+            ConfigureActionButtonLabel(collectButton);
+            ConfigureActionButtonLabel(upgradeButton);
+            ConfigureActionButtonLabel(playButton);
+            ConfigureActionButtonLabel(claimObjectiveButton);
+            ConfigureActionButtonLabel(resetButton);
+            ConfigureActionButtonLabel(equipHeroButton);
+            ConfigureActionButtonLabel(heroesButton);
             ConfigureZoomButtonLabel(zoomInButton);
             ConfigureZoomButtonLabel(zoomOutButton);
 
@@ -1840,10 +1941,10 @@ namespace LaneSurvivor.Base
             panelRect.anchorMax = new Vector2(0f, 1f);
             panelRect.pivot = new Vector2(0f, 1f);
             panelRect.anchoredPosition = new Vector2(16f, -116f);
-            panelRect.sizeDelta = new Vector2(254f, 192f);
+            panelRect.sizeDelta = new Vector2(254f, 224f);
 
             // The local base values are grouped into a short black-text summary instead of separate HUD labels.
-            detailText = CreateText(panelObject.transform, "Credits Detail Text", "Coins: 0\nHQ Level: 1\nBio Lab: 1\nHangar: 1\nTraining: 1\nHQ Upgrade: Ready\nBio Upgrade: Ready\nHangar Upgrade: Ready\nTraining Upgrade: Ready", font, new Vector2(12f, -10f), TextAnchor.UpperLeft, new Vector2(230f, 168f));
+            detailText = CreateText(panelObject.transform, "Credits Detail Text", "Coins: 0\nHQ Level: 1\nBio Lab: 1\nHangar: 1\nTraining: 1\nLiving Qtrs: 1\nHQ Upgrade: Need 75c\nBio Upgrade: Ready\nHangar Upgrade: Ready\nTraining Upgrade: Ready\nLQ Upgrade: Ready", font, new Vector2(12f, -10f), TextAnchor.UpperLeft, new Vector2(230f, 200f));
             detailText.color = Color.black;
             detailText.fontSize = 14;
             detailText.lineSpacing = 1f;
@@ -1978,6 +2079,22 @@ namespace LaneSurvivor.Base
             label.resizeTextForBestFit = true;
             label.resizeTextMinSize = 12;
             label.resizeTextMaxSize = 18;
+        }
+
+        private static void ConfigureActionButtonLabel(Button button)
+        {
+            // Action buttons use compact mobile boxes, so long labels must shrink instead of clipping.
+            Text label = button.GetComponentInChildren<Text>();
+            if (label == null)
+            {
+                return;
+            }
+
+            // Best fit keeps RESET/UPGRADE readable on both portrait devices and the landscape editor view.
+            label.fontSize = 24;
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 12;
+            label.resizeTextMaxSize = 24;
         }
 
         private static void ConfigureZoomButtonLabel(Button button)

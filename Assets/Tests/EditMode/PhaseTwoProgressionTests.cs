@@ -116,13 +116,14 @@ namespace LaneSurvivor.Tests.EditMode
             DateTime now = new(2026, 5, 30, 12, 0, 0, DateTimeKind.Utc);
 
             bool started = PlayerProgression.TryStartHqUpgrade(saveData, now);
+            int expectedDurationSeconds = PlayerProgression.GetHqUpgradeDurationSeconds(saveData.hqLevel);
 
             Assert.IsTrue(started);
             Assert.AreEqual(25, saveData.coins);
             Assert.IsTrue(saveData.hqUpgradeInProgress);
-            Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, saveData.hqUpgradeDurationSeconds);
-            Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, PlayerProgression.GetHqUpgradeRemainingSeconds(saveData, now));
-            Assert.AreEqual(0.5f, PlayerProgression.GetHqUpgradeProgress01(saveData, now.AddSeconds(PlayerProgression.HqUpgradeDurationSeconds * 0.5f)), 0.01f);
+            Assert.AreEqual(expectedDurationSeconds, saveData.hqUpgradeDurationSeconds);
+            Assert.AreEqual(expectedDurationSeconds, PlayerProgression.GetHqUpgradeRemainingSeconds(saveData, now));
+            Assert.AreEqual(0.5f, PlayerProgression.GetHqUpgradeProgress01(saveData, now.AddSeconds(expectedDurationSeconds * 0.5f)), 0.01f);
         }
 
         [Test]
@@ -152,7 +153,7 @@ namespace LaneSurvivor.Tests.EditMode
             DateTime now = new(2026, 5, 30, 12, 0, 0, DateTimeKind.Utc);
 
             PlayerProgression.TryStartHqUpgrade(saveData, now);
-            bool completed = PlayerProgression.CompleteReadyHqUpgrade(saveData, now.AddSeconds(PlayerProgression.HqUpgradeDurationSeconds + 1));
+            bool completed = PlayerProgression.CompleteReadyHqUpgrade(saveData, now.AddSeconds(PlayerProgression.GetHqUpgradeDurationSeconds(1) + 1));
 
             Assert.IsTrue(completed);
             Assert.AreEqual(2, saveData.hqLevel);
@@ -164,7 +165,7 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
-        public void BioLabUpgradeDuration_UsesRequestedExponentialCurve()
+        public void BuildingUpgradeDurations_UseRequestedExponentialCurve()
         {
             Assert.AreEqual(1, PlayerProgression.GetBioLabUpgradeDurationSeconds(1));
             Assert.AreEqual(3, PlayerProgression.GetBioLabUpgradeDurationSeconds(2));
@@ -173,6 +174,9 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(60 * 5, PlayerProgression.GetBioLabUpgradeDurationSeconds(5));
             Assert.AreEqual(60 * 5 * 5, PlayerProgression.GetBioLabUpgradeDurationSeconds(6));
             Assert.AreEqual(60 * 5 * 5 * 5, PlayerProgression.GetBioLabUpgradeDurationSeconds(7));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(1), PlayerProgression.GetHqUpgradeDurationSeconds(1));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(4), PlayerProgression.GetHqUpgradeDurationSeconds(4));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(9), PlayerProgression.GetHqUpgradeDurationSeconds(9));
         }
 
         [Test]
@@ -234,13 +238,17 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
-        public void HangarAndTrainingUpgradeRules_MatchBioLabCostAndDuration()
+        public void SameRuleUpgradeBuildings_MatchBioLabCostAndDuration()
         {
             // Same-rule buildings should stay on the existing lab cost and duration curve.
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeCost(3), PlayerProgression.GetHqUpgradeCost(3));
             Assert.AreEqual(PlayerProgression.GetBioLabUpgradeCost(3), PlayerProgression.GetHangarUpgradeCost(3));
             Assert.AreEqual(PlayerProgression.GetBioLabUpgradeCost(4), PlayerProgression.GetTrainingFacilityUpgradeCost(4));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeCost(5), PlayerProgression.GetLivingQuartersUpgradeCost(5));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(4), PlayerProgression.GetHqUpgradeDurationSeconds(4));
             Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(5), PlayerProgression.GetHangarUpgradeDurationSeconds(5));
             Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(6), PlayerProgression.GetTrainingFacilityUpgradeDurationSeconds(6));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(7), PlayerProgression.GetLivingQuartersUpgradeDurationSeconds(7));
         }
 
         [Test]
@@ -279,47 +287,81 @@ namespace LaneSurvivor.Tests.EditMode
             {
                 coins = PlayerProgression.GetHangarUpgradeCost(1) - 1,
                 hangarLevel = 1,
-                trainingFacilityLevel = 1
+                trainingFacilityLevel = 1,
+                livingQuartersLevel = 1
             };
 
             bool hangarStarted = PlayerProgression.TryStartHangarUpgrade(saveData, DateTime.UtcNow);
             bool trainingStarted = PlayerProgression.TryStartTrainingFacilityUpgrade(saveData, DateTime.UtcNow);
+            bool livingQuartersStarted = PlayerProgression.TryStartLivingQuartersUpgrade(saveData, DateTime.UtcNow);
 
             Assert.IsFalse(hangarStarted);
             Assert.IsFalse(trainingStarted);
+            Assert.IsFalse(livingQuartersStarted);
             Assert.AreEqual(PlayerProgression.GetHangarUpgradeCost(1) - 1, saveData.coins);
             Assert.IsFalse(saveData.hangarUpgradeInProgress);
             Assert.IsFalse(saveData.trainingFacilityUpgradeInProgress);
+            Assert.IsFalse(saveData.livingQuartersUpgradeInProgress);
             Assert.AreEqual(1, saveData.hangarLevel);
             Assert.AreEqual(1, saveData.trainingFacilityLevel);
+            Assert.AreEqual(1, saveData.livingQuartersLevel);
         }
 
         [Test]
-        public void CompleteReadyHangarAndTrainingUpgrades_IncreaseLevelsAndClearTimers()
+        public void CompleteReadyHangarTrainingAndLivingQuartersUpgrades_IncreaseLevelsAndClearTimers()
         {
             SaveGameData saveData = new()
             {
-                coins = PlayerProgression.GetHangarUpgradeCost(1) + PlayerProgression.GetTrainingFacilityUpgradeCost(1),
+                coins = PlayerProgression.GetHangarUpgradeCost(1) + PlayerProgression.GetTrainingFacilityUpgradeCost(1) + PlayerProgression.GetLivingQuartersUpgradeCost(1),
                 hangarLevel = 1,
-                trainingFacilityLevel = 1
+                trainingFacilityLevel = 1,
+                livingQuartersLevel = 1
             };
             DateTime now = new(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
 
             PlayerProgression.TryStartHangarUpgrade(saveData, now);
             PlayerProgression.TryStartTrainingFacilityUpgrade(saveData, now);
+            PlayerProgression.TryStartLivingQuartersUpgrade(saveData, now);
             bool hangarCompleted = PlayerProgression.CompleteReadyHangarUpgrade(saveData, now.AddSeconds(1.1));
             bool trainingCompleted = PlayerProgression.CompleteReadyTrainingFacilityUpgrade(saveData, now.AddSeconds(1.1));
+            bool livingQuartersCompleted = PlayerProgression.CompleteReadyLivingQuartersUpgrade(saveData, now.AddSeconds(1.1));
 
             Assert.IsTrue(hangarCompleted);
             Assert.IsTrue(trainingCompleted);
+            Assert.IsTrue(livingQuartersCompleted);
             Assert.AreEqual(2, saveData.hangarLevel);
             Assert.AreEqual(2, saveData.trainingFacilityLevel);
+            Assert.AreEqual(2, saveData.livingQuartersLevel);
             Assert.IsFalse(saveData.hangarUpgradeInProgress);
             Assert.IsFalse(saveData.trainingFacilityUpgradeInProgress);
+            Assert.IsFalse(saveData.livingQuartersUpgradeInProgress);
             Assert.AreEqual(0, saveData.hangarUpgradeStartedUtcTicks);
             Assert.AreEqual(0, saveData.trainingFacilityUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, saveData.livingQuartersUpgradeStartedUtcTicks);
             Assert.AreEqual(0, saveData.hangarUpgradeDurationSeconds);
             Assert.AreEqual(0, saveData.trainingFacilityUpgradeDurationSeconds);
+            Assert.AreEqual(0, saveData.livingQuartersUpgradeDurationSeconds);
+        }
+
+        [Test]
+        public void StartLivingQuartersUpgrade_SpendsCoinsAndStartsLevelDurationTimer()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = PlayerProgression.GetLivingQuartersUpgradeCost(4),
+                livingQuartersLevel = 4
+            };
+            DateTime now = new(2026, 6, 16, 12, 0, 0, DateTimeKind.Utc);
+
+            bool started = PlayerProgression.TryStartLivingQuartersUpgrade(saveData, now);
+
+            Assert.IsTrue(started);
+            Assert.AreEqual(0, saveData.coins);
+            Assert.IsTrue(saveData.livingQuartersUpgradeInProgress);
+            Assert.AreEqual(now.Ticks, saveData.livingQuartersUpgradeStartedUtcTicks);
+            Assert.AreEqual(60, saveData.livingQuartersUpgradeDurationSeconds);
+            Assert.AreEqual(60, PlayerProgression.GetLivingQuartersUpgradeRemainingSeconds(saveData, now));
+            Assert.AreEqual(0.5f, PlayerProgression.GetLivingQuartersUpgradeProgress01(saveData, now.AddSeconds(30)), 0.01f);
         }
 
         [Test]
@@ -565,7 +607,7 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
-        public void Normalize_ClearsMalformedHangarAndTrainingTimersWithoutLeveling()
+        public void Normalize_ClearsMalformedHangarTrainingAndLivingQuartersTimersWithoutLeveling()
         {
             SaveGameData saveData = new()
             {
@@ -576,19 +618,27 @@ namespace LaneSurvivor.Tests.EditMode
                 trainingFacilityLevel = 4,
                 trainingFacilityUpgradeInProgress = true,
                 trainingFacilityUpgradeStartedUtcTicks = long.MaxValue,
-                trainingFacilityUpgradeDurationSeconds = 60
+                trainingFacilityUpgradeDurationSeconds = 60,
+                livingQuartersLevel = 5,
+                livingQuartersUpgradeInProgress = true,
+                livingQuartersUpgradeStartedUtcTicks = long.MaxValue,
+                livingQuartersUpgradeDurationSeconds = 300
             };
 
             saveData.Normalize();
 
             Assert.AreEqual(3, saveData.hangarLevel);
             Assert.AreEqual(4, saveData.trainingFacilityLevel);
+            Assert.AreEqual(5, saveData.livingQuartersLevel);
             Assert.IsFalse(saveData.hangarUpgradeInProgress);
             Assert.IsFalse(saveData.trainingFacilityUpgradeInProgress);
+            Assert.IsFalse(saveData.livingQuartersUpgradeInProgress);
             Assert.AreEqual(0, saveData.hangarUpgradeStartedUtcTicks);
             Assert.AreEqual(0, saveData.trainingFacilityUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, saveData.livingQuartersUpgradeStartedUtcTicks);
             Assert.AreEqual(0, saveData.hangarUpgradeDurationSeconds);
             Assert.AreEqual(0, saveData.trainingFacilityUpgradeDurationSeconds);
+            Assert.AreEqual(0, saveData.livingQuartersUpgradeDurationSeconds);
         }
 
         [Test]
@@ -615,6 +665,10 @@ namespace LaneSurvivor.Tests.EditMode
                 trainingFacilityUpgradeInProgress = true,
                 trainingFacilityUpgradeStartedUtcTicks = new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc).Ticks,
                 trainingFacilityUpgradeDurationSeconds = 1500,
+                livingQuartersLevel = 7,
+                livingQuartersUpgradeInProgress = true,
+                livingQuartersUpgradeStartedUtcTicks = new DateTime(2026, 6, 16, 12, 0, 0, DateTimeKind.Utc).Ticks,
+                livingQuartersUpgradeDurationSeconds = 7500,
                 unlockedMinigameLevel = 3,
                 currentMissionLevel = 2,
                 highestUnlockedMissionLevel = 3,
@@ -641,6 +695,10 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsTrue(loadedData.trainingFacilityUpgradeInProgress);
             Assert.AreEqual(saveData.trainingFacilityUpgradeStartedUtcTicks, loadedData.trainingFacilityUpgradeStartedUtcTicks);
             Assert.AreEqual(1500, loadedData.trainingFacilityUpgradeDurationSeconds);
+            Assert.AreEqual(7, loadedData.livingQuartersLevel);
+            Assert.IsTrue(loadedData.livingQuartersUpgradeInProgress);
+            Assert.AreEqual(saveData.livingQuartersUpgradeStartedUtcTicks, loadedData.livingQuartersUpgradeStartedUtcTicks);
+            Assert.AreEqual(7500, loadedData.livingQuartersUpgradeDurationSeconds);
             Assert.AreEqual(3, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(2, loadedData.currentMissionLevel);
             Assert.AreEqual(3, loadedData.highestUnlockedMissionLevel);
@@ -665,6 +723,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsFalse(loadedData.hangarUpgradeInProgress);
             Assert.AreEqual(1, loadedData.trainingFacilityLevel);
             Assert.IsFalse(loadedData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(1, loadedData.livingQuartersLevel);
+            Assert.IsFalse(loadedData.livingQuartersUpgradeInProgress);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(1, loadedData.currentMissionLevel);
             Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);
@@ -683,6 +743,22 @@ namespace LaneSurvivor.Tests.EditMode
             {
                 coins = 250,
                 hqLevel = 4,
+                bioLabLevel = 3,
+                bioLabUpgradeInProgress = true,
+                bioLabUpgradeStartedUtcTicks = new DateTime(2026, 6, 13, 12, 0, 0, DateTimeKind.Utc).Ticks,
+                bioLabUpgradeDurationSeconds = 10,
+                hangarLevel = 3,
+                hangarUpgradeInProgress = true,
+                hangarUpgradeStartedUtcTicks = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc).Ticks,
+                hangarUpgradeDurationSeconds = 10,
+                trainingFacilityLevel = 3,
+                trainingFacilityUpgradeInProgress = true,
+                trainingFacilityUpgradeStartedUtcTicks = new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc).Ticks,
+                trainingFacilityUpgradeDurationSeconds = 10,
+                livingQuartersLevel = 3,
+                livingQuartersUpgradeInProgress = true,
+                livingQuartersUpgradeStartedUtcTicks = new DateTime(2026, 6, 16, 12, 0, 0, DateTimeKind.Utc).Ticks,
+                livingQuartersUpgradeDurationSeconds = 10,
                 unlockedMinigameLevel = 4,
                 currentMissionLevel = 3,
                 highestUnlockedMissionLevel = 4,
@@ -702,6 +778,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsFalse(resetData.hangarUpgradeInProgress);
             Assert.AreEqual(1, resetData.trainingFacilityLevel);
             Assert.IsFalse(resetData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(1, resetData.livingQuartersLevel);
+            Assert.IsFalse(resetData.livingQuartersUpgradeInProgress);
             Assert.AreEqual(1, resetData.unlockedMinigameLevel);
             Assert.AreEqual(1, resetData.currentMissionLevel);
             Assert.AreEqual(1, resetData.highestUnlockedMissionLevel);
@@ -714,6 +792,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsFalse(loadedData.hangarUpgradeInProgress);
             Assert.AreEqual(1, loadedData.trainingFacilityLevel);
             Assert.IsFalse(loadedData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(1, loadedData.livingQuartersLevel);
+            Assert.IsFalse(loadedData.livingQuartersUpgradeInProgress);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(1, loadedData.currentMissionLevel);
             Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);

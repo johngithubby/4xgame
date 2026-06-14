@@ -66,6 +66,9 @@ namespace LaneSurvivor.Base
         [SerializeField]
         private Renderer[] glowRenderers = Array.Empty<Renderer>();
 
+        [SerializeField]
+        private Component audioSource;
+
         private Func<bool> requestUpgradeAction;
 
         private Vector2 buildingClickSizePixels = new(132f, 112f);
@@ -126,9 +129,15 @@ namespace LaneSurvivor.Base
 
         public int CompletionEffectPlayCount { get; private set; }
 
+        public int CompletionSoundRequestCount { get; private set; }
+
         public float CompletionGlowPulseScale { get; private set; } = 1f;
 
         public float CompletionGlowAlpha { get; private set; } = 0.34f;
+
+        public bool HasCompletionSoundSource => audioSource != null;
+
+        public bool HasGeneratedCompletionSoundClip => UpgradeCompletionSound.HasGeneratedCompletionSoundClip;
 
         public bool IsUpgradeSymbolVisible => upgradeSymbolRoot != null && upgradeSymbolRoot.gameObject.activeSelf;
 
@@ -154,6 +163,7 @@ namespace LaneSurvivor.Base
             Transform progressContainer,
             MeshFilter progressFill,
             Transform glowContainer,
+            Component soundSource,
             Func<bool> startUpgradeAction,
             Vector2 screenClickSizePixels,
             Vector3 referenceLocalPosition,
@@ -185,6 +195,7 @@ namespace LaneSurvivor.Base
             glowRoot = glowContainer;
             glowReferenceAuraTransform = glowRoot != null ? glowRoot.Find($"{facilityName} Completion Reference Aura") : null;
             glowRenderers = glowRoot != null ? glowRoot.GetComponentsInChildren<Renderer>(true) : Array.Empty<Renderer>();
+            audioSource = soundSource;
             requestUpgradeAction = startUpgradeAction;
             buildingClickSizePixels = screenClickSizePixels;
             referenceBaseLocalPosition = referenceLocalPosition;
@@ -313,6 +324,18 @@ namespace LaneSurvivor.Base
             // Show the glow immediately so the completion frame is readable.
             glowRoot?.gameObject.SetActive(true);
             UpdateCompletionGlowPulse();
+
+            // Play the same generated local chime as every other building upgrade completion.
+            PlayFinishSound();
+        }
+
+        private void PlayFinishSound()
+        {
+            // Record every finish-sound request even when an audio module is unavailable in a test runner.
+            CompletionSoundRequestCount += 1;
+
+            // The shared helper handles optional AudioModule reflection and playback.
+            UpgradeCompletionSound.Play(audioSource);
         }
 
         private void Update()

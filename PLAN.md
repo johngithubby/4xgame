@@ -81,10 +81,12 @@ The first tiny Phase 2 slice is implemented:
 - `Base` scene exists.
 - Placeholder HQ building displays saved HQ level.
 - Local coins can be collected.
-- HQ upgrade spends coins and starts a local persisted timer.
+- HQ, bio-lab, hangar, training, and living-quarters upgrades spend coins and start local persisted timers using the shared 1s, 3s, 10s, 60s, then x5 level-based duration curve.
 - Ready upgrades complete from scene load or while the base scene is open.
+- Completed HQ, bio-lab, hangar, training, and living-quarters upgrades play the shared generated local finish sound.
 - HQ level grants a starting squad bonus in the minigame.
 - Base shows direct mission buttons and keeps coins, HQ level, and upgrade status inside an expandable Credits control.
+- The idle HQ HUD upgrade button remains clickable for missing-credit feedback, and RESET/UPGRADE labels remain readable and clickable inside the HUD canvas.
 - Base scene can launch Minigame.
 - Base scene can launch the dedicated Heroes screen.
 - Minigame win/loss screen can return to Base.
@@ -94,7 +96,7 @@ The first tiny Phase 2 slice is implemented:
 - Editor and development builds expose a local save reset button for prototype iteration.
 - Base HUD spacing has been tightened around a phone-sized reference layout.
 - Save, wallet, timer, and progression rules have EditMode coverage.
-- Base collection/upgrade, Credits expansion, mission button selection, locked mission rejection, completed-upgrade feedback, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
+- Base collection/upgrade, shared HQ duration persistence, high-level HQ upgrade/reset clicks, Credits expansion, mission button selection, locked mission rejection, completed-upgrade feedback, living-quarters reference model/upgrade coverage, Base-to-Minigame, Minigame-to-Base, Base-to-Heroes, and Hero screen level/equip actions have PlayMode smoke coverage.
 
 ### Smallest Useful Slice
 
@@ -104,7 +106,7 @@ The first tiny Phase 2 slice is implemented:
 4. Add a `Collect` button that grants coins. Done.
 5. Add an `Upgrade HQ` button. Done.
 6. HQ starts at level 1. Done.
-7. HQ upgrade spends coins and starts a short timer. Done.
+7. HQ upgrade spends coins and starts the shared level-based building timer. Done.
 8. Timer persists locally across app close/reopen. Done.
 9. Completed HQ upgrade increases HQ level. Done.
 10. HQ level grants a visible minigame bonus, such as increased starting squad count. Done.
@@ -145,6 +147,10 @@ SaveGameData
 - ownedHeroIds
 - equippedHeroId
 - heroProgress
+- bioLabLevel / bioLabUpgradeStartedUtcTicks / bioLabUpgradeDurationSeconds / bioLabUpgradeInProgress
+- hangarLevel / hangarUpgradeStartedUtcTicks / hangarUpgradeDurationSeconds / hangarUpgradeInProgress
+- trainingFacilityLevel / trainingFacilityUpgradeStartedUtcTicks / trainingFacilityUpgradeDurationSeconds / trainingFacilityUpgradeInProgress
+- livingQuartersLevel / livingQuartersUpgradeStartedUtcTicks / livingQuartersUpgradeDurationSeconds / livingQuartersUpgradeInProgress
 ```
 
 ### Acceptance Criteria
@@ -442,8 +448,11 @@ Implemented in this slice:
 - HQ upgrades no longer add generated side-detail rows or exterior complications. Done.
 - The generated HQ label stays hidden while the reference art is available because the art contains the HQ sign. Done.
 - Completed HQ upgrades use a pulsating blurred aura made from the exact HQ silhouette. Done.
+- Completed HQ upgrades play the shared generated local finish sound. Done.
 - Tapping the visible HQ reveals a green/grey flat 2D popup upgrade arrow, and tapping that arrow starts the same persisted HQ upgrade timer as the HUD button when credits allow. Done.
+- HQ upgrades reuse the same level-based duration curve as the bio lab, hangar, and training facility: 1s, 3s, 10s, 60s, then x5 each further level. Done.
 - Running HQ upgrades show the same circular world-space progress fill treatment as the bio lab. Done.
+- The idle HQ HUD upgrade button remains clickable when credits are short, reports the needed credits, and keeps RESET/UPGRADE labels from clipping. Done.
 - Building popup arrows close when the player taps another building, empty map space, or HUD action. Done.
 - The Base scene supports zooming in and out through on-screen buttons, mouse wheel, keyboard shortcuts, and two-finger pinch math. Done.
 - The map that includes the Base supports bounded dragging through mouse and one-finger touch input while ignoring HUD-origin gestures. Done.
@@ -457,8 +466,11 @@ Implemented in this slice:
 - HQ upgrades preserve the reference-textured HQ color instead of darkening the body.
 - HQ upgrades avoid generated detail-row complications.
 - Completed HQ upgrades show a reference-silhouette glow around the building outline.
+- Completed HQ upgrades play the shared generated local finish sound.
 - The visible HQ can be tapped to reveal a flat 2D popup upgrade arrow for the next HQ upgrade.
+- HQ upgrades use the same level-based duration curve as the other upgradeable buildings.
 - Running HQ upgrades show a circular progress fill above the HQ.
+- The HQ HUD upgrade button explains missing credits instead of becoming a silent dead button, and compact action/reset labels shrink before clipping.
 - Popup upgrade arrows dismiss when the player taps elsewhere in the Base world or uses the HUD.
 - The Base scene supports zooming in and out.
 - The map that includes the base is draggable.
@@ -470,8 +482,12 @@ Implemented in this slice:
 
 - HQ level changes are readable without opening a menu, while level 14 remains compact, fixed-width, and reference-colored. Done.
 - Completed HQ upgrades show a pulsating outline aura without adding exterior green pieces. Done.
+- Completed HQ upgrades play the same generated local finish sound as the bio lab, hangar, and training facility. Done.
 - Tapping the visible HQ reveals a flat 2D upgrade arrow, and tapping that arrow starts a saved HQ upgrade when the player has enough credits. Done.
+- HQ timers follow the same 1s, 3s, 10s, 60s, then x5 duration curve as the bio lab, hangar, and training facility. Done.
 - Running HQ upgrades show a circular progress fill above the HQ. Done.
+- Tapping the idle HQ HUD upgrade button always gives feedback, either starting the timer or showing the needed credits. Done.
+- RESET and UPGRADE remain readable and clickable inside the HUD canvas. Done.
 - Popup upgrade arrows are hidden after tapping another building, empty map space, or HUD action. Done.
 - Base zoom works on mobile-friendly input and does not hide core HUD controls. Done.
 - The map that includes the base is draggable. Done.
@@ -483,8 +499,8 @@ Implemented in this slice:
 
 - PlayMode coverage checks the unoutlined Base floor, reference-textured pentagon HQ geometry, hidden scaffold renderer, compact level-14 height-only HQ growth, fixed footprint, no generated detail rows, reserved future-space objects, camera zoom controls, and map dragging that leave overlay HUD controls fixed. Done.
 - PlayMode coverage checks the Credits button expansion and verifies the old left-side Base status labels are not generated. Done.
-- Existing PlayMode coverage still checks HQ upgrade persistence through the popup arrow, zero-thickness flat 2D arrow mesh generation, running HQ circular progress, popup-arrow dismissal, completed-upgrade feedback, HQ silhouette-aura feedback, mission launch, Hero navigation, and daily objective claiming. Done.
-- Latest automated verification: Unity EditMode `79/79`, Unity PlayMode `27/27`, temp 2D arrow capture test `1/1`, and clean `git diff --check`.
+- Existing PlayMode coverage still checks HQ upgrade persistence and level-based saved duration through the popup arrow and HUD button, visible high-level HQ upgrade/reset clicks through EventSystem pointer handlers, zero-thickness flat 2D arrow mesh generation, running HQ circular progress, popup-arrow dismissal, completed-upgrade feedback, HQ silhouette-aura/sound feedback, mission launch, Hero navigation, and daily objective claiming. Done.
+- Latest automated verification: Unity EditMode `84/84`, Unity PlayMode `30/30`, and clean `git diff --check` from `/private/tmp/4xgame-hq-duration`.
 
 ## Local V6-1: Bio lab upgrade
 
@@ -501,7 +517,7 @@ Implemented in this slice:
 - Bio-lab popup upgrade symbols close when the player taps another building, empty map space, or HUD action.
 - Clicking the green symbol starts a saved bio-lab upgrade timer and spends the upgrade cost.
 - A circular progress icon overlays the lab while the saved timer is active.
-- Completed bio-lab upgrades increase the saved lab level, clear the timer, pop the lab, play a generated local finish sound, and show a five-second pulsing aura.
+- Completed bio-lab upgrades increase the saved lab level, clear the timer, pop the lab, play the shared generated local finish sound, and show a five-second pulsing aura.
 - The completion aura uses `Resources/BioLab/BioLabReferenceGlowSilhouette`, a blurred copy of the exact lab silhouette, so the glow follows the building outline.
 - Level progression grows the visible lab only slightly taller; it does not add exterior complications or extra outside structures.
 
@@ -521,7 +537,7 @@ Implemented in this slice:
 - EditMode progression coverage checks bio-lab upgrade costs, timers, completion, and save persistence. Done.
 - PlayMode coverage checks grey/green flat 2D upgrade-symbol behavior, zero-thickness arrow mesh generation, saved timer start, circular progress fill, height-only visual leveling, completion pop/glow/sound, reference-textured model loading, hidden occupied lab pad renderer, and no lab-pad label. Done.
 - Visual verification captured and reviewed a rendered still plus GIF of the pulsing blurred silhouette aura. Done.
-- Latest automated verification: Unity EditMode `79/79`, Unity PlayMode `27/27`, temp 2D arrow capture test `1/1`, and clean `git diff --check`.
+- Latest automated verification: Unity EditMode `84/84`, Unity PlayMode `30/30`, and clean `git diff --check` from `/private/tmp/4xgame-hq-duration`.
 
 ## Local V6-2: Hangar and training facility upgrade models
 
@@ -539,7 +555,7 @@ Implemented in this slice:
 - Tapping either building reveals a grey or green flat 2D upgrade symbol based on whether the saved wallet can afford the next level.
 - Clicking a green symbol starts a saved upgrade timer, spends the upgrade cost, hides the symbol, and shows a circular progress icon above the building.
 - Hangar and training upgrades reuse the bio-lab cost scale and duration curve: 1s, 3s, 10s, 60s, then x5 each further level.
-- Completed upgrades increase the saved building level, clear the timer, pop the building, show a five-second pulsing silhouette aura, and grow the visible reference model only slightly taller.
+- Completed upgrades increase the saved building level, clear the timer, pop the building, play the shared generated local finish sound, show a five-second pulsing silhouette aura, and grow the visible reference model only slightly taller.
 - Tapping another building, empty map space, Credits, Collect, or other HUD actions hides popup arrows for all current buildings.
 
 ### Acceptance Criteria
@@ -550,13 +566,50 @@ Implemented in this slice:
 - Both buildings start saved timers from the popup arrow, display circular progress while running, and complete from UTC save data after app reopen. Done.
 - Both buildings grow only in height by a few pixels after an upgrade; they do not add exterior complications. Done.
 - Both buildings use a pulsating blurred aura around the exact reference silhouette when an upgrade completes. Done.
+- Both buildings use the same generated local finish sound as HQ and the bio lab when an upgrade completes. Done.
 - Any outside world or HUD click hides all building popup arrows. Done.
 
 ### Validation
 
 - EditMode progression coverage checks hangar and training upgrade costs, timers, completion, malformed timer repair, reset defaults, and save/load persistence. Done.
-- PlayMode coverage checks reference-textured hangar/training model loading, hidden occupied pad renderers/labels, zero-thickness flat 2D arrow mesh generation, saved timer start, circular progress fill, height-only visual leveling, popup dismissal across all buildings, and completion pop/glow feedback. Done.
-- Latest automated verification: Unity EditMode `84/84`, Unity PlayMode `29/29`, rendered Base screenshot reviewed at `/private/tmp/4xgame-spacing-palette/base-spacing-palette.png`, and clean `git diff --check`.
+- PlayMode coverage checks reference-textured hangar/training model loading, hidden occupied pad renderers/labels, zero-thickness flat 2D arrow mesh generation, saved timer start, circular progress fill, height-only visual leveling, popup dismissal across all buildings, and completion pop/glow/sound feedback. Done.
+- Latest automated verification: Unity EditMode `84/84`, Unity PlayMode `30/30`, and clean `git diff --check` from `/private/tmp/4xgame-hq-duration`.
+
+## Local V6-3: Living quarters building
+
+### Goal
+
+Add a living-quarters building through the approved concept-art workflow, using the same in-game building style and same upgrade strategy as the other Base facilities while keeping its palette and placement distinct.
+
+### Current Status
+
+- The approved living-quarters concept image has been copied into `Resources/LivingQuarters/LivingQuartersReferenceCutout` and processed into a transparent reference-textured world model. Done.
+- A matching blurred silhouette texture exists at `Resources/LivingQuarters/LivingQuartersReferenceGlowSilhouette` for completion auras. Done.
+- The Base scene creates living quarters in a separated rear-left residential slot away from HQ, bio lab, hangar, and training. Done.
+- Living quarters use a distinct graphite/ivory/warm-window/coral-magenta palette instead of reusing the HQ, lab, hangar, or training color scheme. Done.
+- The occupied living-quarters pad remains a logical map slot but no longer draws a slab or separate pad label. Done.
+- Tapping living quarters reveals the same flat 2D green/grey popup upgrade arrow rule as the bio lab, hangar, and training facility. Done.
+- Clicking the green symbol starts a saved living-quarters upgrade timer, spends the shared upgrade cost, hides the symbol, and shows a circular progress icon above the building. Done.
+- Living-quarters upgrades reuse the same cost scale and duration curve: `50 + level * 25`, with durations `1s`, `3s`, `10s`, `60s`, then `x5` each further level. Done.
+- Completed living-quarters upgrades increase the saved building level, clear the timer, pop the building, play the shared generated local finish sound, show a five-second pulsing silhouette aura, and grow the visible reference model only slightly taller. Done.
+- Tapping living quarters, another building, empty map space, or HUD action participates in the shared popup-arrow dismissal rule so only one building arrow can remain visible. Done.
+- The expandable Credits panel now includes living-quarters level and upgrade status. Done.
+
+### Acceptance Criteria
+
+- Living quarters match the approved concept image through a reference-textured world quad. Done.
+- Living quarters are visibly separated from HQ, bio lab, hangar, and training. Done.
+- Living quarters use a distinct residential coral/magenta color scheme. Done.
+- Living quarters use the same green/grey 2D popup-arrow upgrade affordance as the other buildings. Done.
+- Living quarters use the same saved timer, cost, duration, circular progress, height-only growth, completion glow, and shared finish sound strategy as the other same-rule buildings. Done.
+- `PLAN.md`, affected READMEs, EditMode tests, and PlayMode tests are updated for living quarters. Done.
+
+### Validation
+
+- EditMode progression coverage checks living-quarters upgrade cost, duration, start, progress, completion, malformed timer repair, reset defaults, and save/load persistence. Done.
+- PlayMode coverage checks living-quarters reference-textured model loading, separated placement, hidden occupied pad renderer/label, distinct tint, zero-thickness flat 2D arrow mesh generation, saved timer start, circular progress fill, height-only visual leveling, shared popup dismissal, and completion pop/glow/sound feedback. Done.
+- Latest automated verification: Unity EditMode `85/85`, Unity PlayMode `30/30`, focused living-quarters visual capture `1/1`, and clean `git diff --check` from `/private/tmp/4xgame-living-quarters`. Done.
+- Visual proof captured at `/private/tmp/4xgame-living-quarters/Logs/living-quarters-glow.gif`, with still frames confirming the living-quarters building is separated and the coral completion aura pulses around the building outline. Done.
 
 ## Future Local V7: Human Population, Gate Intake, And Role Training
 

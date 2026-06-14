@@ -44,6 +44,14 @@ namespace LaneSurvivor.Save
 
         public int trainingFacilityUpgradeDurationSeconds;
 
+        public int livingQuartersLevel = 1;
+
+        public bool livingQuartersUpgradeInProgress;
+
+        public long livingQuartersUpgradeStartedUtcTicks;
+
+        public int livingQuartersUpgradeDurationSeconds;
+
         public int unlockedMinigameLevel = 1;
 
         public int currentMissionLevel = 1;
@@ -72,6 +80,7 @@ namespace LaneSurvivor.Save
             bioLabLevel = Mathf.Max(1, bioLabLevel);
             hangarLevel = Mathf.Max(1, hangarLevel);
             trainingFacilityLevel = Mathf.Max(1, trainingFacilityLevel);
+            livingQuartersLevel = Mathf.Max(1, livingQuartersLevel);
             NormalizeMissionProgression();
             NormalizeHeroes();
             NormalizeDailyObjective();
@@ -111,6 +120,15 @@ namespace LaneSurvivor.Save
 
             // Inactive training saves do not need a duration, so clamp old negative values down to zero.
             trainingFacilityUpgradeDurationSeconds = Mathf.Max(0, trainingFacilityUpgradeDurationSeconds);
+
+            // Invalid persisted living-quarters timer values cannot be recovered safely, so clear that active timer.
+            if (livingQuartersUpgradeInProgress && !HasRecoverableLivingQuartersUpgradeTimer())
+            {
+                ClearLivingQuartersUpgrade();
+            }
+
+            // Inactive living-quarters saves do not need a duration, so clamp old negative values down to zero.
+            livingQuartersUpgradeDurationSeconds = Mathf.Max(0, livingQuartersUpgradeDurationSeconds);
         }
 
         public void ClearHqUpgrade()
@@ -145,6 +163,14 @@ namespace LaneSurvivor.Save
             trainingFacilityUpgradeDurationSeconds = 0;
         }
 
+        public void ClearLivingQuartersUpgrade()
+        {
+            // Keep living-quarters timer reset logic in one place so completion and data repair clear the same fields.
+            livingQuartersUpgradeInProgress = false;
+            livingQuartersUpgradeStartedUtcTicks = 0L;
+            livingQuartersUpgradeDurationSeconds = 0;
+        }
+
         public SaveGameData Clone()
         {
             // JsonUtility gives a compact deep copy for this simple serializable save object.
@@ -173,6 +199,12 @@ namespace LaneSurvivor.Save
         {
             // Training timers use the same UTC tick validation rules as the other local buildings.
             return HasRecoverableUpgradeTimer(trainingFacilityUpgradeStartedUtcTicks, trainingFacilityUpgradeDurationSeconds);
+        }
+
+        private bool HasRecoverableLivingQuartersUpgradeTimer()
+        {
+            // Living-quarters timers use the same UTC tick validation rules as the other local buildings.
+            return HasRecoverableUpgradeTimer(livingQuartersUpgradeStartedUtcTicks, livingQuartersUpgradeDurationSeconds);
         }
 
         private static bool HasRecoverableUpgradeTimer(long startedUtcTicks, int durationSeconds)
