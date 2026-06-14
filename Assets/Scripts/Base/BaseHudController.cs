@@ -113,7 +113,7 @@ namespace LaneSurvivor.Base
             zoomOutButton = zoomOut;
         }
 
-        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action claimObjectiveAction, Action<int> selectMissionAction, Action resetAction, Action equipHeroAction, Action heroesAction, Action zoomInAction, Action zoomOutAction)
+        public void Initialize(Action collectAction, Action upgradeAction, Action playAction, Action claimObjectiveAction, Action<int> selectMissionAction, Action resetAction, Action equipHeroAction, Action heroesAction, Action zoomInAction, Action zoomOutAction, Action creditsToggleAction = null)
         {
             // Replace listeners so scene rebuilds or test setup cannot accidentally duplicate clicks.
             creditsButton.onClick.RemoveAllListeners();
@@ -132,8 +132,12 @@ namespace LaneSurvivor.Base
             zoomInButton.onClick.RemoveAllListeners();
             zoomOutButton.onClick.RemoveAllListeners();
 
-            // Button listeners stay tiny and delegate all state changes to the bootstrap.
-            creditsButton.onClick.AddListener(ToggleCreditsPanel);
+            // Credits is a HUD action too, so it gets the same outside-click hook before expanding details.
+            creditsButton.onClick.AddListener(() =>
+            {
+                creditsToggleAction?.Invoke();
+                ToggleCreditsPanel();
+            });
             collectButton.onClick.AddListener(() => collectAction?.Invoke());
             upgradeButton.onClick.AddListener(() => upgradeAction?.Invoke());
             playButton.onClick.AddListener(() => playAction?.Invoke());

@@ -277,6 +277,12 @@ namespace LaneSurvivor.Base
             SetUpgradeSymbolColor(CanAffordDisplayedUpgrade ? AffordableUpgradeSymbolColor : UnaffordableUpgradeSymbolColor);
         }
 
+        public void HideUpgradeSymbol()
+        {
+            // Centralized hiding keeps outside-click and timer-start behavior visually consistent.
+            upgradeSymbolRoot?.gameObject.SetActive(false);
+        }
+
         public bool RequestUpgradeFromVisibleSymbol()
         {
             // Hidden symbols cannot be clicked by normal play and should not start timers from tests either.
@@ -289,7 +295,7 @@ namespace LaneSurvivor.Base
             bool started = requestUpgradeAction?.Invoke() == true;
             if (started)
             {
-                upgradeSymbolRoot.gameObject.SetActive(false);
+                HideUpgradeSymbol();
             }
 
             return started;
@@ -389,27 +395,32 @@ namespace LaneSurvivor.Base
             touchFingerId = -1;
         }
 
-        private void TryHandleWorldClick(Vector2 screenPosition)
+        public bool TryHandleWorldClick(Vector2 screenPosition)
         {
             // A camera is required to convert screen taps into world-space lab hits.
             Camera camera = Camera.main;
             if (camera == null)
             {
-                return;
+                return false;
             }
 
             // The visible upgrade symbol has priority over the lab body when both overlap onscreen.
             if (IsUpgradeSymbolVisible && IsScreenPointNearWorldPoint(camera, screenPosition, upgradeSymbolRoot.position, UpgradeSymbolClickSizePixels))
             {
                 RequestUpgradeFromVisibleSymbol();
-                return;
+                return true;
             }
 
             // A tap on the lab body reveals the start-upgrade affordance.
             if (IsScreenPointNearWorldPoint(camera, screenPosition, GetLabClickWorldPosition(), LabClickSizePixels))
             {
                 ShowUpgradeSymbol();
+                return true;
             }
+
+            // Any other world tap dismisses the current popup symbol.
+            HideUpgradeSymbol();
+            return false;
         }
 
         private Vector3 GetLabClickWorldPosition()

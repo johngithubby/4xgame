@@ -437,10 +437,14 @@ Make the Base scene feel like a place the player can inspect and improve before 
 
 Implemented in this slice:
 
-- HQ upgrades increase the generated pentagon HQ body size by small per-upgrade steps. Done.
-- HQ upgrades slowly darken the HQ body from white toward black by reducing RGB channels with each level. Done.
-- HQ upgrades add generated side-detail rows so higher levels regain the previous HQ definition. Done.
-- The HQ label switches between black and white text so the level remains readable against the current HQ color. Done.
+- HQ upgrades now raise the reference-textured pentagon HQ by a few pixels per level without widening the footprint. Done.
+- HQ upgrades no longer darken the HQ body; the generated reference art owns the visible color. Done.
+- HQ upgrades no longer add generated side-detail rows or exterior complications. Done.
+- The generated HQ label stays hidden while the reference art is available because the art contains the HQ sign. Done.
+- Completed HQ upgrades use a pulsating blurred aura made from the exact HQ silhouette. Done.
+- Tapping the visible HQ reveals a green/grey flat 2D popup upgrade arrow, and tapping that arrow starts the same persisted HQ upgrade timer as the HUD button when credits allow. Done.
+- Running HQ upgrades show the same circular world-space progress fill treatment as the bio lab. Done.
+- Building popup arrows close when the player taps another building, empty map space, or HUD action. Done.
 - The Base scene supports zooming in and out through on-screen buttons, mouse wheel, keyboard shortcuts, and two-finger pinch math. Done.
 - The map that includes the Base supports bounded dragging through mouse and one-finger touch input while ignoring HUD-origin gestures. Done.
 - The HQ body keeps its pentagon structure, while the Base floor has no visible border or outline. Done.
@@ -449,9 +453,13 @@ Implemented in this slice:
 
 ### Implemented Features
 
-- HQ upgrades increase the HQ size subtly.
-- HQ upgrades visibly change the HQ color slowly from white toward black by incrementing the darkening amount.
-- HQ upgrades visibly regain the previous detail-row definition.
+- HQ upgrades increase the HQ height subtly while keeping the same footprint.
+- HQ upgrades preserve the reference-textured HQ color instead of darkening the body.
+- HQ upgrades avoid generated detail-row complications.
+- Completed HQ upgrades show a reference-silhouette glow around the building outline.
+- The visible HQ can be tapped to reveal a flat 2D popup upgrade arrow for the next HQ upgrade.
+- Running HQ upgrades show a circular progress fill above the HQ.
+- Popup upgrade arrows dismiss when the player taps elsewhere in the Base world or uses the HUD.
 - The Base scene supports zooming in and out.
 - The map that includes the base is draggable.
 - The HQ remains pentagon shaped, but the base floor is unoutlined.
@@ -460,7 +468,11 @@ Implemented in this slice:
 
 ### Acceptance Criteria
 
-- HQ level changes are readable without opening a menu, while level 14 remains compact and far from black. Done.
+- HQ level changes are readable without opening a menu, while level 14 remains compact, fixed-width, and reference-colored. Done.
+- Completed HQ upgrades show a pulsating outline aura without adding exterior green pieces. Done.
+- Tapping the visible HQ reveals a flat 2D upgrade arrow, and tapping that arrow starts a saved HQ upgrade when the player has enough credits. Done.
+- Running HQ upgrades show a circular progress fill above the HQ. Done.
+- Popup upgrade arrows are hidden after tapping another building, empty map space, or HUD action. Done.
 - Base zoom works on mobile-friendly input and does not hide core HUD controls. Done.
 - The map that includes the base is draggable. Done.
 - The base floor has no visible pentagon border or outline. Done.
@@ -469,10 +481,10 @@ Implemented in this slice:
 
 ### Validation
 
-- PlayMode coverage checks the unoutlined Base floor, restored pentagon HQ geometry, compact level-14 HQ size/color/detail readability, reserved future-space objects, camera zoom controls, and map dragging that leave overlay HUD controls fixed. Done.
+- PlayMode coverage checks the unoutlined Base floor, reference-textured pentagon HQ geometry, hidden scaffold renderer, compact level-14 height-only HQ growth, fixed footprint, no generated detail rows, reserved future-space objects, camera zoom controls, and map dragging that leave overlay HUD controls fixed. Done.
 - PlayMode coverage checks the Credits button expansion and verifies the old left-side Base status labels are not generated. Done.
-- Existing PlayMode coverage still checks HQ upgrade persistence, completed-upgrade feedback, mission launch, Hero navigation, and daily objective claiming. Done.
-- Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `20/20`, and clean `git diff --check`.
+- Existing PlayMode coverage still checks HQ upgrade persistence through the popup arrow, zero-thickness flat 2D arrow mesh generation, running HQ circular progress, popup-arrow dismissal, completed-upgrade feedback, HQ silhouette-aura feedback, mission launch, Hero navigation, and daily objective claiming. Done.
+- Latest automated verification: Unity EditMode `79/79`, Unity PlayMode `27/27`, temp 2D arrow capture test `1/1`, and clean `git diff --check`.
 
 ## Local V6-1: Bio lab upgrade
 
@@ -485,7 +497,8 @@ Implemented in this slice:
 - The Base scene now creates an upgradeable bio lab on the former future lab pad.
 - The visible bio lab uses the generated reference image directly through `Resources/BioLab/BioLabReferenceCutout`.
 - The former procedural body, plinth, and dome remain hidden as click/progress fallback scaffolding only.
-- Tapping the bio lab reveals a grey or green upgrade symbol based on whether the saved wallet can afford the next level.
+- Tapping the bio lab reveals a grey or green flat 2D upgrade symbol based on whether the saved wallet can afford the next level.
+- Bio-lab popup upgrade symbols close when the player taps another building, empty map space, or HUD action.
 - Clicking the green symbol starts a saved bio-lab upgrade timer and spends the upgrade cost.
 - A circular progress icon overlays the lab while the saved timer is active.
 - Completed bio-lab upgrades increase the saved lab level, clear the timer, pop the lab, play a generated local finish sound, and show a five-second pulsing aura.
@@ -494,7 +507,7 @@ Implemented in this slice:
 
 ### Acceptance Criteria
 
-- When the bio lab is clicked, pop up a clickable upgrade symbol; if the user has enough credits, the symbol color is green, else grey. Done.
+- When the bio lab is clicked, pop up a clickable flat 2D upgrade symbol; if the user has enough credits, the symbol color is green, else grey. Done.
 - When the symbol is clicked and the user has enough credits, start upgrading the bio lab; show this by laying over a circular progress icon that fills progressively with time. Done.
 - The time required rises by level: level 1 takes 1 second, level 2 takes 3 seconds, level 3 takes 10 seconds, then 60 seconds, then multiplies by 5 each further level. Done.
 - When the bio lab has finished upgrading:
@@ -506,9 +519,9 @@ Implemented in this slice:
 ### Validation
 
 - EditMode progression coverage checks bio-lab upgrade costs, timers, completion, and save persistence. Done.
-- PlayMode coverage checks grey/green upgrade symbol behavior, saved timer start, circular progress fill, height-only visual leveling, completion pop/glow/sound, reference-textured model loading, hidden occupied lab pad renderer, and no lab-pad label. Done.
+- PlayMode coverage checks grey/green flat 2D upgrade-symbol behavior, zero-thickness arrow mesh generation, saved timer start, circular progress fill, height-only visual leveling, completion pop/glow/sound, reference-textured model loading, hidden occupied lab pad renderer, and no lab-pad label. Done.
 - Visual verification captured and reviewed a rendered still plus GIF of the pulsing blurred silhouette aura. Done.
-- Latest automated verification: Unity EditMode `79/79`, Unity PlayMode `23/23`, temp glow capture test `1/1`, and clean `git diff --check`.
+- Latest automated verification: Unity EditMode `79/79`, Unity PlayMode `27/27`, temp 2D arrow capture test `1/1`, and clean `git diff --check`.
 
 ## Future Local V7: Human Population, Gate Intake, And Role Training
 

@@ -52,6 +52,40 @@ namespace LaneSurvivor.Progression
             return Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
         }
 
+        public static float GetProgress01(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive or invalid timers have no visible circular progress fill.
+            if (data == null || !data.hqUpgradeInProgress || data.hqUpgradeDurationSeconds <= 0)
+            {
+                return 0f;
+            }
+
+            // Corrupted timer data cannot produce a meaningful fill, so repair and show empty progress.
+            if (!TryGetCompletionUtc(data, out _))
+            {
+                data.ClearHqUpgrade();
+                return 0f;
+            }
+
+            // Reconstructing after validation keeps the precise elapsed fill safe from out-of-range ticks.
+            DateTime startedUtc = new(data.hqUpgradeStartedUtcTicks, DateTimeKind.Utc);
+
+            // Use fractional seconds so the progress icon fills smoothly during the local HQ timer.
+            double elapsedSeconds = (utcNow.ToUniversalTime() - startedUtc).TotalSeconds;
+            double progress = elapsedSeconds / data.hqUpgradeDurationSeconds;
+            if (progress <= 0d)
+            {
+                return 0f;
+            }
+
+            if (progress >= 1d)
+            {
+                return 1f;
+            }
+
+            return (float)progress;
+        }
+
         private static bool TryGetCompletionUtc(SaveGameData data, out DateTime completesUtc)
         {
             // Default the out value so callers never observe an unassigned DateTime.

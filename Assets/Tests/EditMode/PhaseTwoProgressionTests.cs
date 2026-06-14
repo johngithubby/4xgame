@@ -122,6 +122,7 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsTrue(saveData.hqUpgradeInProgress);
             Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, saveData.hqUpgradeDurationSeconds);
             Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, PlayerProgression.GetHqUpgradeRemainingSeconds(saveData, now));
+            Assert.AreEqual(0.5f, PlayerProgression.GetHqUpgradeProgress01(saveData, now.AddSeconds(PlayerProgression.HqUpgradeDurationSeconds * 0.5f)), 0.01f);
         }
 
         [Test]

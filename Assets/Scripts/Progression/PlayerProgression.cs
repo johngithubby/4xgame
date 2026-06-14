@@ -371,6 +371,12 @@ namespace LaneSurvivor.Progression
             return UpgradeTimer.GetRemainingSeconds(data, utcNow);
         }
 
+        public static float GetHqUpgradeProgress01(SaveGameData data, DateTime utcNow)
+        {
+            // Expose the same persisted HQ timer as a normalized fill amount for world-space progress UI.
+            return UpgradeTimer.GetProgress01(data, utcNow);
+        }
+
         public static int GetBioLabUpgradeRemainingSeconds(SaveGameData data, DateTime utcNow)
         {
             // No active bio-lab timer should display remaining time.

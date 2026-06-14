@@ -162,9 +162,9 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
-        public IEnumerator BaseScene_HqLevelChangesPentagonSizeColorAndDetail()
+        public IEnumerator BaseScene_HqLevelChangesReferenceModelHeightAndGlowScaffold()
         {
-            // Seed a double-digit HQ level because tall/black level-14 visuals are the regression target.
+            // Seed a double-digit HQ level because height-only reference visuals are the regression target.
             SaveGameManager.Save(new SaveGameData
             {
                 hqLevel = 14
@@ -178,40 +178,52 @@ namespace LaneSurvivor.Tests.PlayMode
             HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
             Assert.IsNotNull(hqBuilding);
             Assert.AreEqual(14, hqBuilding.Level);
-            Transform hqBody = hqBuilding.transform.Find("HQ Body");
+            Transform hqBody = hqBuilding.transform.Find("HQ Visual Root/HQ Body");
             Assert.IsNotNull(hqBody);
 
-            // The HQ body mesh should have five unique X/Z plan vertices, proving its structure is restored.
+            // The hidden HQ scaffold should keep five unique X/Z plan vertices for fallback alignment.
             Mesh hqBodyMesh = hqBody.GetComponent<MeshFilter>()?.sharedMesh;
             Assert.IsNotNull(hqBodyMesh);
             Assert.AreEqual(5, CountUniquePlanVertices(hqBodyMesh));
+            Assert.IsFalse(hqBody.GetComponent<Renderer>().enabled);
 
-            // Higher HQ levels should be visibly larger than level one through both diameter and height.
+            // Higher HQ levels should keep the footprint fixed and grow only in height.
             Assert.AreEqual(HQBuilding.CalculateVisualDiameter(14), hqBody.localScale.x, 0.001f);
             Assert.AreEqual(HQBuilding.CalculateVisualHeight(14), hqBody.localScale.y, 0.001f);
-            Assert.Greater(hqBody.localScale.x, HQBuilding.CalculateVisualDiameter(1));
             Assert.Greater(hqBody.localScale.y, HQBuilding.CalculateVisualHeight(1));
-            Assert.LessOrEqual(HQBuilding.CalculateVisualDiameter(14) - HQBuilding.CalculateVisualDiameter(1), 0.35f);
+            Assert.AreEqual(HQBuilding.CalculateVisualDiameter(1), hqBody.localScale.x, 0.001f);
+            Assert.AreEqual(HQBuilding.CalculateVisualDiameter(1), hqBody.localScale.z, 0.001f);
             Assert.LessOrEqual(HQBuilding.CalculateVisualHeight(14) - HQBuilding.CalculateVisualHeight(1), 0.27f);
 
-            // The HQ material should darken gradually, staying far from black at level fourteen.
-            Material hqMaterial = hqBody.GetComponent<MeshRenderer>()?.sharedMaterial;
-            Assert.IsNotNull(hqMaterial);
-            Color hqColor = GetMaterialColor(hqMaterial);
-            AssertColorApproximately(HQBuilding.CalculateLevelColor(14), hqColor);
-            Assert.Greater(hqColor.r, 0.7f);
-            Assert.Less(hqColor.r, 1f);
+            // The reference-textured HQ is the visible source of truth for the generated concept image.
+            Transform referenceModel = hqBuilding.transform.Find("HQ Visual Root/HQ Reference Model");
+            Assert.IsNotNull(referenceModel);
+            Assert.AreEqual(HQBuilding.CalculateReferenceModelWidth(14), referenceModel.localScale.x, 0.001f);
+            Assert.AreEqual(HQBuilding.CalculateReferenceModelHeight(14), referenceModel.localScale.y, 0.001f);
+            Assert.AreEqual(HQBuilding.CalculateReferenceModelWidth(1), referenceModel.localScale.x, 0.001f);
+            Assert.Greater(referenceModel.localScale.y, HQBuilding.CalculateReferenceModelHeight(1));
+            Assert.LessOrEqual(referenceModel.localScale.y - HQBuilding.CalculateReferenceModelHeight(1), 0.35f);
+            MeshRenderer referenceRenderer = referenceModel.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(referenceRenderer);
+            Assert.IsTrue(referenceRenderer.enabled);
+            Assert.IsNotNull(referenceRenderer.sharedMaterial?.mainTexture);
 
-            // The world-space label should stay readable against the still-light level-fourteen body.
-            TextMesh hqLabel = GameObject.Find("HQ Label")?.GetComponent<TextMesh>();
+            // The HQ upgrade symbol should exist but stay hidden until the player taps the HQ.
+            Transform upgradeSymbol = hqBuilding.transform.Find("HQ Visual Root/HQ Upgrade Symbol");
+            Assert.IsNotNull(upgradeSymbol);
+            Assert.IsFalse(upgradeSymbol.gameObject.activeSelf);
+
+            // The reference image already contains the HQ sign, so the old generated label stays hidden.
+            TextMesh hqLabel = hqBuilding.transform.Find("HQ Visual Root/HQ Label")?.GetComponent<TextMesh>();
             Assert.IsNotNull(hqLabel);
-            Assert.AreEqual("HQ\nLv 14", hqLabel.text);
-            AssertColorApproximately(Color.black, hqLabel.color);
+            Assert.IsFalse(hqLabel.gameObject.activeSelf);
+            Assert.AreEqual(string.Empty, hqLabel.text);
 
-            // Detail rows grow with level, with one generated strip per pentagon side for each row.
-            Transform detailRoot = hqBuilding.transform.Find("HQ Detail Root");
+            // Detail rows no longer grow with upgrades; the new look is height-only.
+            Transform detailRoot = hqBuilding.transform.Find("HQ Visual Root/HQ Detail Root");
             Assert.IsNotNull(detailRoot);
-            Assert.AreEqual(HQBuilding.CalculateDetailRows(14) * 5, CountActiveChildren(detailRoot));
+            Assert.AreEqual(0, HQBuilding.CalculateDetailRows(14));
+            Assert.AreEqual(0, CountActiveChildren(detailRoot));
 
             // The base floor should also be a simple unoutlined slab rather than a visible pentagon footprint.
             GameObject baseGround = GameObject.Find("Base Ground");
@@ -236,6 +248,221 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator BaseScene_HqReferenceModelClickShowsSymbolThenArrowStartsTimedUpgradeWhenAffordable()
+        {
+            // Seed exact upgrade credits so tapping the visible HQ can reveal an affordable symbol.
+            SaveGameManager.Save(new SaveGameData
+            {
+                coins = PlayerProgression.GetHqUpgradeCost(1),
+                hqLevel = 1
+            });
+
+            // Reload Base after seeding so the generated HQ owns the start-upgrade callback.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // The click point should come from the player-visible reference model, not the hidden scaffold.
+            HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
+            Assert.IsNotNull(hqBuilding);
+            Transform referenceModel = hqBuilding.transform.Find("HQ Visual Root/HQ Reference Model");
+            Assert.IsNotNull(referenceModel);
+            Renderer referenceRenderer = referenceModel.GetComponent<Renderer>();
+            Assert.IsNotNull(referenceRenderer);
+
+            // Project the current rendered HQ center through the real Base camera so zoom/pan-sensitive hit testing runs.
+            Camera baseCamera = Camera.main;
+            Assert.IsNotNull(baseCamera);
+            Vector3 screenPoint = baseCamera.WorldToScreenPoint(referenceRenderer.bounds.center);
+            Assert.Greater(screenPoint.z, 0f);
+
+            // Tapping the visible HQ should only reveal the up-arrow symbol, not start the timer directly.
+            bool handled = hqBuilding.TryHandleBuildingClick(new Vector2(screenPoint.x, screenPoint.y));
+            yield return null;
+            SaveGameData symbolOnlyData = SaveGameManager.Load();
+            Assert.IsTrue(handled);
+            Assert.AreEqual(PlayerProgression.GetHqUpgradeCost(1), symbolOnlyData.coins);
+            Assert.IsFalse(symbolOnlyData.hqUpgradeInProgress);
+            Assert.IsTrue(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsTrue(hqBuilding.CanAffordDisplayedUpgrade);
+
+            // The affordable visible symbol should be green, matching the bio-lab upgrade affordance rule.
+            Transform symbolStem = hqBuilding.transform.Find("HQ Visual Root/HQ Upgrade Symbol/HQ Upgrade Symbol Stem");
+            Renderer symbolStemRenderer = symbolStem?.GetComponent<Renderer>();
+            Assert.IsNotNull(symbolStemRenderer);
+            AssertFlatSymbolMesh(symbolStem, "HQ upgrade symbol stem");
+            AssertFlatSymbolMesh(hqBuilding.transform.Find("HQ Visual Root/HQ Upgrade Symbol/HQ Upgrade Symbol Arrow Head"), "HQ upgrade symbol head");
+            Color symbolColor = GetMaterialColor(symbolStemRenderer.sharedMaterial);
+            Assert.Greater(symbolColor.g, symbolColor.r);
+            Assert.Greater(symbolColor.g, symbolColor.b);
+
+            // Clicking the up arrow should spend credits and start the saved timer.
+            Transform upgradeSymbol = hqBuilding.transform.Find("HQ Visual Root/HQ Upgrade Symbol");
+            Assert.IsNotNull(upgradeSymbol);
+            Vector3 symbolScreenPoint = baseCamera.WorldToScreenPoint(upgradeSymbol.position);
+            Assert.Greater(symbolScreenPoint.z, 0f);
+            bool symbolHandled = hqBuilding.TryHandleBuildingClick(new Vector2(symbolScreenPoint.x, symbolScreenPoint.y));
+            yield return null;
+            SaveGameData startedData = SaveGameManager.Load();
+            Assert.IsTrue(symbolHandled);
+            Assert.AreEqual(0, startedData.coins);
+            Assert.IsTrue(startedData.hqUpgradeInProgress);
+            Assert.AreEqual(1, startedData.hqLevel);
+            Assert.AreEqual(PlayerProgression.HqUpgradeDurationSeconds, startedData.hqUpgradeDurationSeconds);
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsTrue(hqBuilding.IsProgressVisible);
+
+            // The visible Base feedback should prove the symbol click started the upgrade.
+            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
+            Assert.IsNotNull(statusText);
+            StringAssert.Contains("HQ upgrade started", statusText.text);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_HqRunningUpgradeShowsCircularProgressIcon()
+        {
+            // Seed a valid in-progress HQ timer so the scene should render the same circular progress treatment as the lab.
+            SaveGameManager.Save(new SaveGameData
+            {
+                hqLevel = 1,
+                hqUpgradeInProgress = true,
+                hqUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-PlayerProgression.HqUpgradeDurationSeconds * 0.5f).Ticks,
+                hqUpgradeDurationSeconds = PlayerProgression.HqUpgradeDurationSeconds
+            });
+
+            // Reload Base so bootstrap applies the saved timer to the generated HQ.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // The HQ should hide its start arrow while a circular progress icon tracks the active saved timer.
+            HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
+            Assert.IsNotNull(hqBuilding);
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsTrue(hqBuilding.IsProgressVisible);
+            Assert.Greater(hqBuilding.ProgressFillAmount, 0.35f);
+            Assert.Less(hqBuilding.ProgressFillAmount, 0.90f);
+
+            // The generated progress icon should use the same background-disc plus dynamic fill shape as the bio lab.
+            Transform progressRoot = hqBuilding.transform.Find("HQ Visual Root/HQ Progress Icon");
+            Assert.IsNotNull(progressRoot);
+            Assert.IsNotNull(progressRoot.Find("HQ Progress Back Disc")?.GetComponent<Renderer>());
+            MeshFilter fillMeshFilter = progressRoot.Find("HQ Progress Fill")?.GetComponent<MeshFilter>();
+            Assert.IsNotNull(fillMeshFilter);
+            Assert.IsNotNull(fillMeshFilter.sharedMesh);
+            Assert.Greater(fillMeshFilter.sharedMesh.vertexCount, 0);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_ClickingElsewhereHidesBuildingUpgradeArrows()
+        {
+            // Wait one frame so BaseSceneBootstrap can build the runtime buildings and camera.
+            yield return null;
+
+            // Use the real components so the same screen-hit logic runs for both building types.
+            HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
+            BioLabBuilding bioLab = GameObject.Find("Bio Lab")?.GetComponent<BioLabBuilding>();
+            Camera baseCamera = Camera.main;
+            Assert.IsNotNull(hqBuilding);
+            Assert.IsNotNull(bioLab);
+            Assert.IsNotNull(baseCamera);
+
+            // Tapping the HQ reveals the HQ arrow.
+            Renderer hqReferenceRenderer = hqBuilding.transform.Find("HQ Visual Root/HQ Reference Model")?.GetComponent<Renderer>();
+            Assert.IsNotNull(hqReferenceRenderer);
+            Vector3 hqScreenPoint = baseCamera.WorldToScreenPoint(hqReferenceRenderer.bounds.center);
+            Assert.IsTrue(hqBuilding.TryHandleBuildingClick(new Vector2(hqScreenPoint.x, hqScreenPoint.y)));
+            Assert.IsTrue(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+
+            // Tapping the lab is a different building click, so the HQ arrow closes and the lab arrow opens.
+            Vector3 labWorldPoint = bioLab.transform.position + new Vector3(0f, BioLabBuilding.CalculateVisualHeight(bioLab.Level) * 0.55f, 0f);
+            Vector3 labScreenPoint = baseCamera.WorldToScreenPoint(labWorldPoint);
+            Assert.IsFalse(hqBuilding.TryHandleBuildingClick(new Vector2(labScreenPoint.x, labScreenPoint.y)));
+            Assert.IsTrue(bioLab.TryHandleWorldClick(new Vector2(labScreenPoint.x, labScreenPoint.y)));
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsTrue(bioLab.IsUpgradeSymbolVisible);
+
+            // A later tap on empty map space should dismiss every building popup arrow.
+            Vector2 emptyMapScreenPoint = new(10f, 10f);
+            Assert.IsFalse(hqBuilding.TryHandleBuildingClick(emptyMapScreenPoint));
+            Assert.IsFalse(bioLab.TryHandleWorldClick(emptyMapScreenPoint));
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+
+            // The Credits toggle is a HUD action too, so it should dismiss popups before expanding details.
+            Assert.IsTrue(hqBuilding.TryHandleBuildingClick(new Vector2(hqScreenPoint.x, hqScreenPoint.y)));
+            Assert.IsTrue(hqBuilding.IsUpgradeSymbolVisible);
+            Button creditsButton = GameObject.Find("Credits Button")?.GetComponent<Button>();
+            Assert.IsNotNull(creditsButton);
+            creditsButton.onClick.Invoke();
+            yield return null;
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+
+            // Other HUD clicks are also elsewhere, so they should close a newly opened world arrow.
+            Assert.IsTrue(hqBuilding.TryHandleBuildingClick(new Vector2(hqScreenPoint.x, hqScreenPoint.y)));
+            Assert.IsTrue(hqBuilding.IsUpgradeSymbolVisible);
+            Button collectButton = GameObject.Find("Collect Button")?.GetComponent<Button>();
+            Assert.IsNotNull(collectButton);
+            collectButton.onClick.Invoke();
+            yield return null;
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_HqUpgradeSymbolStaysGreyAndFailsWhenCreditsAreInsufficient()
+        {
+            // Fresh saves have no credits, so tapping HQ should reveal a grey symbol that cannot start a timer.
+            yield return null;
+
+            // Use the visible HQ reference model center so this follows the player-facing tap target.
+            HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
+            Assert.IsNotNull(hqBuilding);
+            Transform referenceModel = hqBuilding.transform.Find("HQ Visual Root/HQ Reference Model");
+            Assert.IsNotNull(referenceModel);
+            Renderer referenceRenderer = referenceModel.GetComponent<Renderer>();
+            Assert.IsNotNull(referenceRenderer);
+            Camera baseCamera = Camera.main;
+            Assert.IsNotNull(baseCamera);
+            Vector3 screenPoint = baseCamera.WorldToScreenPoint(referenceRenderer.bounds.center);
+            Assert.Greater(screenPoint.z, 0f);
+
+            // Body tap reveals the symbol and should not mutate the local save.
+            bool handled = hqBuilding.TryHandleBuildingClick(new Vector2(screenPoint.x, screenPoint.y));
+            yield return null;
+            SaveGameData symbolOnlyData = SaveGameManager.Load();
+            Assert.IsTrue(handled);
+            Assert.IsTrue(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsFalse(hqBuilding.CanAffordDisplayedUpgrade);
+            Assert.IsFalse(symbolOnlyData.hqUpgradeInProgress);
+            Assert.AreEqual(0, symbolOnlyData.coins);
+
+            // The unaffordable visible symbol should be grey like the bio-lab symbol.
+            Renderer symbolStemRenderer = hqBuilding.transform.Find("HQ Visual Root/HQ Upgrade Symbol/HQ Upgrade Symbol Stem")?.GetComponent<Renderer>();
+            Assert.IsNotNull(symbolStemRenderer);
+            Color symbolColor = GetMaterialColor(symbolStemRenderer.sharedMaterial);
+            Assert.Less(Mathf.Abs(symbolColor.r - symbolColor.g), 0.05f);
+            Assert.Less(Mathf.Abs(symbolColor.g - symbolColor.b), 0.05f);
+
+            // Clicking the grey arrow should fail safely, keep the symbol visible, and show helpful feedback.
+            Transform upgradeSymbol = hqBuilding.transform.Find("HQ Visual Root/HQ Upgrade Symbol");
+            Assert.IsNotNull(upgradeSymbol);
+            Vector3 symbolScreenPoint = baseCamera.WorldToScreenPoint(upgradeSymbol.position);
+            Assert.Greater(symbolScreenPoint.z, 0f);
+            bool symbolHandled = hqBuilding.TryHandleBuildingClick(new Vector2(symbolScreenPoint.x, symbolScreenPoint.y));
+            yield return null;
+            SaveGameData failedData = SaveGameManager.Load();
+            Assert.IsTrue(symbolHandled);
+            Assert.IsFalse(failedData.hqUpgradeInProgress);
+            Assert.AreEqual(1, failedData.hqLevel);
+            Assert.IsTrue(hqBuilding.IsUpgradeSymbolVisible);
+
+            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
+            Assert.IsNotNull(statusText);
+            StringAssert.Contains("HQ needs", statusText.text);
+        }
+
+        [UnityTest]
         public IEnumerator BaseScene_BioLabShowsGreyUpgradeSymbolWhenCreditsAreInsufficient()
         {
             // Wait one frame so BaseSceneBootstrap can build the runtime lab and HUD.
@@ -253,8 +480,11 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(bioLab.CanAffordDisplayedUpgrade);
 
             // The visible symbol should be grey when the wallet cannot pay the level-one cost.
-            Renderer symbolStemRenderer = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Upgrade Symbol/Bio Lab Upgrade Symbol Stem")?.GetComponent<Renderer>();
+            Transform symbolStem = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Upgrade Symbol/Bio Lab Upgrade Symbol Stem");
+            Renderer symbolStemRenderer = symbolStem?.GetComponent<Renderer>();
             Assert.IsNotNull(symbolStemRenderer);
+            AssertFlatSymbolMesh(symbolStem, "Bio lab upgrade symbol stem");
+            AssertFlatSymbolMesh(bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Upgrade Symbol/Bio Lab Upgrade Symbol Arrow Head"), "Bio lab upgrade symbol head");
             Color symbolColor = GetMaterialColor(symbolStemRenderer.sharedMaterial);
             Assert.Less(Mathf.Abs(symbolColor.r - symbolColor.g), 0.05f);
             Assert.Less(Mathf.Abs(symbolColor.g - symbolColor.b), 0.05f);
@@ -679,6 +909,48 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(1, completedData.unlockedMinigameLevel);
             Assert.IsFalse(completedData.hqUpgradeInProgress);
             Assert.IsTrue(HeroInventory.OwnsHero(completedData, HeroCatalog.HqLevelTwoHeroId));
+
+            // The generated HQ should rebuild at level two and trigger the same local glow/pop feedback as the lab.
+            HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
+            Assert.IsNotNull(hqBuilding);
+            Assert.AreEqual(2, hqBuilding.Level);
+            Assert.IsTrue(hqBuilding.IsCompletionGlowVisible);
+            Assert.IsTrue(hqBuilding.IsPopAnimating);
+            Assert.AreEqual(1, hqBuilding.CompletionEffectPlayCount);
+
+            // The completion glow should be a mesh-free root with one reference-silhouette aura, not generated clutter.
+            Transform glowRoot = hqBuilding.transform.Find("HQ Visual Root/HQ Completion Glow");
+            Assert.IsNotNull(glowRoot);
+            Assert.IsNull(glowRoot.GetComponent<MeshFilter>());
+            Transform referenceModel = hqBuilding.transform.Find("HQ Visual Root/HQ Reference Model");
+            Transform referenceAura = glowRoot.Find("HQ Completion Reference Aura");
+            Assert.IsNotNull(referenceModel);
+            Assert.IsNotNull(referenceAura);
+            Assert.IsNull(glowRoot.Find("HQ Completion Fallback Aura"));
+            Assert.Greater(referenceAura.localScale.x, referenceModel.localScale.x);
+            Assert.Greater(referenceAura.localScale.y, referenceModel.localScale.y);
+            Assert.Greater(referenceAura.localPosition.z, referenceModel.localPosition.z);
+            MeshRenderer auraRenderer = referenceAura.GetComponent<MeshRenderer>();
+            MeshRenderer referenceRenderer = referenceModel.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(auraRenderer);
+            Assert.IsNotNull(referenceRenderer);
+            Assert.IsNotNull(auraRenderer.sharedMaterial?.mainTexture);
+            Assert.Less(auraRenderer.sharedMaterial.renderQueue, referenceRenderer.sharedMaterial.renderQueue);
+
+            // The aura should visibly pulse instead of staying as a static outline.
+            yield return new WaitForSeconds(0.15f);
+            Assert.Greater(hqBuilding.CompletionGlowPulseScale, 1.03f);
+            Assert.Greater(hqBuilding.CompletionGlowAlpha, 0.32f);
+
+            // Level two should stay free of generated detail rows and grow only slightly taller.
+            Transform detailRoot = hqBuilding.transform.Find("HQ Visual Root/HQ Detail Root");
+            Assert.IsNotNull(detailRoot);
+            Assert.AreEqual(0, CountActiveChildren(detailRoot));
+            Transform bodyTransform = hqBuilding.transform.Find("HQ Visual Root/HQ Body");
+            Assert.IsNotNull(bodyTransform);
+            Assert.AreEqual(HQBuilding.CalculateVisualDiameter(1), bodyTransform.localScale.x, 0.001f);
+            Assert.AreEqual(HQBuilding.CalculateVisualHeight(2), bodyTransform.localScale.y, 0.001f);
+            Assert.LessOrEqual(bodyTransform.localScale.y - HQBuilding.CalculateVisualHeight(1), 0.03f);
 
             // The visible Base feedback should keep the upgrade completion and hero reward readable together.
             Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
@@ -1263,6 +1535,21 @@ namespace LaneSurvivor.Tests.PlayMode
             }
 
             return material.color;
+        }
+
+        private static void AssertFlatSymbolMesh(Transform symbolPart, string label)
+        {
+            // Upgrade arrows should be generated as 2D mesh pieces, not blocky 3D primitives.
+            Assert.IsNotNull(symbolPart, $"{label} should exist.");
+            MeshFilter meshFilter = symbolPart.GetComponent<MeshFilter>();
+            Assert.IsNotNull(meshFilter, $"{label} should own a flat mesh.");
+            Mesh mesh = meshFilter.sharedMesh;
+            Assert.IsNotNull(mesh, $"{label} should have generated mesh data.");
+            foreach (Vector3 vertex in mesh.vertices)
+            {
+                // A flat symbol keeps every vertex on local Z zero so it has no mesh thickness.
+                Assert.AreEqual(0f, vertex.z, 0.0001f, $"{label} vertex z should be flat.");
+            }
         }
 
         private static Vector3[] GetRectCorners(RectTransform rectTransform)

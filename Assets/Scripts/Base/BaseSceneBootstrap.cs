@@ -32,12 +32,14 @@ namespace LaneSurvivor.Base
             // Load local progress before building UI so the first frame reflects persisted state.
             saveData = SaveGameManager.Load();
             bool saveDirty = DailyObjectiveProgression.EnsureCurrentObjective(saveData, DateTime.UtcNow);
+            bool hqCompletedOnLoad = false;
             bool bioLabCompletedOnLoad = false;
 
             // Complete any timer that finished while the app was closed.
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
             {
                 statusMessage = "HQ upgrade complete";
+                hqCompletedOnLoad = true;
                 GrantHqMilestoneRewards();
                 SaveGameManager.Save(saveData);
                 saveDirty = false;
@@ -65,7 +67,12 @@ namespace LaneSurvivor.Base
             Material groundMaterial = CreateMaterial(new Color(0.18f, 0.25f, 0.24f));
             Material reservedSpaceMaterial = CreateMaterial(new Color(0.30f, 0.35f, 0.32f));
             Material hqMaterial = CreateMaterial(Color.white);
-            Material hqDetailMaterial = CreateMaterial(new Color(0.95f, 0.72f, 0.22f));
+            Material hqGlowMaterial = PrototypeMaterialFactory.CreateAlwaysVisibleFeedback(new Color(0.20f, 1f, 0.72f, 0.34f));
+            Material hqReferenceMaterial = CreateHqReferenceMaterial();
+            Material hqReferenceGlowMaterial = CreateHqReferenceGlowMaterial();
+            Material hqSymbolMaterial = CreateMaterial(new Color(0.44f, 0.46f, 0.48f));
+            Material hqProgressBackMaterial = CreateMaterial(new Color(0.10f, 0.12f, 0.13f));
+            Material hqProgressFillMaterial = CreateMaterial(new Color(0.12f, 0.92f, 0.34f));
             Material bioLabMaterial = CreateMaterial(BioLabBuilding.CalculateBodyColor(saveData.bioLabLevel));
             Material bioLabDetailMaterial = CreateMaterial(new Color(0.12f, 0.74f, 0.78f));
             Material bioLabTrimMaterial = CreateMaterial(new Color(0.66f, 0.68f, 0.60f));
@@ -82,14 +89,19 @@ namespace LaneSurvivor.Base
             CreateLight();
             CreateEventSystem();
             CreateGround(groundMaterial, reservedSpaceMaterial);
-            hqBuilding = CreateHqBuilding(hqMaterial, hqDetailMaterial);
+            hqBuilding = CreateHqBuilding(hqMaterial, hqReferenceMaterial, hqReferenceGlowMaterial, hqGlowMaterial, hqSymbolMaterial, hqProgressBackMaterial, hqProgressFillMaterial, TryStartHqUpgradeFromInteraction);
             bioLabBuilding = CreateBioLabBuilding(bioLabMaterial, bioLabDetailMaterial, bioLabTrimMaterial, bioLabDarkMaterial, bioLabLightMaterial, bioLabReferenceMaterial, bioLabReferenceGlowMaterial, bioLabSymbolMaterial, bioLabProgressBackMaterial, bioLabProgressFillMaterial, bioLabGlowMaterial, StartBioLabUpgrade);
             hudController = CreateHud();
-            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ClaimDailyObjective, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes, cameraController.ZoomIn, cameraController.ZoomOut);
+            hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ClaimDailyObjective, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes, ZoomInFromHud, ZoomOutFromHud, HideBuildingUpgradeSymbols);
 
             RefreshScene();
 
             // If the upgrade completed while the app was closed, play the requested local completion feedback now.
+            if (hqCompletedOnLoad)
+            {
+                hqBuilding.PlayCompletionEffects();
+            }
+
             if (bioLabCompletedOnLoad)
             {
                 bioLabBuilding.PlayCompletionEffects();
@@ -100,12 +112,14 @@ namespace LaneSurvivor.Base
         {
             // Poll timer completion locally; no server authority exists in Phase 2.
             bool completedAnyUpgrade = false;
+            bool completedHqUpgrade = false;
             bool completedBioLabUpgrade = false;
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
             {
                 AppendStatusMessage("HQ upgrade complete");
                 GrantHqMilestoneRewards();
                 completedAnyUpgrade = true;
+                completedHqUpgrade = true;
             }
 
             // Bio-lab completion adds local visual/sound feedback after the saved level increases.
@@ -120,6 +134,11 @@ namespace LaneSurvivor.Base
             {
                 SaveGameManager.Save(saveData);
                 RefreshScene();
+                if (completedHqUpgrade)
+                {
+                    hqBuilding.PlayCompletionEffects();
+                }
+
                 if (completedBioLabUpgrade)
                 {
                     bioLabBuilding.PlayCompletionEffects();
@@ -136,6 +155,9 @@ namespace LaneSurvivor.Base
 
         private void CollectCoins()
         {
+            // HUD actions count as clicking away from world building popups.
+            HideBuildingUpgradeSymbols();
+
             // Save immediately so tapping collect then closing the app preserves progress.
             PlayerProgression.CollectCoins(saveData);
             SaveGameManager.Save(saveData);
@@ -145,13 +167,31 @@ namespace LaneSurvivor.Base
 
         private void StartHqUpgrade()
         {
+            // HUD actions count as clicking away from world building popups.
+            HideBuildingUpgradeSymbols();
+
+            // HUD button clicks use the same save-backed request path as the HQ popup arrow.
+            TryStartHqUpgradeFromInteraction();
+        }
+
+        private bool TryStartHqUpgradeFromInteraction()
+        {
             // The progression layer handles cost and duplicate-timer validation.
             if (PlayerProgression.TryStartHqUpgrade(saveData, DateTime.UtcNow))
             {
                 SaveGameManager.Save(saveData);
                 statusMessage = "HQ upgrade started";
                 RefreshScene();
+                return true;
             }
+
+            // HQ popup-arrow clicks need visible feedback when the timer cannot start.
+            int neededCredits = PlayerProgression.GetHqUpgradeCost(saveData.hqLevel);
+            statusMessage = saveData.hqUpgradeInProgress
+                ? "HQ upgrade in progress"
+                : $"HQ needs {neededCredits} credits";
+            RefreshScene();
+            return false;
         }
 
         private bool StartBioLabUpgrade()
@@ -176,6 +216,9 @@ namespace LaneSurvivor.Base
 
         private void ResetSave()
         {
+            // HUD actions count as clicking away from world building popups.
+            HideBuildingUpgradeSymbols();
+
             // Reset through the save manager so the same default data is written to disk and shown in UI.
             saveData = SaveGameManager.ResetToFreshData();
             statusMessage = "Local save reset";
@@ -184,6 +227,9 @@ namespace LaneSurvivor.Base
 
         private void SelectMission(int missionLevel)
         {
+            // HUD actions count as clicking away from world building popups.
+            HideBuildingUpgradeSymbols();
+
             // Direct mission buttons still route through progression so locked or corrupted targets are rejected.
             if (!PlayerProgression.TrySelectMission(saveData, missionLevel))
             {
@@ -202,6 +248,9 @@ namespace LaneSurvivor.Base
 
         private void ClaimDailyObjective()
         {
+            // HUD actions count as clicking away from world building popups.
+            HideBuildingUpgradeSymbols();
+
             // Claim through the retention system so day rollover, eligibility, and coin reward stay centralized.
             if (!DailyObjectiveProgression.TryClaimReward(saveData, DateTime.UtcNow))
             {
@@ -218,6 +267,9 @@ namespace LaneSurvivor.Base
 
         private void EquipNextOwnedHero()
         {
+            // HUD actions count as clicking away from world building popups.
+            HideBuildingUpgradeSymbols();
+
             // The Base panel cycles through owned heroes until a fuller selection UI exists.
             HeroDefinition hero = HeroInventory.GetNextOwnedHeroToEquip(saveData);
             if (hero == null)
@@ -255,6 +307,9 @@ namespace LaneSurvivor.Base
 
         private void LaunchMinigame()
         {
+            // HUD actions count as clicking away from world building popups.
+            HideBuildingUpgradeSymbols();
+
             // Save before leaving the base scene so the minigame sees the latest HQ bonus.
             SaveGameManager.Save(saveData);
             SceneManager.LoadScene("Minigame");
@@ -262,9 +317,33 @@ namespace LaneSurvivor.Base
 
         private void LaunchHeroes()
         {
+            // HUD actions count as clicking away from world building popups.
+            HideBuildingUpgradeSymbols();
+
             // Save before leaving the base scene so the Hero screen sees the latest local state.
             SaveGameManager.Save(saveData);
             SceneManager.LoadScene("Heroes");
+        }
+
+        private void ZoomInFromHud()
+        {
+            // HUD zoom clicks should dismiss building popups before changing the camera.
+            HideBuildingUpgradeSymbols();
+            cameraController.ZoomIn();
+        }
+
+        private void ZoomOutFromHud()
+        {
+            // HUD zoom clicks should dismiss building popups before changing the camera.
+            HideBuildingUpgradeSymbols();
+            cameraController.ZoomOut();
+        }
+
+        private void HideBuildingUpgradeSymbols()
+        {
+            // Any non-arrow interaction should leave no building upgrade popup selected.
+            hqBuilding?.HideUpgradeSymbol();
+            bioLabBuilding?.HideUpgradeSymbol();
         }
 
         private void RefreshScene()
@@ -272,7 +351,7 @@ namespace LaneSurvivor.Base
             // Keep world and HUD state synchronized from one saved data object.
             int remainingSeconds = PlayerProgression.GetHqUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
             int bioLabRemainingSeconds = PlayerProgression.GetBioLabUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
-            hqBuilding.ApplySaveData(saveData);
+            hqBuilding.ApplySaveData(saveData, DateTime.UtcNow);
             bioLabBuilding.ApplySaveData(saveData, DateTime.UtcNow);
             hudController.UpdateView(saveData, remainingSeconds, bioLabRemainingSeconds, statusMessage);
         }
@@ -427,22 +506,34 @@ namespace LaneSurvivor.Base
             return "FUTURE";
         }
 
-        private static HQBuilding CreateHqBuilding(Material hqMaterial, Material hqDetailMaterial)
+        private static HQBuilding CreateHqBuilding(Material hqMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material glowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, Func<bool> startUpgradeAction)
         {
-            // The HQ root owns unscaled labels and detail rows while the body child grows per level.
+            // The HQ root owns positioning while its visual root can pop on upgrade completion.
             GameObject hqObject = new("HQ Building");
 
-            // The HQ keeps its prior five-sided prism structure; only the surrounding base floor lost its outline.
+            // The visual root lets completion effects pop the HQ without moving the logical map slot.
+            GameObject visualRootObject = new("HQ Visual Root");
+            visualRootObject.transform.SetParent(hqObject.transform, false);
+
+            // The HQ keeps a five-sided prism scaffold even though the exact reference art is player-visible.
             GameObject hqBodyObject = PrototypeGeometryFactory.CreateRegularPrism("HQ Body", Vector3.zero, Vector3.one, 5, hqMaterial);
-            hqBodyObject.transform.SetParent(hqObject.transform, false);
+            hqBodyObject.transform.SetParent(visualRootObject.transform, false);
 
-            // Detail rows are generated under a container so HQBuilding can rebuild them by level.
+            // Detail roots stay present so HQBuilding can clear old generated rows from prior prototypes.
             GameObject detailRootObject = new("HQ Detail Root");
-            detailRootObject.transform.SetParent(hqObject.transform, false);
+            detailRootObject.transform.SetParent(visualRootObject.transform, false);
 
-            // A world-space TextMesh labels the placeholder building without needing UI layout.
+            // The reference-textured model is the visible source of truth for the generated HQ concept.
+            GameObject referenceModelObject = CreateHqReferenceModel(visualRootObject.transform, referenceMaterial);
+            if (referenceModelObject != null)
+            {
+                // Keep the scaffold available for alignment and tests without letting it alter the visual match.
+                SetRenderersEnabled(hqBodyObject.transform, false);
+            }
+
+            // A world-space TextMesh labels fallback geometry when the reference art cannot load.
             GameObject labelObject = new("HQ Label");
-            labelObject.transform.SetParent(hqObject.transform, false);
+            labelObject.transform.SetParent(visualRootObject.transform, false);
             labelObject.transform.localPosition = new Vector3(0f, 2.05f, -0.45f);
             labelObject.transform.localRotation = Quaternion.Euler(65f, 0f, 0f);
             labelObject.transform.localScale = Vector3.one * 0.22f;
@@ -452,10 +543,219 @@ namespace LaneSurvivor.Base
             label.alignment = TextAlignment.Center;
             label.characterSize = 1f;
             label.color = Color.white;
+            labelObject.SetActive(referenceModelObject == null);
+
+            // The upgrade symbol appears only after tapping the HQ, matching the bio-lab upgrade flow.
+            GameObject symbolRootObject = CreateHqUpgradeSymbol(visualRootObject.transform, symbolMaterial, out Renderer[] symbolRenderers);
+
+            // The circular progress icon overlays the HQ while the saved timer is active.
+            GameObject progressRootObject = CreateHqProgressIcon(visualRootObject.transform, progressBackMaterial, progressFillMaterial, out MeshFilter progressFillMeshFilter);
+
+            // The completion glow is a blurred duplicate of the exact HQ silhouette.
+            GameObject glowObject = CreateHqCompletionGlow(visualRootObject.transform, referenceGlowMaterial, glowMaterial);
 
             HQBuilding hqBuilding = hqObject.AddComponent<HQBuilding>();
-            hqBuilding.Configure(label, hqBodyObject.transform, hqBodyObject.GetComponent<Renderer>(), detailRootObject.transform, hqDetailMaterial);
+            hqBuilding.Configure(visualRootObject.transform, label, hqBodyObject.transform, hqBodyObject.GetComponent<Renderer>(), detailRootObject.transform, referenceModelObject != null ? referenceModelObject.transform : null, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, startUpgradeAction);
             return hqBuilding;
+        }
+
+        private static GameObject CreateHqUpgradeSymbol(Transform parent, Material symbolMaterial, out Renderer[] symbolRenderers)
+        {
+            // The popup symbol is a simple flat upward arrow made from 2D meshes.
+            GameObject symbolRootObject = new("HQ Upgrade Symbol");
+            symbolRootObject.transform.SetParent(parent, false);
+            symbolRootObject.transform.localPosition = new Vector3(0f, 2.32f, -0.20f);
+
+            // The stem is a flat rectangle so the arrow reads as 2D rather than a raised block.
+            GameObject stemObject = CreateFlatArrowStem("HQ Upgrade Symbol Stem", 0.18f, 0.36f, symbolMaterial);
+            stemObject.transform.SetParent(symbolRootObject.transform, false);
+            stemObject.transform.localPosition = new Vector3(0f, -0.12f, 0f);
+
+            // The arrow head is a flat triangle paired with the flat stem.
+            GameObject arrowHeadObject = CreateFlatArrowHead("HQ Upgrade Symbol Arrow Head", 0.48f, 0.32f, symbolMaterial);
+            arrowHeadObject.transform.SetParent(symbolRootObject.transform, false);
+            arrowHeadObject.transform.localPosition = new Vector3(0f, 0.17f, 0f);
+
+            // The symbol label sits low enough to stay inside the default camera crop.
+            GameObject textObject = new("HQ Upgrade Symbol Text");
+            textObject.transform.SetParent(symbolRootObject.transform, false);
+            textObject.transform.localPosition = new Vector3(0f, 0.32f, -0.08f);
+            textObject.transform.localRotation = Quaternion.Euler(65f, 0f, 0f);
+            textObject.transform.localScale = Vector3.one * 0.10f;
+            TextMesh text = textObject.AddComponent<TextMesh>();
+            text.anchor = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignment.Center;
+            text.characterSize = 1f;
+            text.color = Color.white;
+            text.text = "UP";
+
+            symbolRenderers = new[]
+            {
+                stemObject.GetComponent<Renderer>(),
+                arrowHeadObject.GetComponent<Renderer>()
+            };
+            symbolRootObject.SetActive(false);
+            return symbolRootObject;
+        }
+
+        private static GameObject CreateFlatArrowStem(string name, float width, float height, Material material)
+        {
+            // A rectangle in local X/Y space keeps the symbol visually flat while staying in the 3D world.
+            Mesh mesh = new()
+            {
+                name = $"{name} Mesh",
+                hideFlags = HideFlags.HideAndDontSave,
+                vertices = new[]
+                {
+                    new Vector3(-width * 0.5f, -height * 0.5f, 0f),
+                    new Vector3(width * 0.5f, -height * 0.5f, 0f),
+                    new Vector3(width * 0.5f, height * 0.5f, 0f),
+                    new Vector3(-width * 0.5f, height * 0.5f, 0f)
+                },
+                normals = new[]
+                {
+                    Vector3.back,
+                    Vector3.back,
+                    Vector3.back,
+                    Vector3.back
+                },
+                uv = new[]
+                {
+                    Vector2.zero,
+                    Vector2.right,
+                    Vector2.one,
+                    Vector2.up
+                },
+                triangles = new[]
+                {
+                    0, 2, 1,
+                    0, 3, 2,
+                    0, 1, 2,
+                    0, 2, 3
+                }
+            };
+            mesh.RecalculateBounds();
+            return CreateFlatSymbolMeshObject(name, mesh, material);
+        }
+
+        private static GameObject CreateFlatArrowHead(string name, float width, float height, Material material)
+        {
+            // A single local X/Y triangle gives the popup a true 2D arrow head.
+            Mesh mesh = new()
+            {
+                name = $"{name} Mesh",
+                hideFlags = HideFlags.HideAndDontSave,
+                vertices = new[]
+                {
+                    new Vector3(-width * 0.5f, -height * 0.5f, 0f),
+                    new Vector3(width * 0.5f, -height * 0.5f, 0f),
+                    new Vector3(0f, height * 0.5f, 0f)
+                },
+                normals = new[]
+                {
+                    Vector3.back,
+                    Vector3.back,
+                    Vector3.back
+                },
+                uv = new[]
+                {
+                    Vector2.zero,
+                    Vector2.right,
+                    new Vector2(0.5f, 1f)
+                },
+                triangles = new[]
+                {
+                    0, 2, 1,
+                    0, 1, 2
+                }
+            };
+            mesh.RecalculateBounds();
+            return CreateFlatSymbolMeshObject(name, mesh, material);
+        }
+
+        private static GameObject CreateFlatSymbolMeshObject(string name, Mesh mesh, Material material)
+        {
+            // Build the flat symbol object manually so no primitive helper adds depth or collider state.
+            GameObject gameObject = new(name);
+
+            // MeshFilter owns the generated 2D symbol mesh.
+            MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = mesh;
+
+            // MeshRenderer draws the flat shape with the mutable green/grey symbol material.
+            MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = material;
+            return gameObject;
+        }
+
+        private static GameObject CreateHqProgressIcon(Transform parent, Material backMaterial, Material fillMaterial, out MeshFilter fillMeshFilter)
+        {
+            // The progress root sits over the HQ roof like a diegetic circular timer.
+            GameObject progressRootObject = new("HQ Progress Icon");
+            progressRootObject.transform.SetParent(parent, false);
+            progressRootObject.transform.localPosition = new Vector3(0f, 1.74f, -0.04f);
+
+            // A dark background disc makes partial fill readable against the detailed HQ roof art.
+            GameObject backDiscObject = PrototypeGeometryFactory.CreateCylinder("HQ Progress Back Disc", Vector3.zero, new Vector3(0.94f, 0.035f, 0.94f), backMaterial);
+            backDiscObject.transform.SetParent(progressRootObject.transform, false);
+
+            // The fill mesh is rebuilt as a pie wedge by HQBuilding.
+            GameObject fillObject = new("HQ Progress Fill");
+            fillObject.transform.SetParent(progressRootObject.transform, false);
+            fillObject.transform.localPosition = new Vector3(0f, 0.032f, 0f);
+            fillMeshFilter = fillObject.AddComponent<MeshFilter>();
+            MeshRenderer fillRenderer = fillObject.AddComponent<MeshRenderer>();
+            fillRenderer.sharedMaterial = fillMaterial;
+
+            // Start hidden until an active upgrade timer exists.
+            progressRootObject.SetActive(false);
+            return progressRootObject;
+        }
+
+        private static Material CreateHqReferenceMaterial()
+        {
+            // The visible HQ model should preserve the generated command-center concept image.
+            return CreateTexturedTransparentMaterial("HQ/HQReferenceCutout", "HQ Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
+        }
+
+        private static Material CreateHqReferenceGlowMaterial()
+        {
+            // The glow texture keeps the exact HQ silhouette but tints it into one aura color.
+            return CreateTexturedTransparentMaterial("HQ/HQReferenceGlowSilhouette", "HQ Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
+        }
+
+        private static GameObject CreateHqReferenceModel(Transform parent, Material referenceMaterial)
+        {
+            // The reference model names the player-visible quad used as the exact HQ art.
+            return CreateReferenceQuad(parent, referenceMaterial, "HQ Reference Model", "HQ Reference Model Quad");
+        }
+
+        private static GameObject CreateHqReferenceGlowAura(Transform parent, Material referenceGlowMaterial)
+        {
+            // The completion aura uses the same cutout shape as the visible model so the pulse follows the outline.
+            return CreateReferenceQuad(parent, referenceGlowMaterial, "HQ Completion Reference Aura", "HQ Completion Reference Aura Quad");
+        }
+
+        private static GameObject CreateHqCompletionGlow(Transform parent, Material referenceGlowMaterial, Material fallbackGlowMaterial)
+        {
+            // The root stays mesh-free so toggling and pulsing cannot produce one large opaque volume.
+            GameObject glowRootObject = new("HQ Completion Glow");
+            glowRootObject.transform.SetParent(parent, false);
+
+            // The reference aura is preferred because it exactly matches the generated HQ silhouette.
+            GameObject referenceAuraObject = CreateHqReferenceGlowAura(glowRootObject.transform, referenceGlowMaterial);
+            if (referenceAuraObject == null && fallbackGlowMaterial != null)
+            {
+                // Fallback builds a small pentagon aura if the reference texture cannot load.
+                GameObject fallbackAuraObject = PrototypeGeometryFactory.CreateRegularPrism("HQ Completion Fallback Aura", Vector3.zero, Vector3.one, 5, fallbackGlowMaterial);
+                fallbackAuraObject.transform.SetParent(glowRootObject.transform, false);
+                fallbackAuraObject.transform.localPosition = new Vector3(0f, 1.05f, 0f);
+                fallbackAuraObject.transform.localScale = new Vector3(2.16f, 0.08f, 2.16f);
+            }
+
+            // Completion feedback starts hidden and is activated by HQBuilding.PlayCompletionEffects.
+            glowRootObject.SetActive(false);
+            return glowRootObject;
         }
 
         private static BioLabBuilding CreateBioLabBuilding(Material bodyMaterial, Material domeMaterial, Material trimMaterial, Material darkMaterial, Material lightMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, Material glowMaterial, Func<bool> startUpgradeAction)
@@ -535,16 +835,16 @@ namespace LaneSurvivor.Base
         private static Material CreateBioLabReferenceMaterial()
         {
             // The visible reference model should preserve the generated concept image without tinting it.
-            return CreateBioLabTexturedTransparentMaterial("BioLab/BioLabReferenceCutout", "Bio Lab Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
+            return CreateTexturedTransparentMaterial("BioLab/BioLabReferenceCutout", "Bio Lab Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
         }
 
         private static Material CreateBioLabReferenceGlowMaterial()
         {
             // The glow texture keeps the reference silhouette but replaces detail pixels with one aura color.
-            return CreateBioLabTexturedTransparentMaterial("BioLab/BioLabReferenceGlowSilhouette", "Bio Lab Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
+            return CreateTexturedTransparentMaterial("BioLab/BioLabReferenceGlowSilhouette", "Bio Lab Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
         }
 
-        private static Material CreateBioLabTexturedTransparentMaterial(string resourcePath, string materialName, Color tintColor, int renderQueue)
+        private static Material CreateTexturedTransparentMaterial(string resourcePath, string materialName, Color tintColor, int renderQueue)
         {
             // Resources keeps art available in builds without hard-coded filesystem paths.
             Texture2D texture = Resources.Load<Texture2D>(resourcePath);
@@ -594,18 +894,18 @@ namespace LaneSurvivor.Base
         private static GameObject CreateBioLabReferenceModel(Transform parent, Material referenceMaterial)
         {
             // The reference model names the player-visible quad used as the exact biolab art.
-            return CreateBioLabReferenceQuad(parent, referenceMaterial, "Bio Lab Reference Model", "Bio Lab Reference Model Quad");
+            return CreateReferenceQuad(parent, referenceMaterial, "Bio Lab Reference Model", "Bio Lab Reference Model Quad");
         }
 
         private static GameObject CreateBioLabReferenceGlowAura(Transform parent, Material referenceGlowMaterial)
         {
             // The completion aura uses the same cutout shape as the visible model so the pulse follows the outline.
-            return CreateBioLabReferenceQuad(parent, referenceGlowMaterial, "Bio Lab Completion Reference Aura", "Bio Lab Completion Reference Aura Quad");
+            return CreateReferenceQuad(parent, referenceGlowMaterial, "Bio Lab Completion Reference Aura", "Bio Lab Completion Reference Aura Quad");
         }
 
-        private static GameObject CreateBioLabReferenceQuad(Transform parent, Material referenceMaterial, string objectName, string meshName)
+        private static GameObject CreateReferenceQuad(Transform parent, Material referenceMaterial, string objectName, string meshName)
         {
-            // Missing material means the procedural fallback remains visible instead of producing an empty lab.
+            // Missing material means the procedural fallback remains visible instead of producing an empty building.
             if (referenceMaterial == null)
             {
                 return null;
@@ -1064,21 +1364,20 @@ namespace LaneSurvivor.Base
 
         private static GameObject CreateBioLabUpgradeSymbol(Transform parent, Material symbolMaterial, out Renderer[] symbolRenderers)
         {
-            // The popup symbol is a simple upward arrow made from generated primitives.
+            // The popup symbol is a simple flat upward arrow made from 2D meshes.
             GameObject symbolRootObject = new("Bio Lab Upgrade Symbol");
             symbolRootObject.transform.SetParent(parent, false);
             symbolRootObject.transform.localPosition = new Vector3(0f, 1.62f, -0.18f);
 
-            // The stem gives the symbol a clear tappable target below the arrow head.
-            GameObject stemObject = PrototypeGeometryFactory.CreateCube("Bio Lab Upgrade Symbol Stem", Vector3.zero, new Vector3(0.16f, 0.32f, 0.08f), symbolMaterial);
+            // The stem is a flat rectangle so the arrow reads as 2D rather than a raised block.
+            GameObject stemObject = CreateFlatArrowStem("Bio Lab Upgrade Symbol Stem", 0.16f, 0.32f, symbolMaterial);
             stemObject.transform.SetParent(symbolRootObject.transform, false);
             stemObject.transform.localPosition = new Vector3(0f, -0.12f, 0f);
 
-            // A triangular prism reads as an up arrow head from the angled camera.
-            GameObject arrowHeadObject = PrototypeGeometryFactory.CreateRegularPrism("Bio Lab Upgrade Symbol Arrow Head", Vector3.zero, new Vector3(0.42f, 0.18f, 0.42f), 3, symbolMaterial);
+            // The arrow head is a flat triangle paired with the flat stem.
+            GameObject arrowHeadObject = CreateFlatArrowHead("Bio Lab Upgrade Symbol Arrow Head", 0.42f, 0.28f, symbolMaterial);
             arrowHeadObject.transform.SetParent(symbolRootObject.transform, false);
             arrowHeadObject.transform.localPosition = new Vector3(0f, 0.15f, 0f);
-            arrowHeadObject.transform.localRotation = Quaternion.Euler(0f, 0f, 30f);
 
             // The symbol label makes the affordance readable in early placeholder art.
             GameObject textObject = new("Bio Lab Upgrade Symbol Text");
