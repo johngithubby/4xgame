@@ -151,8 +151,12 @@ namespace LaneSurvivor.Tests.PlayMode
             StringAssert.Contains("Coins: 0", creditsDetailText.text);
             StringAssert.Contains("HQ Level: 1", creditsDetailText.text);
             StringAssert.Contains("Bio Lab: 1", creditsDetailText.text);
+            StringAssert.Contains("Hangar: 1", creditsDetailText.text);
+            StringAssert.Contains("Training: 1", creditsDetailText.text);
             StringAssert.Contains("HQ Upgrade: Ready", creditsDetailText.text);
             StringAssert.Contains("Bio Upgrade: Ready", creditsDetailText.text);
+            StringAssert.Contains("Hangar Upgrade: Ready", creditsDetailText.text);
+            StringAssert.Contains("Training Upgrade: Ready", creditsDetailText.text);
             AssertColorApproximately(Color.black, creditsDetailText.color);
 
             // Tapping again should collapse the details without requiring a save or scene refresh.
@@ -236,12 +240,21 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(GameObject.Find("Future Gate Space"));
             Assert.IsNotNull(GameObject.Find("Future Resource Drop-Off Opening"));
             Assert.IsNotNull(GameObject.Find("Future Lab Pad"));
-            Assert.IsNotNull(GameObject.Find("Future Hangar Pad"));
+            Renderer hangarPadRenderer = GameObject.Find("Future Hangar Pad")?.GetComponent<Renderer>();
+            Assert.IsNotNull(hangarPadRenderer);
+            Assert.IsFalse(hangarPadRenderer.enabled);
             GameObject trainingPad = GameObject.Find("Future Training Pad");
             Assert.IsNotNull(trainingPad);
+            Renderer trainingPadRenderer = trainingPad.GetComponent<Renderer>();
+            Assert.IsNotNull(trainingPadRenderer);
+            Assert.IsFalse(trainingPadRenderer.enabled);
+            Assert.IsNull(GameObject.Find("Future Hangar Pad Label"));
+            Assert.IsNull(GameObject.Find("Future Training Pad Label"));
 
-            // Training should sit diagonally behind the HQ so its pad is not hidden directly under the restored HQ.
-            Vector3 trainingOffsetFromHq = trainingPad.transform.position - hqBuilding.transform.position;
+            // Training should sit diagonally behind the HQ so its building is not hidden directly under the restored HQ.
+            UpgradeableFacilityBuilding trainingFacility = GameObject.Find("Training Facility")?.GetComponent<UpgradeableFacilityBuilding>();
+            Assert.IsNotNull(trainingFacility);
+            Vector3 trainingOffsetFromHq = trainingFacility.transform.position - hqBuilding.transform.position;
             Assert.Greater(trainingOffsetFromHq.z, 2.8f);
             Assert.Greater(Mathf.Abs(trainingOffsetFromHq.x), 1.4f);
             Assert.Greater(trainingOffsetFromHq.magnitude, 3.3f);
@@ -360,9 +373,13 @@ namespace LaneSurvivor.Tests.PlayMode
             // Use the real components so the same screen-hit logic runs for both building types.
             HQBuilding hqBuilding = GameObject.Find("HQ Building")?.GetComponent<HQBuilding>();
             BioLabBuilding bioLab = GameObject.Find("Bio Lab")?.GetComponent<BioLabBuilding>();
+            UpgradeableFacilityBuilding hangar = GameObject.Find("Hangar")?.GetComponent<UpgradeableFacilityBuilding>();
+            UpgradeableFacilityBuilding trainingFacility = GameObject.Find("Training Facility")?.GetComponent<UpgradeableFacilityBuilding>();
             Camera baseCamera = Camera.main;
             Assert.IsNotNull(hqBuilding);
             Assert.IsNotNull(bioLab);
+            Assert.IsNotNull(hangar);
+            Assert.IsNotNull(trainingFacility);
             Assert.IsNotNull(baseCamera);
 
             // Tapping the HQ reveals the HQ arrow.
@@ -372,21 +389,57 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsTrue(hqBuilding.TryHandleBuildingClick(new Vector2(hqScreenPoint.x, hqScreenPoint.y)));
             Assert.IsTrue(hqBuilding.IsUpgradeSymbolVisible);
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
+            Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
 
             // Tapping the lab is a different building click, so the HQ arrow closes and the lab arrow opens.
             Vector3 labWorldPoint = bioLab.transform.position + new Vector3(0f, BioLabBuilding.CalculateVisualHeight(bioLab.Level) * 0.55f, 0f);
             Vector3 labScreenPoint = baseCamera.WorldToScreenPoint(labWorldPoint);
             Assert.IsFalse(hqBuilding.TryHandleBuildingClick(new Vector2(labScreenPoint.x, labScreenPoint.y)));
             Assert.IsTrue(bioLab.TryHandleWorldClick(new Vector2(labScreenPoint.x, labScreenPoint.y)));
+            Assert.IsFalse(hangar.TryHandleBuildingClick(new Vector2(labScreenPoint.x, labScreenPoint.y)));
+            Assert.IsFalse(trainingFacility.TryHandleBuildingClick(new Vector2(labScreenPoint.x, labScreenPoint.y)));
             Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
             Assert.IsTrue(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
+            Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+
+            // Tapping the hangar should close the lab arrow and open only the hangar arrow.
+            Renderer hangarReferenceRenderer = hangar.transform.Find("Hangar Visual Root/Hangar Reference Model")?.GetComponent<Renderer>();
+            Assert.IsNotNull(hangarReferenceRenderer);
+            Vector3 hangarScreenPoint = baseCamera.WorldToScreenPoint(hangarReferenceRenderer.bounds.center);
+            Assert.IsFalse(hqBuilding.TryHandleBuildingClick(new Vector2(hangarScreenPoint.x, hangarScreenPoint.y)));
+            Assert.IsFalse(bioLab.TryHandleWorldClick(new Vector2(hangarScreenPoint.x, hangarScreenPoint.y)));
+            Assert.IsTrue(hangar.TryHandleBuildingClick(new Vector2(hangarScreenPoint.x, hangarScreenPoint.y)));
+            Assert.IsFalse(trainingFacility.TryHandleBuildingClick(new Vector2(hangarScreenPoint.x, hangarScreenPoint.y)));
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsTrue(hangar.IsUpgradeSymbolVisible);
+            Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+
+            // Tapping the training facility should close the hangar arrow and open only the training arrow.
+            Renderer trainingReferenceRenderer = trainingFacility.transform.Find("Training Facility Visual Root/Training Facility Reference Model")?.GetComponent<Renderer>();
+            Assert.IsNotNull(trainingReferenceRenderer);
+            Vector3 trainingScreenPoint = baseCamera.WorldToScreenPoint(trainingReferenceRenderer.bounds.center);
+            Assert.IsFalse(hqBuilding.TryHandleBuildingClick(new Vector2(trainingScreenPoint.x, trainingScreenPoint.y)));
+            Assert.IsFalse(bioLab.TryHandleWorldClick(new Vector2(trainingScreenPoint.x, trainingScreenPoint.y)));
+            Assert.IsFalse(hangar.TryHandleBuildingClick(new Vector2(trainingScreenPoint.x, trainingScreenPoint.y)));
+            Assert.IsTrue(trainingFacility.TryHandleBuildingClick(new Vector2(trainingScreenPoint.x, trainingScreenPoint.y)));
+            Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
+            Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
+            Assert.IsTrue(trainingFacility.IsUpgradeSymbolVisible);
 
             // A later tap on empty map space should dismiss every building popup arrow.
             Vector2 emptyMapScreenPoint = new(10f, 10f);
             Assert.IsFalse(hqBuilding.TryHandleBuildingClick(emptyMapScreenPoint));
             Assert.IsFalse(bioLab.TryHandleWorldClick(emptyMapScreenPoint));
+            Assert.IsFalse(hangar.TryHandleBuildingClick(emptyMapScreenPoint));
+            Assert.IsFalse(trainingFacility.TryHandleBuildingClick(emptyMapScreenPoint));
             Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
+            Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
 
             // The Credits toggle is a HUD action too, so it should dismiss popups before expanding details.
             Assert.IsTrue(hqBuilding.TryHandleBuildingClick(new Vector2(hqScreenPoint.x, hqScreenPoint.y)));
@@ -397,6 +450,8 @@ namespace LaneSurvivor.Tests.PlayMode
             yield return null;
             Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
+            Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
 
             // Other HUD clicks are also elsewhere, so they should close a newly opened world arrow.
             Assert.IsTrue(hqBuilding.TryHandleBuildingClick(new Vector2(hqScreenPoint.x, hqScreenPoint.y)));
@@ -407,6 +462,8 @@ namespace LaneSurvivor.Tests.PlayMode
             yield return null;
             Assert.IsFalse(hqBuilding.IsUpgradeSymbolVisible);
             Assert.IsFalse(bioLab.IsUpgradeSymbolVisible);
+            Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
+            Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
         }
 
         [UnityTest]
@@ -596,6 +653,158 @@ namespace LaneSurvivor.Tests.PlayMode
             yield return new WaitForSeconds(0.2f);
             Assert.Greater(bioLab.ProgressFillAmount, 0.01f);
             Assert.Less(bioLab.ProgressFillAmount, 0.8f);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_HangarAndTrainingUseReferenceModelsAndTimedUpgradeArrows()
+        {
+            // Seed both facilities with exact credits so their same-rule popup arrows can start timers.
+            SaveGameManager.Save(new SaveGameData
+            {
+                coins = PlayerProgression.GetHangarUpgradeCost(2) + PlayerProgression.GetTrainingFacilityUpgradeCost(3),
+                hangarLevel = 2,
+                trainingFacilityLevel = 3
+            });
+
+            // Reload Base after seeding so the runtime buildings reflect saved levels and wallet state.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // The new facilities should replace the future pads with reference-textured models.
+            UpgradeableFacilityBuilding hangar = GameObject.Find("Hangar")?.GetComponent<UpgradeableFacilityBuilding>();
+            UpgradeableFacilityBuilding trainingFacility = GameObject.Find("Training Facility")?.GetComponent<UpgradeableFacilityBuilding>();
+            Assert.IsNotNull(hangar);
+            Assert.IsNotNull(trainingFacility);
+            Assert.AreEqual(2, hangar.Level);
+            Assert.AreEqual(3, trainingFacility.Level);
+            AssertFacilityReferenceModel(hangar, "Hangar");
+            AssertFacilityReferenceModel(trainingFacility, "Training Facility");
+
+            // Occupied future pads should remain as logical slots but draw no slab or label.
+            Renderer hangarPadRenderer = GameObject.Find("Future Hangar Pad")?.GetComponent<Renderer>();
+            Renderer trainingPadRenderer = GameObject.Find("Future Training Pad")?.GetComponent<Renderer>();
+            Assert.IsNotNull(hangarPadRenderer);
+            Assert.IsNotNull(trainingPadRenderer);
+            Assert.IsFalse(hangarPadRenderer.enabled);
+            Assert.IsFalse(trainingPadRenderer.enabled);
+            Assert.IsNull(GameObject.Find("Future Hangar Pad Label"));
+            Assert.IsNull(GameObject.Find("Future Training Pad Label"));
+
+            // Higher levels should stretch the concept images and hidden scaffolds upward without changing footprint.
+            Transform hangarReference = hangar.transform.Find("Hangar Visual Root/Hangar Reference Model");
+            Transform trainingReference = trainingFacility.transform.Find("Training Facility Visual Root/Training Facility Reference Model");
+            Transform hangarBody = hangar.transform.Find("Hangar Visual Root/Hangar Body");
+            Transform trainingBody = trainingFacility.transform.Find("Training Facility Visual Root/Training Facility Body");
+            Assert.IsNotNull(hangarBody);
+            Assert.IsNotNull(trainingBody);
+            Assert.Greater(hangar.CurrentReferenceHeight, hangar.CalculateReferenceModelHeight(1));
+            Assert.Greater(trainingFacility.CurrentReferenceHeight, trainingFacility.CalculateReferenceModelHeight(1));
+            Assert.AreEqual(hangar.CurrentReferenceHeight, hangarReference.localScale.y, 0.001f);
+            Assert.AreEqual(trainingFacility.CurrentReferenceHeight, trainingReference.localScale.y, 0.001f);
+            Assert.AreEqual(1.42f, hangarBody.localScale.x, 0.001f);
+            Assert.AreEqual(1.48f, trainingBody.localScale.x, 0.001f);
+            Assert.AreEqual(hangar.CurrentVisualHeight, hangarBody.localScale.y, 0.001f);
+            Assert.AreEqual(trainingFacility.CurrentVisualHeight, trainingBody.localScale.y, 0.001f);
+
+            // Revealing the hangar symbol with enough credits should color its 2D arrow green.
+            hangar.ShowUpgradeSymbol();
+            Assert.IsTrue(hangar.IsUpgradeSymbolVisible);
+            Assert.IsTrue(hangar.CanAffordDisplayedUpgrade);
+            Transform hangarStem = hangar.transform.Find("Hangar Visual Root/Hangar Upgrade Symbol/Hangar Upgrade Symbol Stem");
+            Renderer hangarStemRenderer = hangarStem?.GetComponent<Renderer>();
+            Assert.IsNotNull(hangarStemRenderer);
+            AssertFlatSymbolMesh(hangarStem, "Hangar upgrade symbol stem");
+            AssertFlatSymbolMesh(hangar.transform.Find("Hangar Visual Root/Hangar Upgrade Symbol/Hangar Upgrade Symbol Arrow Head"), "Hangar upgrade symbol head");
+            Color hangarSymbolColor = GetMaterialColor(hangarStemRenderer.sharedMaterial);
+            Assert.Greater(hangarSymbolColor.g, hangarSymbolColor.r);
+            Assert.Greater(hangarSymbolColor.g, hangarSymbolColor.b);
+
+            // Clicking the visible green hangar symbol should spend only the hangar cost and start its timer.
+            bool hangarStarted = hangar.RequestUpgradeFromVisibleSymbol();
+            yield return null;
+            SaveGameData hangarStartedData = SaveGameManager.Load();
+            Assert.IsTrue(hangarStarted);
+            Assert.IsTrue(hangarStartedData.hangarUpgradeInProgress);
+            Assert.IsFalse(hangar.IsUpgradeSymbolVisible);
+            Assert.IsTrue(hangar.IsProgressVisible);
+            Assert.AreEqual(3, hangarStartedData.hangarUpgradeDurationSeconds);
+
+            // The training symbol should still be affordable from the remaining credits and use the same 2D arrow.
+            trainingFacility.ShowUpgradeSymbol();
+            Assert.IsTrue(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsTrue(trainingFacility.CanAffordDisplayedUpgrade);
+            Transform trainingStem = trainingFacility.transform.Find("Training Facility Visual Root/Training Facility Upgrade Symbol/Training Facility Upgrade Symbol Stem");
+            Renderer trainingStemRenderer = trainingStem?.GetComponent<Renderer>();
+            Assert.IsNotNull(trainingStemRenderer);
+            AssertFlatSymbolMesh(trainingStem, "Training facility upgrade symbol stem");
+            AssertFlatSymbolMesh(trainingFacility.transform.Find("Training Facility Visual Root/Training Facility Upgrade Symbol/Training Facility Upgrade Symbol Arrow Head"), "Training facility upgrade symbol head");
+            Color trainingSymbolColor = GetMaterialColor(trainingStemRenderer.sharedMaterial);
+            Assert.Greater(trainingSymbolColor.g, trainingSymbolColor.r);
+            Assert.Greater(trainingSymbolColor.g, trainingSymbolColor.b);
+
+            // Clicking the visible green training symbol should spend the remaining credits and start its timer.
+            bool trainingStarted = trainingFacility.RequestUpgradeFromVisibleSymbol();
+            yield return null;
+            SaveGameData bothStartedData = SaveGameManager.Load();
+            Assert.IsTrue(trainingStarted);
+            Assert.AreEqual(0, bothStartedData.coins);
+            Assert.IsTrue(bothStartedData.hangarUpgradeInProgress);
+            Assert.IsTrue(bothStartedData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(10, bothStartedData.trainingFacilityUpgradeDurationSeconds);
+            Assert.IsFalse(trainingFacility.IsUpgradeSymbolVisible);
+            Assert.IsTrue(trainingFacility.IsProgressVisible);
+
+            // Let a small amount of PlayMode time pass so both circular fills advance without completing.
+            yield return new WaitForSeconds(0.2f);
+            Assert.Greater(hangar.ProgressFillAmount, 0.01f);
+            Assert.Greater(trainingFacility.ProgressFillAmount, 0.01f);
+            Assert.Less(trainingFacility.ProgressFillAmount, 0.8f);
+        }
+
+        [UnityTest]
+        public IEnumerator BaseScene_CompletedHangarAndTrainingUpgradesPlayReferenceGlowAndSave()
+        {
+            // Seed both timers as already complete so Base load runs the same app-reopen completion path.
+            SaveGameManager.Save(new SaveGameData
+            {
+                hangarLevel = 1,
+                hangarUpgradeInProgress = true,
+                hangarUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-2).Ticks,
+                hangarUpgradeDurationSeconds = 1,
+                trainingFacilityLevel = 1,
+                trainingFacilityUpgradeInProgress = true,
+                trainingFacilityUpgradeStartedUtcTicks = DateTime.UtcNow.AddSeconds(-2).Ticks,
+                trainingFacilityUpgradeDurationSeconds = 1
+            });
+
+            // Reload Base so the bootstrap completes and saves both facility upgrades.
+            SceneManager.LoadScene("Base");
+            yield return null;
+
+            // The save should now reflect completed levels and cleared timers.
+            SaveGameData completedData = SaveGameManager.Load();
+            Assert.AreEqual(2, completedData.hangarLevel);
+            Assert.AreEqual(2, completedData.trainingFacilityLevel);
+            Assert.IsFalse(completedData.hangarUpgradeInProgress);
+            Assert.IsFalse(completedData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(0, completedData.hangarUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, completedData.trainingFacilityUpgradeStartedUtcTicks);
+
+            // Both generated facilities should trigger a mesh-free reference-silhouette glow and pop.
+            UpgradeableFacilityBuilding hangar = GameObject.Find("Hangar")?.GetComponent<UpgradeableFacilityBuilding>();
+            UpgradeableFacilityBuilding trainingFacility = GameObject.Find("Training Facility")?.GetComponent<UpgradeableFacilityBuilding>();
+            Assert.IsNotNull(hangar);
+            Assert.IsNotNull(trainingFacility);
+            Assert.AreEqual(2, hangar.Level);
+            Assert.AreEqual(2, trainingFacility.Level);
+            AssertFacilityGlowActive(hangar, "Hangar");
+            AssertFacilityGlowActive(trainingFacility, "Training Facility");
+
+            // The visible Base feedback should mention both completed upgrades.
+            Text statusText = GameObject.Find("Status Text")?.GetComponent<Text>();
+            Assert.IsNotNull(statusText);
+            StringAssert.Contains("Hangar upgrade complete", statusText.text);
+            StringAssert.Contains("Training upgrade complete", statusText.text);
         }
 
         [UnityTest]
@@ -1550,6 +1759,57 @@ namespace LaneSurvivor.Tests.PlayMode
                 // A flat symbol keeps every vertex on local Z zero so it has no mesh thickness.
                 Assert.AreEqual(0f, vertex.z, 0.0001f, $"{label} vertex z should be flat.");
             }
+        }
+
+        private static void AssertFacilityReferenceModel(UpgradeableFacilityBuilding facilityBuilding, string displayName)
+        {
+            // The reference-textured model is the visible source of truth for each new facility concept image.
+            Transform referenceModel = facilityBuilding.transform.Find($"{displayName} Visual Root/{displayName} Reference Model");
+            Assert.IsNotNull(referenceModel, $"{displayName} reference model should exist.");
+            MeshRenderer referenceRenderer = referenceModel.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(referenceRenderer, $"{displayName} reference model should render.");
+            Assert.IsTrue(referenceRenderer.enabled, $"{displayName} reference renderer should be enabled.");
+            Assert.IsNotNull(referenceRenderer.sharedMaterial?.mainTexture, $"{displayName} reference texture should be loaded.");
+
+            // The procedural fallback body should remain for sizing but not alter the exact reference-art look.
+            Transform body = facilityBuilding.transform.Find($"{displayName} Visual Root/{displayName} Body");
+            Assert.IsNotNull(body, $"{displayName} scaffold body should exist.");
+            Renderer bodyRenderer = body.GetComponent<Renderer>();
+            Assert.IsNotNull(bodyRenderer, $"{displayName} scaffold body should have a renderer.");
+            Assert.IsFalse(bodyRenderer.enabled, $"{displayName} scaffold renderer should stay hidden behind reference art.");
+
+            // The reference image already contains the sign text, so fallback text should be hidden.
+            TextMesh label = facilityBuilding.transform.Find($"{displayName} Visual Root/{displayName} Label")?.GetComponent<TextMesh>();
+            Assert.IsNotNull(label, $"{displayName} fallback label should exist.");
+            Assert.IsFalse(label.gameObject.activeSelf, $"{displayName} fallback label should stay hidden.");
+            Assert.AreEqual(string.Empty, label.text, $"{displayName} fallback label text should be empty.");
+        }
+
+        private static void AssertFacilityGlowActive(UpgradeableFacilityBuilding facilityBuilding, string displayName)
+        {
+            // Completion should show the same kind of pulsing silhouette feedback used by the bio lab.
+            Assert.IsTrue(facilityBuilding.IsCompletionGlowVisible, $"{displayName} glow should be visible.");
+            Assert.IsTrue(facilityBuilding.IsPopAnimating, $"{displayName} pop should be active.");
+            Assert.AreEqual(1, facilityBuilding.CompletionEffectPlayCount, $"{displayName} completion effect should play once.");
+
+            // The glow root should be a mesh-free holder with a padded reference-silhouette child.
+            Transform glowRoot = facilityBuilding.transform.Find($"{displayName} Visual Root/{displayName} Completion Glow");
+            Transform referenceModel = facilityBuilding.transform.Find($"{displayName} Visual Root/{displayName} Reference Model");
+            Transform referenceAura = glowRoot?.Find($"{displayName} Completion Reference Aura");
+            Assert.IsNotNull(glowRoot, $"{displayName} glow root should exist.");
+            Assert.IsNull(glowRoot.GetComponent<MeshFilter>(), $"{displayName} glow root should not be a solid mesh.");
+            Assert.IsNotNull(referenceModel, $"{displayName} reference model should exist.");
+            Assert.IsNotNull(referenceAura, $"{displayName} reference aura should exist.");
+            Assert.Greater(referenceAura.localScale.x, referenceModel.localScale.x, $"{displayName} aura should pad width.");
+            Assert.Greater(referenceAura.localScale.y, referenceModel.localScale.y, $"{displayName} aura should pad height.");
+
+            // The aura material should load the generated silhouette texture and render behind the visible model.
+            MeshRenderer auraRenderer = referenceAura.GetComponent<MeshRenderer>();
+            MeshRenderer referenceRenderer = referenceModel.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(auraRenderer, $"{displayName} aura should render.");
+            Assert.IsNotNull(referenceRenderer, $"{displayName} reference should render.");
+            Assert.IsNotNull(auraRenderer.sharedMaterial?.mainTexture, $"{displayName} aura texture should load.");
+            Assert.Less(auraRenderer.sharedMaterial.renderQueue, referenceRenderer.sharedMaterial.renderQueue, $"{displayName} aura should render behind reference art.");
         }
 
         private static Vector3[] GetRectCorners(RectTransform rectTransform)

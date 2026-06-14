@@ -7,7 +7,7 @@ namespace LaneSurvivor.Base
     {
         public const float MinimumFieldOfView = 36f;
 
-        public const float DefaultFieldOfView = 52f;
+        public const float DefaultFieldOfView = 68f;
 
         public const float MaximumFieldOfView = 68f;
 

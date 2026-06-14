@@ -234,6 +234,95 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void HangarAndTrainingUpgradeRules_MatchBioLabCostAndDuration()
+        {
+            // Same-rule buildings should stay on the existing lab cost and duration curve.
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeCost(3), PlayerProgression.GetHangarUpgradeCost(3));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeCost(4), PlayerProgression.GetTrainingFacilityUpgradeCost(4));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(5), PlayerProgression.GetHangarUpgradeDurationSeconds(5));
+            Assert.AreEqual(PlayerProgression.GetBioLabUpgradeDurationSeconds(6), PlayerProgression.GetTrainingFacilityUpgradeDurationSeconds(6));
+        }
+
+        [Test]
+        public void StartHangarAndTrainingUpgrades_SpendCoinsAndStartLevelDurationTimers()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = PlayerProgression.GetHangarUpgradeCost(2) + PlayerProgression.GetTrainingFacilityUpgradeCost(3),
+                hangarLevel = 2,
+                trainingFacilityLevel = 3
+            };
+            DateTime now = new(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+
+            bool hangarStarted = PlayerProgression.TryStartHangarUpgrade(saveData, now);
+            bool trainingStarted = PlayerProgression.TryStartTrainingFacilityUpgrade(saveData, now);
+
+            Assert.IsTrue(hangarStarted);
+            Assert.IsTrue(trainingStarted);
+            Assert.AreEqual(0, saveData.coins);
+            Assert.IsTrue(saveData.hangarUpgradeInProgress);
+            Assert.IsTrue(saveData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(now.Ticks, saveData.hangarUpgradeStartedUtcTicks);
+            Assert.AreEqual(now.Ticks, saveData.trainingFacilityUpgradeStartedUtcTicks);
+            Assert.AreEqual(3, saveData.hangarUpgradeDurationSeconds);
+            Assert.AreEqual(10, saveData.trainingFacilityUpgradeDurationSeconds);
+            Assert.AreEqual(3, PlayerProgression.GetHangarUpgradeRemainingSeconds(saveData, now));
+            Assert.AreEqual(10, PlayerProgression.GetTrainingFacilityUpgradeRemainingSeconds(saveData, now));
+            Assert.AreEqual(0.5f, PlayerProgression.GetHangarUpgradeProgress01(saveData, now.AddSeconds(1.5)), 0.01f);
+            Assert.AreEqual(0.5f, PlayerProgression.GetTrainingFacilityUpgradeProgress01(saveData, now.AddSeconds(5)), 0.01f);
+        }
+
+        [Test]
+        public void StartHangarAndTrainingUpgrades_FailWhenCoinsAreInsufficient()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = PlayerProgression.GetHangarUpgradeCost(1) - 1,
+                hangarLevel = 1,
+                trainingFacilityLevel = 1
+            };
+
+            bool hangarStarted = PlayerProgression.TryStartHangarUpgrade(saveData, DateTime.UtcNow);
+            bool trainingStarted = PlayerProgression.TryStartTrainingFacilityUpgrade(saveData, DateTime.UtcNow);
+
+            Assert.IsFalse(hangarStarted);
+            Assert.IsFalse(trainingStarted);
+            Assert.AreEqual(PlayerProgression.GetHangarUpgradeCost(1) - 1, saveData.coins);
+            Assert.IsFalse(saveData.hangarUpgradeInProgress);
+            Assert.IsFalse(saveData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(1, saveData.hangarLevel);
+            Assert.AreEqual(1, saveData.trainingFacilityLevel);
+        }
+
+        [Test]
+        public void CompleteReadyHangarAndTrainingUpgrades_IncreaseLevelsAndClearTimers()
+        {
+            SaveGameData saveData = new()
+            {
+                coins = PlayerProgression.GetHangarUpgradeCost(1) + PlayerProgression.GetTrainingFacilityUpgradeCost(1),
+                hangarLevel = 1,
+                trainingFacilityLevel = 1
+            };
+            DateTime now = new(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc);
+
+            PlayerProgression.TryStartHangarUpgrade(saveData, now);
+            PlayerProgression.TryStartTrainingFacilityUpgrade(saveData, now);
+            bool hangarCompleted = PlayerProgression.CompleteReadyHangarUpgrade(saveData, now.AddSeconds(1.1));
+            bool trainingCompleted = PlayerProgression.CompleteReadyTrainingFacilityUpgrade(saveData, now.AddSeconds(1.1));
+
+            Assert.IsTrue(hangarCompleted);
+            Assert.IsTrue(trainingCompleted);
+            Assert.AreEqual(2, saveData.hangarLevel);
+            Assert.AreEqual(2, saveData.trainingFacilityLevel);
+            Assert.IsFalse(saveData.hangarUpgradeInProgress);
+            Assert.IsFalse(saveData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(0, saveData.hangarUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, saveData.trainingFacilityUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, saveData.hangarUpgradeDurationSeconds);
+            Assert.AreEqual(0, saveData.trainingFacilityUpgradeDurationSeconds);
+        }
+
+        [Test]
         public void Normalize_DefaultsMissionProgressionToFirstMission()
         {
             SaveGameData saveData = new()
@@ -476,6 +565,33 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void Normalize_ClearsMalformedHangarAndTrainingTimersWithoutLeveling()
+        {
+            SaveGameData saveData = new()
+            {
+                hangarLevel = 3,
+                hangarUpgradeInProgress = true,
+                hangarUpgradeStartedUtcTicks = long.MaxValue,
+                hangarUpgradeDurationSeconds = 10,
+                trainingFacilityLevel = 4,
+                trainingFacilityUpgradeInProgress = true,
+                trainingFacilityUpgradeStartedUtcTicks = long.MaxValue,
+                trainingFacilityUpgradeDurationSeconds = 60
+            };
+
+            saveData.Normalize();
+
+            Assert.AreEqual(3, saveData.hangarLevel);
+            Assert.AreEqual(4, saveData.trainingFacilityLevel);
+            Assert.IsFalse(saveData.hangarUpgradeInProgress);
+            Assert.IsFalse(saveData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(0, saveData.hangarUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, saveData.trainingFacilityUpgradeStartedUtcTicks);
+            Assert.AreEqual(0, saveData.hangarUpgradeDurationSeconds);
+            Assert.AreEqual(0, saveData.trainingFacilityUpgradeDurationSeconds);
+        }
+
+        [Test]
         public void SaveGameManager_PreservesLocalProgress()
         {
             tempSavePath = Path.Combine(Path.GetTempPath(), $"lane-survivor-save-{Guid.NewGuid():N}.json");
@@ -491,6 +607,14 @@ namespace LaneSurvivor.Tests.EditMode
                 bioLabUpgradeInProgress = true,
                 bioLabUpgradeStartedUtcTicks = new DateTime(2026, 6, 13, 12, 0, 0, DateTimeKind.Utc).Ticks,
                 bioLabUpgradeDurationSeconds = 60,
+                hangarLevel = 5,
+                hangarUpgradeInProgress = true,
+                hangarUpgradeStartedUtcTicks = new DateTime(2026, 6, 14, 12, 0, 0, DateTimeKind.Utc).Ticks,
+                hangarUpgradeDurationSeconds = 300,
+                trainingFacilityLevel = 6,
+                trainingFacilityUpgradeInProgress = true,
+                trainingFacilityUpgradeStartedUtcTicks = new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc).Ticks,
+                trainingFacilityUpgradeDurationSeconds = 1500,
                 unlockedMinigameLevel = 3,
                 currentMissionLevel = 2,
                 highestUnlockedMissionLevel = 3,
@@ -509,6 +633,14 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsTrue(loadedData.bioLabUpgradeInProgress);
             Assert.AreEqual(saveData.bioLabUpgradeStartedUtcTicks, loadedData.bioLabUpgradeStartedUtcTicks);
             Assert.AreEqual(60, loadedData.bioLabUpgradeDurationSeconds);
+            Assert.AreEqual(5, loadedData.hangarLevel);
+            Assert.IsTrue(loadedData.hangarUpgradeInProgress);
+            Assert.AreEqual(saveData.hangarUpgradeStartedUtcTicks, loadedData.hangarUpgradeStartedUtcTicks);
+            Assert.AreEqual(300, loadedData.hangarUpgradeDurationSeconds);
+            Assert.AreEqual(6, loadedData.trainingFacilityLevel);
+            Assert.IsTrue(loadedData.trainingFacilityUpgradeInProgress);
+            Assert.AreEqual(saveData.trainingFacilityUpgradeStartedUtcTicks, loadedData.trainingFacilityUpgradeStartedUtcTicks);
+            Assert.AreEqual(1500, loadedData.trainingFacilityUpgradeDurationSeconds);
             Assert.AreEqual(3, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(2, loadedData.currentMissionLevel);
             Assert.AreEqual(3, loadedData.highestUnlockedMissionLevel);
@@ -529,6 +661,10 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.IsFalse(loadedData.hqUpgradeInProgress);
             Assert.AreEqual(1, loadedData.bioLabLevel);
             Assert.IsFalse(loadedData.bioLabUpgradeInProgress);
+            Assert.AreEqual(1, loadedData.hangarLevel);
+            Assert.IsFalse(loadedData.hangarUpgradeInProgress);
+            Assert.AreEqual(1, loadedData.trainingFacilityLevel);
+            Assert.IsFalse(loadedData.trainingFacilityUpgradeInProgress);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(1, loadedData.currentMissionLevel);
             Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);
@@ -562,6 +698,10 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(1, resetData.hqLevel);
             Assert.AreEqual(1, resetData.bioLabLevel);
             Assert.IsFalse(resetData.bioLabUpgradeInProgress);
+            Assert.AreEqual(1, resetData.hangarLevel);
+            Assert.IsFalse(resetData.hangarUpgradeInProgress);
+            Assert.AreEqual(1, resetData.trainingFacilityLevel);
+            Assert.IsFalse(resetData.trainingFacilityUpgradeInProgress);
             Assert.AreEqual(1, resetData.unlockedMinigameLevel);
             Assert.AreEqual(1, resetData.currentMissionLevel);
             Assert.AreEqual(1, resetData.highestUnlockedMissionLevel);
@@ -570,6 +710,10 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.AreEqual(1, loadedData.hqLevel);
             Assert.AreEqual(1, loadedData.bioLabLevel);
             Assert.IsFalse(loadedData.bioLabUpgradeInProgress);
+            Assert.AreEqual(1, loadedData.hangarLevel);
+            Assert.IsFalse(loadedData.hangarUpgradeInProgress);
+            Assert.AreEqual(1, loadedData.trainingFacilityLevel);
+            Assert.IsFalse(loadedData.trainingFacilityUpgradeInProgress);
             Assert.AreEqual(1, loadedData.unlockedMinigameLevel);
             Assert.AreEqual(1, loadedData.currentMissionLevel);
             Assert.AreEqual(1, loadedData.highestUnlockedMissionLevel);

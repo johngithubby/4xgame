@@ -43,6 +43,18 @@ namespace LaneSurvivor.Progression
             return 50 + Mathf.Max(1, bioLabLevel) * 25;
         }
 
+        public static int GetHangarUpgradeCost(int hangarLevel)
+        {
+            // Hangar upgrades follow the bio-lab credit scale so all popup-arrow buildings use the same local rule.
+            return GetBioLabUpgradeCost(hangarLevel);
+        }
+
+        public static int GetTrainingFacilityUpgradeCost(int trainingFacilityLevel)
+        {
+            // Training upgrades follow the bio-lab credit scale so all popup-arrow buildings use the same local rule.
+            return GetBioLabUpgradeCost(trainingFacilityLevel);
+        }
+
         public static int GetBioLabUpgradeDurationSeconds(int bioLabLevel)
         {
             // The first three lab levels use the exact requested hand-authored ramp.
@@ -77,6 +89,18 @@ namespace LaneSurvivor.Progression
             }
 
             return (int)Math.Min(durationSeconds, int.MaxValue);
+        }
+
+        public static int GetHangarUpgradeDurationSeconds(int hangarLevel)
+        {
+            // Hangar timers reuse the bio-lab ramp so same-rule building upgrades feel consistent.
+            return GetBioLabUpgradeDurationSeconds(hangarLevel);
+        }
+
+        public static int GetTrainingFacilityUpgradeDurationSeconds(int trainingFacilityLevel)
+        {
+            // Training timers reuse the bio-lab ramp so same-rule building upgrades feel consistent.
+            return GetBioLabUpgradeDurationSeconds(trainingFacilityLevel);
         }
 
         public static int TryClaimMinigameWinReward(SaveGameData data, ref bool rewardClaimed)
@@ -137,6 +161,50 @@ namespace LaneSurvivor.Progression
             return true;
         }
 
+        public static bool TryStartHangarUpgrade(SaveGameData data, DateTime utcNow)
+        {
+            // Only one local hangar timer can run at a time, matching the bio-lab interaction rule.
+            if (data == null || data.hangarUpgradeInProgress)
+            {
+                return false;
+            }
+
+            // Charge the current hangar level's credit cost before starting the timer.
+            int cost = GetHangarUpgradeCost(data.hangarLevel);
+            if (!ResourceWallet.TrySpendCoins(data, cost))
+            {
+                return false;
+            }
+
+            // Persist the start time and level-derived duration so app restarts do not pause progress.
+            data.hangarUpgradeInProgress = true;
+            data.hangarUpgradeStartedUtcTicks = utcNow.ToUniversalTime().Ticks;
+            data.hangarUpgradeDurationSeconds = GetHangarUpgradeDurationSeconds(data.hangarLevel);
+            return true;
+        }
+
+        public static bool TryStartTrainingFacilityUpgrade(SaveGameData data, DateTime utcNow)
+        {
+            // Only one local training timer can run at a time, matching the bio-lab interaction rule.
+            if (data == null || data.trainingFacilityUpgradeInProgress)
+            {
+                return false;
+            }
+
+            // Charge the current training level's credit cost before starting the timer.
+            int cost = GetTrainingFacilityUpgradeCost(data.trainingFacilityLevel);
+            if (!ResourceWallet.TrySpendCoins(data, cost))
+            {
+                return false;
+            }
+
+            // Persist the start time and level-derived duration so app restarts do not pause progress.
+            data.trainingFacilityUpgradeInProgress = true;
+            data.trainingFacilityUpgradeStartedUtcTicks = utcNow.ToUniversalTime().Ticks;
+            data.trainingFacilityUpgradeDurationSeconds = GetTrainingFacilityUpgradeDurationSeconds(data.trainingFacilityLevel);
+            return true;
+        }
+
         public static bool CompleteReadyHqUpgrade(SaveGameData data, DateTime utcNow)
         {
             // Completion is idempotent so callers can check from scene load and Update.
@@ -162,6 +230,34 @@ namespace LaneSurvivor.Progression
             // Level up once and clear the timer after the progress icon has reached completion.
             data.bioLabLevel += 1;
             data.ClearBioLabUpgrade();
+            return true;
+        }
+
+        public static bool CompleteReadyHangarUpgrade(SaveGameData data, DateTime utcNow)
+        {
+            // Completion is idempotent so callers can check from scene load and Update.
+            if (data == null || !IsHangarUpgradeComplete(data, utcNow))
+            {
+                return false;
+            }
+
+            // Level up once and clear the hangar timer after the circular progress reaches completion.
+            data.hangarLevel += 1;
+            data.ClearHangarUpgrade();
+            return true;
+        }
+
+        public static bool CompleteReadyTrainingFacilityUpgrade(SaveGameData data, DateTime utcNow)
+        {
+            // Completion is idempotent so callers can check from scene load and Update.
+            if (data == null || !IsTrainingFacilityUpgradeComplete(data, utcNow))
+            {
+                return false;
+            }
+
+            // Level up once and clear the training timer after the circular progress reaches completion.
+            data.trainingFacilityLevel += 1;
+            data.ClearTrainingFacilityUpgrade();
             return true;
         }
 
@@ -397,6 +493,46 @@ namespace LaneSurvivor.Progression
             return Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
         }
 
+        public static int GetHangarUpgradeRemainingSeconds(SaveGameData data, DateTime utcNow)
+        {
+            // No active hangar timer should display remaining time.
+            if (data == null || !data.hangarUpgradeInProgress)
+            {
+                return 0;
+            }
+
+            // Corrupted timer data cannot display a meaningful countdown, so repair and show zero.
+            if (!TryGetUpgradeCompletionUtc(data.hangarUpgradeStartedUtcTicks, data.hangarUpgradeDurationSeconds, out DateTime completesUtc))
+            {
+                data.ClearHangarUpgrade();
+                return 0;
+            }
+
+            // Compare the valid completion timestamp with the current UTC time.
+            TimeSpan remaining = completesUtc - utcNow.ToUniversalTime();
+            return Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
+        }
+
+        public static int GetTrainingFacilityUpgradeRemainingSeconds(SaveGameData data, DateTime utcNow)
+        {
+            // No active training timer should display remaining time.
+            if (data == null || !data.trainingFacilityUpgradeInProgress)
+            {
+                return 0;
+            }
+
+            // Corrupted timer data cannot display a meaningful countdown, so repair and show zero.
+            if (!TryGetUpgradeCompletionUtc(data.trainingFacilityUpgradeStartedUtcTicks, data.trainingFacilityUpgradeDurationSeconds, out DateTime completesUtc))
+            {
+                data.ClearTrainingFacilityUpgrade();
+                return 0;
+            }
+
+            // Compare the valid completion timestamp with the current UTC time.
+            TimeSpan remaining = completesUtc - utcNow.ToUniversalTime();
+            return Math.Max(0, (int)Math.Ceiling(remaining.TotalSeconds));
+        }
+
         public static float GetBioLabUpgradeProgress01(SaveGameData data, DateTime utcNow)
         {
             // Inactive or invalid timers have no visible circular progress fill.
@@ -418,6 +554,52 @@ namespace LaneSurvivor.Progression
             // Use fractional seconds so the progress icon fills smoothly during short early upgrades.
             double elapsedSeconds = (utcNow.ToUniversalTime() - startedUtc).TotalSeconds;
             return Mathf.Clamp01((float)(elapsedSeconds / data.bioLabUpgradeDurationSeconds));
+        }
+
+        public static float GetHangarUpgradeProgress01(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive or invalid timers have no visible circular progress fill.
+            if (data == null || !data.hangarUpgradeInProgress || data.hangarUpgradeDurationSeconds <= 0)
+            {
+                return 0f;
+            }
+
+            // Corrupted timer data cannot produce a meaningful fill, so repair and show empty progress.
+            if (!TryGetUpgradeCompletionUtc(data.hangarUpgradeStartedUtcTicks, data.hangarUpgradeDurationSeconds, out _))
+            {
+                data.ClearHangarUpgrade();
+                return 0f;
+            }
+
+            // Reconstructing after validation keeps the precise elapsed fill safe from out-of-range ticks.
+            DateTime startedUtc = new(data.hangarUpgradeStartedUtcTicks, DateTimeKind.Utc);
+
+            // Use fractional seconds so the progress icon fills smoothly during short early upgrades.
+            double elapsedSeconds = (utcNow.ToUniversalTime() - startedUtc).TotalSeconds;
+            return Mathf.Clamp01((float)(elapsedSeconds / data.hangarUpgradeDurationSeconds));
+        }
+
+        public static float GetTrainingFacilityUpgradeProgress01(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive or invalid timers have no visible circular progress fill.
+            if (data == null || !data.trainingFacilityUpgradeInProgress || data.trainingFacilityUpgradeDurationSeconds <= 0)
+            {
+                return 0f;
+            }
+
+            // Corrupted timer data cannot produce a meaningful fill, so repair and show empty progress.
+            if (!TryGetUpgradeCompletionUtc(data.trainingFacilityUpgradeStartedUtcTicks, data.trainingFacilityUpgradeDurationSeconds, out _))
+            {
+                data.ClearTrainingFacilityUpgrade();
+                return 0f;
+            }
+
+            // Reconstructing after validation keeps the precise elapsed fill safe from out-of-range ticks.
+            DateTime startedUtc = new(data.trainingFacilityUpgradeStartedUtcTicks, DateTimeKind.Utc);
+
+            // Use fractional seconds so the progress icon fills smoothly during short early upgrades.
+            double elapsedSeconds = (utcNow.ToUniversalTime() - startedUtc).TotalSeconds;
+            return Mathf.Clamp01((float)(elapsedSeconds / data.trainingFacilityUpgradeDurationSeconds));
         }
 
         private static bool TryMarkMissionCompleted(SaveGameData data, int missionLevel)
@@ -454,40 +636,87 @@ namespace LaneSurvivor.Progression
             return completesUtc <= utcNow.ToUniversalTime();
         }
 
+        private static bool IsHangarUpgradeComplete(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive hangar timers cannot be complete.
+            if (data == null || !data.hangarUpgradeInProgress)
+            {
+                return false;
+            }
+
+            // Corrupted timer data should be repaired instead of treated as a completed upgrade.
+            if (!TryGetUpgradeCompletionUtc(data.hangarUpgradeStartedUtcTicks, data.hangarUpgradeDurationSeconds, out DateTime completesUtc))
+            {
+                data.ClearHangarUpgrade();
+                return false;
+            }
+
+            // A completion timestamp at or before now means the upgrade has finished.
+            return completesUtc <= utcNow.ToUniversalTime();
+        }
+
+        private static bool IsTrainingFacilityUpgradeComplete(SaveGameData data, DateTime utcNow)
+        {
+            // Inactive training timers cannot be complete.
+            if (data == null || !data.trainingFacilityUpgradeInProgress)
+            {
+                return false;
+            }
+
+            // Corrupted timer data should be repaired instead of treated as a completed upgrade.
+            if (!TryGetUpgradeCompletionUtc(data.trainingFacilityUpgradeStartedUtcTicks, data.trainingFacilityUpgradeDurationSeconds, out DateTime completesUtc))
+            {
+                data.ClearTrainingFacilityUpgrade();
+                return false;
+            }
+
+            // A completion timestamp at or before now means the upgrade has finished.
+            return completesUtc <= utcNow.ToUniversalTime();
+        }
+
         private static bool TryGetBioLabUpgradeCompletionUtc(SaveGameData data, out DateTime completesUtc)
         {
             // Default the out value so callers never observe an unassigned DateTime.
             completesUtc = default;
 
+            // Delegate the actual tick math to the shared facility timer validator.
+            return TryGetUpgradeCompletionUtc(data.bioLabUpgradeStartedUtcTicks, data.bioLabUpgradeDurationSeconds, out completesUtc);
+        }
+
+        private static bool TryGetUpgradeCompletionUtc(long startedUtcTicks, int durationSeconds, out DateTime completesUtc)
+        {
+            // Default the out value so callers never observe an unassigned DateTime.
+            completesUtc = default;
+
             // A missing or negative start time cannot represent a recoverable UTC DateTime.
-            if (data.bioLabUpgradeStartedUtcTicks <= DateTime.MinValue.Ticks)
+            if (startedUtcTicks <= DateTime.MinValue.Ticks)
             {
                 return false;
             }
 
             // Ticks beyond DateTime's maximum would throw if used to build a DateTime.
-            if (data.bioLabUpgradeStartedUtcTicks > DateTime.MaxValue.Ticks)
+            if (startedUtcTicks > DateTime.MaxValue.Ticks)
             {
                 return false;
             }
 
             // Active timers created by gameplay always have a positive duration.
-            if (data.bioLabUpgradeDurationSeconds <= 0)
+            if (durationSeconds <= 0)
             {
                 return false;
             }
 
             // Convert duration seconds to ticks before adding so we can avoid AddSeconds overflow.
-            long durationTicks = (long)data.bioLabUpgradeDurationSeconds * TimeSpan.TicksPerSecond;
+            long durationTicks = (long)durationSeconds * TimeSpan.TicksPerSecond;
 
             // A timer that completes beyond DateTime's maximum cannot be evaluated safely.
-            if (data.bioLabUpgradeStartedUtcTicks > DateTime.MaxValue.Ticks - durationTicks)
+            if (startedUtcTicks > DateTime.MaxValue.Ticks - durationTicks)
             {
                 return false;
             }
 
             // Reconstruct only after range checks have proven the saved values are safe.
-            DateTime startedUtc = new(data.bioLabUpgradeStartedUtcTicks, DateTimeKind.Utc);
+            DateTime startedUtc = new(startedUtcTicks, DateTimeKind.Utc);
 
             // Add ticks instead of seconds because the overflow has already been checked above.
             completesUtc = startedUtc.AddTicks(durationTicks);

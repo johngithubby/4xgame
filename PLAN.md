@@ -523,6 +523,39 @@ Implemented in this slice:
 - Visual verification captured and reviewed a rendered still plus GIF of the pulsing blurred silhouette aura. Done.
 - Latest automated verification: Unity EditMode `79/79`, Unity PlayMode `27/27`, temp 2D arrow capture test `1/1`, and clean `git diff --check`.
 
+## Local V6-2: Hangar and training facility upgrade models
+
+### Goal
+
+Bring the hangar and training facility out of placeholder-pad status by using the generated concept drawings as in-game models and giving both buildings the same popup-arrow upgrade behavior as the bio lab.
+
+Implemented in this slice:
+
+- The Base scene now creates a hangar on the former future hangar pad and a training facility on the former future training pad.
+- The visible hangar uses `Resources/Hangar/HangarReferenceCutout`; the visible training facility uses `Resources/Training/TrainingFacilityReferenceCutout`.
+- The occupied hangar and training pads remain logical map slots but no longer draw slabs or separate pad labels.
+- Both buildings keep hidden primitive scaffolds for fallback rendering, click/progress sizing, and tests, while the reference images own the visible look.
+- Tapping either building reveals a grey or green flat 2D upgrade symbol based on whether the saved wallet can afford the next level.
+- Clicking a green symbol starts a saved upgrade timer, spends the upgrade cost, hides the symbol, and shows a circular progress icon above the building.
+- Hangar and training upgrades reuse the bio-lab cost scale and duration curve: 1s, 3s, 10s, 60s, then x5 each further level.
+- Completed upgrades increase the saved building level, clear the timer, pop the building, show a five-second pulsing silhouette aura, and grow the visible reference model only slightly taller.
+- Tapping another building, empty map space, Credits, Collect, or other HUD actions hides popup arrows for all current buildings.
+
+### Acceptance Criteria
+
+- Hangar and training facility models match their generated concept drawings through reference-textured world quads. Done.
+- Both buildings use clickable flat 2D popup upgrade arrows with the same green/grey affordability rule as the bio lab. Done.
+- Both buildings start saved timers from the popup arrow, display circular progress while running, and complete from UTC save data after app reopen. Done.
+- Both buildings grow only in height by a few pixels after an upgrade; they do not add exterior complications. Done.
+- Both buildings use a pulsating blurred aura around the exact reference silhouette when an upgrade completes. Done.
+- Any outside world or HUD click hides all building popup arrows. Done.
+
+### Validation
+
+- EditMode progression coverage checks hangar and training upgrade costs, timers, completion, malformed timer repair, reset defaults, and save/load persistence. Done.
+- PlayMode coverage checks reference-textured hangar/training model loading, hidden occupied pad renderers/labels, zero-thickness flat 2D arrow mesh generation, saved timer start, circular progress fill, height-only visual leveling, popup dismissal across all buildings, and completion pop/glow feedback. Done.
+- Latest automated verification: Unity EditMode `84/84`, Unity PlayMode `29/29`, graphics-enabled capture test `1/1`, final screenshot reviewed at `/private/tmp/4xgame-hangar-training-base-capture.png`, and clean `git diff --check`.
+
 ## Future Local V7: Human Population, Gate Intake, And Role Training
 
 ### Goal

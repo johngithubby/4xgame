@@ -28,6 +28,22 @@ namespace LaneSurvivor.Save
 
         public int bioLabUpgradeDurationSeconds;
 
+        public int hangarLevel = 1;
+
+        public bool hangarUpgradeInProgress;
+
+        public long hangarUpgradeStartedUtcTicks;
+
+        public int hangarUpgradeDurationSeconds;
+
+        public int trainingFacilityLevel = 1;
+
+        public bool trainingFacilityUpgradeInProgress;
+
+        public long trainingFacilityUpgradeStartedUtcTicks;
+
+        public int trainingFacilityUpgradeDurationSeconds;
+
         public int unlockedMinigameLevel = 1;
 
         public int currentMissionLevel = 1;
@@ -54,6 +70,8 @@ namespace LaneSurvivor.Save
             coins = Mathf.Max(0, coins);
             hqLevel = Mathf.Max(1, hqLevel);
             bioLabLevel = Mathf.Max(1, bioLabLevel);
+            hangarLevel = Mathf.Max(1, hangarLevel);
+            trainingFacilityLevel = Mathf.Max(1, trainingFacilityLevel);
             NormalizeMissionProgression();
             NormalizeHeroes();
             NormalizeDailyObjective();
@@ -75,6 +93,24 @@ namespace LaneSurvivor.Save
 
             // Inactive bio-lab saves do not need a duration, so clamp old negative values down to zero.
             bioLabUpgradeDurationSeconds = Mathf.Max(0, bioLabUpgradeDurationSeconds);
+
+            // Invalid persisted hangar timer values cannot be recovered safely, so clear that active timer.
+            if (hangarUpgradeInProgress && !HasRecoverableHangarUpgradeTimer())
+            {
+                ClearHangarUpgrade();
+            }
+
+            // Inactive hangar saves do not need a duration, so clamp old negative values down to zero.
+            hangarUpgradeDurationSeconds = Mathf.Max(0, hangarUpgradeDurationSeconds);
+
+            // Invalid persisted training timer values cannot be recovered safely, so clear that active timer.
+            if (trainingFacilityUpgradeInProgress && !HasRecoverableTrainingFacilityUpgradeTimer())
+            {
+                ClearTrainingFacilityUpgrade();
+            }
+
+            // Inactive training saves do not need a duration, so clamp old negative values down to zero.
+            trainingFacilityUpgradeDurationSeconds = Mathf.Max(0, trainingFacilityUpgradeDurationSeconds);
         }
 
         public void ClearHqUpgrade()
@@ -93,6 +129,22 @@ namespace LaneSurvivor.Save
             bioLabUpgradeDurationSeconds = 0;
         }
 
+        public void ClearHangarUpgrade()
+        {
+            // Keep hangar timer reset logic in one place so completion and data repair clear the same fields.
+            hangarUpgradeInProgress = false;
+            hangarUpgradeStartedUtcTicks = 0L;
+            hangarUpgradeDurationSeconds = 0;
+        }
+
+        public void ClearTrainingFacilityUpgrade()
+        {
+            // Keep training timer reset logic in one place so completion and data repair clear the same fields.
+            trainingFacilityUpgradeInProgress = false;
+            trainingFacilityUpgradeStartedUtcTicks = 0L;
+            trainingFacilityUpgradeDurationSeconds = 0;
+        }
+
         public SaveGameData Clone()
         {
             // JsonUtility gives a compact deep copy for this simple serializable save object.
@@ -109,6 +161,18 @@ namespace LaneSurvivor.Save
         {
             // Bio-lab timers use the same UTC tick validation rules as HQ timers.
             return HasRecoverableUpgradeTimer(bioLabUpgradeStartedUtcTicks, bioLabUpgradeDurationSeconds);
+        }
+
+        private bool HasRecoverableHangarUpgradeTimer()
+        {
+            // Hangar timers use the same UTC tick validation rules as the other local buildings.
+            return HasRecoverableUpgradeTimer(hangarUpgradeStartedUtcTicks, hangarUpgradeDurationSeconds);
+        }
+
+        private bool HasRecoverableTrainingFacilityUpgradeTimer()
+        {
+            // Training timers use the same UTC tick validation rules as the other local buildings.
+            return HasRecoverableUpgradeTimer(trainingFacilityUpgradeStartedUtcTicks, trainingFacilityUpgradeDurationSeconds);
         }
 
         private static bool HasRecoverableUpgradeTimer(long startedUtcTicks, int durationSeconds)

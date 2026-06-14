@@ -163,15 +163,19 @@ namespace LaneSurvivor.Base
 #endif
         }
 
-        public void UpdateView(SaveGameData saveData, int remainingSeconds, int bioLabRemainingSeconds, string statusOverride)
+        public void UpdateView(SaveGameData saveData, int remainingSeconds, int bioLabRemainingSeconds, int hangarRemainingSeconds, int trainingRemainingSeconds, string statusOverride)
         {
             // Normalize the value read by UI so null data still shows a sensible first-launch state.
             int hqLevel = Mathf.Max(1, saveData?.hqLevel ?? 1);
             int bioLabLevel = Mathf.Max(1, saveData?.bioLabLevel ?? 1);
+            int hangarLevel = Mathf.Max(1, saveData?.hangarLevel ?? 1);
+            int trainingFacilityLevel = Mathf.Max(1, saveData?.trainingFacilityLevel ?? 1);
             int coins = Mathf.Max(0, saveData?.coins ?? 0);
             int upgradeCost = PlayerProgression.GetHqUpgradeCost(hqLevel);
             bool upgradeRunning = saveData != null && saveData.hqUpgradeInProgress;
             bool bioLabUpgradeRunning = saveData != null && saveData.bioLabUpgradeInProgress;
+            bool hangarUpgradeRunning = saveData != null && saveData.hangarUpgradeInProgress;
+            bool trainingUpgradeRunning = saveData != null && saveData.trainingFacilityUpgradeInProgress;
             bool canAffordUpgrade = coins >= upgradeCost;
             int selectedMissionLevel = PlayerProgression.GetSelectedMissionLevel(saveData);
             HeroDefinition equippedHero = HeroInventory.GetEquippedHero(saveData);
@@ -184,13 +188,19 @@ namespace LaneSurvivor.Base
                 ? "HQ upgrade in progress"
                 : bioLabUpgradeRunning
                     ? "Bio lab upgrade in progress"
-                    : $"Next HQ upgrade: {upgradeCost} coins";
+                    : hangarUpgradeRunning
+                        ? "Hangar upgrade in progress"
+                        : trainingUpgradeRunning
+                            ? "Training upgrade in progress"
+                            : $"Next HQ upgrade: {upgradeCost} coins";
 
             titleText.text = "Base";
             string upgradeStatus = upgradeRunning ? $"HQ Upgrade: {remainingSeconds}s" : "HQ Upgrade: Ready";
             string bioLabStatus = bioLabUpgradeRunning ? $"Bio Upgrade: {bioLabRemainingSeconds}s" : "Bio Upgrade: Ready";
+            string hangarStatus = hangarUpgradeRunning ? $"Hangar Upgrade: {hangarRemainingSeconds}s" : "Hangar Upgrade: Ready";
+            string trainingStatus = trainingUpgradeRunning ? $"Training Upgrade: {trainingRemainingSeconds}s" : "Training Upgrade: Ready";
             creditsButtonText.text = $"Credits: {coins}";
-            creditsDetailText.text = BuildCreditsDetailText(coins, hqLevel, bioLabLevel, upgradeStatus, bioLabStatus);
+            creditsDetailText.text = BuildCreditsDetailText(coins, hqLevel, bioLabLevel, hangarLevel, trainingFacilityLevel, upgradeStatus, bioLabStatus, hangarStatus, trainingStatus);
             creditsDetailPanel.SetActive(creditsExpanded);
             heroPanelTitleText.text = "Owned Heroes";
             heroPanelText.text = BuildHeroPanelText(saveData, ownedHeroes, equippedHero);
@@ -231,10 +241,10 @@ namespace LaneSurvivor.Base
             creditsDetailPanel.SetActive(creditsExpanded);
         }
 
-        private static string BuildCreditsDetailText(int coins, int hqLevel, int bioLabLevel, string upgradeStatus, string bioLabStatus)
+        private static string BuildCreditsDetailText(int coins, int hqLevel, int bioLabLevel, int hangarLevel, int trainingFacilityLevel, string upgradeStatus, string bioLabStatus, string hangarStatus, string trainingStatus)
         {
             // Keep the expanded panel short so it replaces the old left text stack without becoming another wall.
-            return $"Coins: {coins}\nHQ Level: {hqLevel}\nBio Lab: {bioLabLevel}\n{upgradeStatus}\n{bioLabStatus}";
+            return $"Coins: {coins}\nHQ Level: {hqLevel}\nBio Lab: {bioLabLevel}\nHangar: {hangarLevel}\nTraining: {trainingFacilityLevel}\n{upgradeStatus}\n{bioLabStatus}\n{hangarStatus}\n{trainingStatus}";
         }
 
         private static void ConfigureMissionButton(Button missionButton, SaveGameData saveData, int missionLevel, int selectedMissionLevel)

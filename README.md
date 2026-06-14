@@ -29,7 +29,7 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 ## Phase 2
 
 - Open `Assets/Scenes/Base.unity` to try the first base-building slice.
-- The base scene shows a draggable unoutlined base floor with a generated reference-matched pentagon HQ, a generated reference-matched upgradeable bio lab, an expandable Credits button for coins/HQ/bio-lab upgrade status, collect, HQ upgrade, direct mission buttons, a daily objective claim button, world zoom controls, and play controls.
+- The base scene shows a draggable unoutlined base floor with a generated reference-matched pentagon HQ, generated reference-matched upgradeable bio lab, hangar, and training facility buildings, an expandable Credits button for coins/building upgrade status, collect, HQ upgrade, direct mission buttons, a daily objective claim button, world zoom controls, and play controls.
 - The Base HUD uses a narrow mobile reference layout for the placeholder controls.
 - HQ starts at level 1.
 - Collect grants local coins.
@@ -39,8 +39,9 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Base shows feedback when an HQ upgrade completes, including a pulsating blurred aura made from the same HQ silhouette.
 - The bio lab model uses the generated concept image directly as a reference-textured world model, with the old primitive tower kept hidden only as upgrade/click fallback scaffolding, no visible lab-pad slab, and no separate lab-pad label.
 - Tapping the bio lab reveals a green or grey flat 2D upgrade symbol based on local credits, starts a saved timer when affordable, shows a circular progress fill, raises the lab height by a few pixels on completion without exterior add-ons, and plays local pop/sound feedback with a pulsating blurred aura made from the same building silhouette.
-- Tapping another building, empty map space, or HUD action dismisses any visible HQ or bio-lab upgrade arrow.
-- The Base layout reserves visible future space for gates, resource drop-off, labs, hangars, and training areas without drawing a base border.
+- The hangar and training facility use their generated concept images directly as reference-textured world models, hide their occupied pad slabs/labels, use the same green/grey flat 2D popup-arrow upgrade rules as the bio lab, show circular progress while saved timers run, grow only slightly taller after completion, and play local pop/glow feedback with blurred silhouette auras.
+- Tapping another building, empty map space, or HUD action dismisses any visible HQ, bio-lab, hangar, or training upgrade arrow.
+- The Base layout reserves visible future space for gates and resource drop-off while occupied lab/hangar/training pads keep logical slots without drawing slabs or labels.
 - The Base map can be dragged for inspection while overlay HUD controls stay fixed.
 - HQ levels above 1 add a visible starting squad bonus in the minigame.
 - Winning a mission marks it complete, and winning the highest unlocked mission unlocks the next local mission up to mission 8.
@@ -65,9 +66,9 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 
 - EditMode tests live in `Assets/Tests/EditMode`.
 - PlayMode scene smoke tests live in `Assets/Tests/PlayMode`.
-- Current EditMode test coverage includes Phase 1 gameplay rules, generated survivor weapon/muzzle rules, muzzle-origin shot events, Phase 2 progression/save/mission completion rules, bio-lab upgrade timer rules, the local daily objective, advanced mission content, and Phase 3 hero inventory rules.
+- Current EditMode test coverage includes Phase 1 gameplay rules, generated survivor weapon/muzzle rules, muzzle-origin shot events, Phase 2 progression/save/mission completion rules, bio-lab, hangar, and training upgrade timer rules, the local daily objective, advanced mission content, and Phase 3 hero inventory rules.
 - Current EditMode visual coverage includes compact placeholder geometry, disabled depth-unsafe world effects, and responsive minigame camera FOV rules for tall portrait devices.
-- Current PlayMode test coverage includes Base collect/upgrade persistence, Credits button expansion, daily objective claiming, mission button selection, locked mission rejection, completed-upgrade feedback, V6 unoutlined Base floor and reference-textured pentagon HQ visuals, HQ height-only leveling and blurred silhouette-aura completion feedback, V6-1 reference-textured bio-lab model loading plus symbol/progress/blurred silhouette-aura completion feedback, Base zoom and drag controls, Base-to-Minigame flow, Minigame HUD edge-label placement, generated runtime weapon muzzle anchors, muzzle-aligned tracer spawning, Minigame start movement, lane-button movement, restart, rewards, mission unlocks, mission cap completion, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
+- Current PlayMode test coverage includes Base collect/upgrade persistence, Credits button expansion, daily objective claiming, mission button selection, locked mission rejection, completed-upgrade feedback, V6 unoutlined Base floor and reference-textured pentagon HQ visuals, HQ height-only leveling and blurred silhouette-aura completion feedback, V6-1 reference-textured bio-lab model loading plus symbol/progress/blurred silhouette-aura completion feedback, reference-textured hangar/training model loading plus shared popup-arrow/progress/completion-glow behavior, Base zoom and drag controls, Base-to-Minigame flow, Minigame HUD edge-label placement, generated runtime weapon muzzle anchors, muzzle-aligned tracer spawning, Minigame start movement, lane-button movement, restart, rewards, mission unlocks, mission cap completion, end-screen return to Base, Base-to-Heroes flow, and Hero screen level-up/equip persistence.
 - The scene can be regenerated from Unity with `Lane Survivor/Rebuild Phase 1 Scene`.
 - A batch-mode iOS smoke build entry point exists at `LaneSurvivor.Editor.IosSmokeBuild.Run`, including optional simulator SDK export flags for local Simulator launch checks.
 

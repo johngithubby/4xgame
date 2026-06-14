@@ -41,7 +41,7 @@ namespace LaneSurvivor.Base
 
         private const float ClickMoveTolerancePixels = 22f;
 
-        private static readonly Vector2 ReferenceClickPaddingPixels = new(26f, 22f);
+        private static readonly Vector2 ReferenceClickPaddingPixels = new(8f, 8f);
 
         private static readonly Vector2 FallbackClickSizePixels = new(220f, 180f);
 

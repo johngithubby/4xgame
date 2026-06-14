@@ -21,6 +21,10 @@ namespace LaneSurvivor.Base
 
         private BioLabBuilding bioLabBuilding;
 
+        private UpgradeableFacilityBuilding hangarBuilding;
+
+        private UpgradeableFacilityBuilding trainingFacilityBuilding;
+
         private BaseHudController hudController;
 
         private BaseCameraController cameraController;
@@ -34,6 +38,8 @@ namespace LaneSurvivor.Base
             bool saveDirty = DailyObjectiveProgression.EnsureCurrentObjective(saveData, DateTime.UtcNow);
             bool hqCompletedOnLoad = false;
             bool bioLabCompletedOnLoad = false;
+            bool hangarCompletedOnLoad = false;
+            bool trainingCompletedOnLoad = false;
 
             // Complete any timer that finished while the app was closed.
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
@@ -41,13 +47,11 @@ namespace LaneSurvivor.Base
                 statusMessage = "HQ upgrade complete";
                 hqCompletedOnLoad = true;
                 GrantHqMilestoneRewards();
-                SaveGameManager.Save(saveData);
-                saveDirty = false;
+                saveDirty = true;
             }
             else if (GrantHqMilestoneRewards())
             {
-                SaveGameManager.Save(saveData);
-                saveDirty = false;
+                saveDirty = true;
             }
 
             // Complete a ready bio-lab timer before visuals are built so level-dependent geometry is current.
@@ -55,12 +59,28 @@ namespace LaneSurvivor.Base
             {
                 AppendStatusMessage("Bio lab upgrade complete");
                 bioLabCompletedOnLoad = true;
-                SaveGameManager.Save(saveData);
-                saveDirty = false;
+                saveDirty = true;
             }
-            else if (saveDirty)
+
+            // Complete ready hangar timers before visuals are built so the loaded art matches saved level.
+            if (PlayerProgression.CompleteReadyHangarUpgrade(saveData, DateTime.UtcNow))
             {
-                // Persist a UTC-day objective rollover even when no upgrade or milestone reward also changes the save.
+                AppendStatusMessage("Hangar upgrade complete");
+                hangarCompletedOnLoad = true;
+                saveDirty = true;
+            }
+
+            // Complete ready training timers before visuals are built so the loaded art matches saved level.
+            if (PlayerProgression.CompleteReadyTrainingFacilityUpgrade(saveData, DateTime.UtcNow))
+            {
+                AppendStatusMessage("Training upgrade complete");
+                trainingCompletedOnLoad = true;
+                saveDirty = true;
+            }
+
+            if (saveDirty)
+            {
+                // Persist UTC-day objective rollover, upgrade completion, and milestone rewards in one local write.
                 SaveGameManager.Save(saveData);
             }
 
@@ -84,6 +104,18 @@ namespace LaneSurvivor.Base
             Material bioLabGlowMaterial = PrototypeMaterialFactory.CreateAlwaysVisibleFeedback(new Color(0.20f, 1f, 0.72f, 0.34f));
             Material bioLabReferenceMaterial = CreateBioLabReferenceMaterial();
             Material bioLabReferenceGlowMaterial = CreateBioLabReferenceGlowMaterial();
+            Material hangarBodyMaterial = CreateMaterial(new Color(0.28f, 0.32f, 0.32f));
+            Material hangarSymbolMaterial = CreateMaterial(new Color(0.44f, 0.46f, 0.48f));
+            Material hangarProgressBackMaterial = CreateMaterial(new Color(0.10f, 0.12f, 0.13f));
+            Material hangarProgressFillMaterial = CreateMaterial(new Color(0.12f, 0.92f, 0.34f));
+            Material hangarReferenceMaterial = CreateHangarReferenceMaterial();
+            Material hangarReferenceGlowMaterial = CreateHangarReferenceGlowMaterial();
+            Material trainingBodyMaterial = CreateMaterial(new Color(0.30f, 0.33f, 0.32f));
+            Material trainingSymbolMaterial = CreateMaterial(new Color(0.44f, 0.46f, 0.48f));
+            Material trainingProgressBackMaterial = CreateMaterial(new Color(0.10f, 0.12f, 0.13f));
+            Material trainingProgressFillMaterial = CreateMaterial(new Color(0.12f, 0.92f, 0.34f));
+            Material trainingReferenceMaterial = CreateTrainingReferenceMaterial();
+            Material trainingReferenceGlowMaterial = CreateTrainingReferenceGlowMaterial();
 
             cameraController = CreateCamera();
             CreateLight();
@@ -91,6 +123,8 @@ namespace LaneSurvivor.Base
             CreateGround(groundMaterial, reservedSpaceMaterial);
             hqBuilding = CreateHqBuilding(hqMaterial, hqReferenceMaterial, hqReferenceGlowMaterial, hqGlowMaterial, hqSymbolMaterial, hqProgressBackMaterial, hqProgressFillMaterial, TryStartHqUpgradeFromInteraction);
             bioLabBuilding = CreateBioLabBuilding(bioLabMaterial, bioLabDetailMaterial, bioLabTrimMaterial, bioLabDarkMaterial, bioLabLightMaterial, bioLabReferenceMaterial, bioLabReferenceGlowMaterial, bioLabSymbolMaterial, bioLabProgressBackMaterial, bioLabProgressFillMaterial, bioLabGlowMaterial, StartBioLabUpgrade);
+            hangarBuilding = CreateHangarBuilding(hangarBodyMaterial, hangarReferenceMaterial, hangarReferenceGlowMaterial, hangarSymbolMaterial, hangarProgressBackMaterial, hangarProgressFillMaterial, StartHangarUpgrade);
+            trainingFacilityBuilding = CreateTrainingFacilityBuilding(trainingBodyMaterial, trainingReferenceMaterial, trainingReferenceGlowMaterial, trainingSymbolMaterial, trainingProgressBackMaterial, trainingProgressFillMaterial, StartTrainingFacilityUpgrade);
             hudController = CreateHud();
             hudController.Initialize(CollectCoins, StartHqUpgrade, LaunchMinigame, ClaimDailyObjective, SelectMission, ResetSave, EquipNextOwnedHero, LaunchHeroes, ZoomInFromHud, ZoomOutFromHud, HideBuildingUpgradeSymbols);
 
@@ -106,6 +140,16 @@ namespace LaneSurvivor.Base
             {
                 bioLabBuilding.PlayCompletionEffects();
             }
+
+            if (hangarCompletedOnLoad)
+            {
+                hangarBuilding.PlayCompletionEffects();
+            }
+
+            if (trainingCompletedOnLoad)
+            {
+                trainingFacilityBuilding.PlayCompletionEffects();
+            }
         }
 
         private void Update()
@@ -114,6 +158,8 @@ namespace LaneSurvivor.Base
             bool completedAnyUpgrade = false;
             bool completedHqUpgrade = false;
             bool completedBioLabUpgrade = false;
+            bool completedHangarUpgrade = false;
+            bool completedTrainingUpgrade = false;
             if (PlayerProgression.CompleteReadyHqUpgrade(saveData, DateTime.UtcNow))
             {
                 AppendStatusMessage("HQ upgrade complete");
@@ -130,6 +176,22 @@ namespace LaneSurvivor.Base
                 completedBioLabUpgrade = true;
             }
 
+            // Hangar completion uses the same local timer polling as the bio lab.
+            if (PlayerProgression.CompleteReadyHangarUpgrade(saveData, DateTime.UtcNow))
+            {
+                AppendStatusMessage("Hangar upgrade complete");
+                completedAnyUpgrade = true;
+                completedHangarUpgrade = true;
+            }
+
+            // Training completion uses the same local timer polling as the bio lab.
+            if (PlayerProgression.CompleteReadyTrainingFacilityUpgrade(saveData, DateTime.UtcNow))
+            {
+                AppendStatusMessage("Training upgrade complete");
+                completedAnyUpgrade = true;
+                completedTrainingUpgrade = true;
+            }
+
             if (completedAnyUpgrade)
             {
                 SaveGameManager.Save(saveData);
@@ -143,11 +205,21 @@ namespace LaneSurvivor.Base
                 {
                     bioLabBuilding.PlayCompletionEffects();
                 }
+
+                if (completedHangarUpgrade)
+                {
+                    hangarBuilding.PlayCompletionEffects();
+                }
+
+                if (completedTrainingUpgrade)
+                {
+                    trainingFacilityBuilding.PlayCompletionEffects();
+                }
                 return;
             }
 
             // Refresh countdowns each frame while an upgrade is active.
-            if (saveData.hqUpgradeInProgress || saveData.bioLabUpgradeInProgress)
+            if (saveData.hqUpgradeInProgress || saveData.bioLabUpgradeInProgress || saveData.hangarUpgradeInProgress || saveData.trainingFacilityUpgradeInProgress)
             {
                 RefreshScene();
             }
@@ -210,6 +282,46 @@ namespace LaneSurvivor.Base
             statusMessage = saveData.bioLabUpgradeInProgress
                 ? "Bio lab upgrade in progress"
                 : $"Bio lab needs {neededCredits} credits";
+            RefreshScene();
+            return false;
+        }
+
+        private bool StartHangarUpgrade()
+        {
+            // The progression layer handles credit cost, duration curve, and duplicate-timer validation.
+            if (PlayerProgression.TryStartHangarUpgrade(saveData, DateTime.UtcNow))
+            {
+                SaveGameManager.Save(saveData);
+                statusMessage = "Hangar upgrade started";
+                RefreshScene();
+                return true;
+            }
+
+            // Failed starts keep the visible popup symbol but tell the player why nothing happened.
+            int neededCredits = PlayerProgression.GetHangarUpgradeCost(saveData.hangarLevel);
+            statusMessage = saveData.hangarUpgradeInProgress
+                ? "Hangar upgrade in progress"
+                : $"Hangar needs {neededCredits} credits";
+            RefreshScene();
+            return false;
+        }
+
+        private bool StartTrainingFacilityUpgrade()
+        {
+            // The progression layer handles credit cost, duration curve, and duplicate-timer validation.
+            if (PlayerProgression.TryStartTrainingFacilityUpgrade(saveData, DateTime.UtcNow))
+            {
+                SaveGameManager.Save(saveData);
+                statusMessage = "Training upgrade started";
+                RefreshScene();
+                return true;
+            }
+
+            // Failed starts keep the visible popup symbol but tell the player why nothing happened.
+            int neededCredits = PlayerProgression.GetTrainingFacilityUpgradeCost(saveData.trainingFacilityLevel);
+            statusMessage = saveData.trainingFacilityUpgradeInProgress
+                ? "Training upgrade in progress"
+                : $"Training needs {neededCredits} credits";
             RefreshScene();
             return false;
         }
@@ -344,6 +456,8 @@ namespace LaneSurvivor.Base
             // Any non-arrow interaction should leave no building upgrade popup selected.
             hqBuilding?.HideUpgradeSymbol();
             bioLabBuilding?.HideUpgradeSymbol();
+            hangarBuilding?.HideUpgradeSymbol();
+            trainingFacilityBuilding?.HideUpgradeSymbol();
         }
 
         private void RefreshScene()
@@ -351,9 +465,13 @@ namespace LaneSurvivor.Base
             // Keep world and HUD state synchronized from one saved data object.
             int remainingSeconds = PlayerProgression.GetHqUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
             int bioLabRemainingSeconds = PlayerProgression.GetBioLabUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
+            int hangarRemainingSeconds = PlayerProgression.GetHangarUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
+            int trainingRemainingSeconds = PlayerProgression.GetTrainingFacilityUpgradeRemainingSeconds(saveData, DateTime.UtcNow);
             hqBuilding.ApplySaveData(saveData, DateTime.UtcNow);
             bioLabBuilding.ApplySaveData(saveData, DateTime.UtcNow);
-            hudController.UpdateView(saveData, remainingSeconds, bioLabRemainingSeconds, statusMessage);
+            hangarBuilding.ApplyState(saveData.hangarLevel, saveData.coins, saveData.hangarUpgradeInProgress, PlayerProgression.GetHangarUpgradeCost(saveData.hangarLevel), PlayerProgression.GetHangarUpgradeProgress01(saveData, DateTime.UtcNow));
+            trainingFacilityBuilding.ApplyState(saveData.trainingFacilityLevel, saveData.coins, saveData.trainingFacilityUpgradeInProgress, PlayerProgression.GetTrainingFacilityUpgradeCost(saveData.trainingFacilityLevel), PlayerProgression.GetTrainingFacilityUpgradeProgress01(saveData, DateTime.UtcNow));
+            hudController.UpdateView(saveData, remainingSeconds, bioLabRemainingSeconds, hangarRemainingSeconds, trainingRemainingSeconds, statusMessage);
         }
 
         private void AppendStatusMessage(string message)
@@ -431,12 +549,12 @@ namespace LaneSurvivor.Base
             // Reserve a separate unload opening so future truck/resource loops have a distinct destination.
             CreateReservedPad("Future Resource Drop-Off Opening", new Vector3(2.35f, 0.04f, -3.05f), new Vector3(1.22f, 0.08f, 0.48f), reservedSpaceMaterial);
 
-            // Future lab, hangar, and training pads keep strategic expansion space visible from the first Base slice.
+            // Future lab, hangar, and training pads keep logical build slots while occupied slots hide their slab art.
             CreateReservedPad("Future Lab Pad", new Vector3(-2.35f, 0.04f, 0.75f), new Vector3(1.35f, 0.08f, 1.05f), reservedSpaceMaterial, false, false);
-            CreateReservedPad("Future Hangar Pad", new Vector3(2.35f, 0.04f, 0.75f), new Vector3(1.45f, 0.08f, 1.12f), reservedSpaceMaterial);
+            CreateReservedPad("Future Hangar Pad", new Vector3(2.05f, 0.04f, 0.75f), new Vector3(1.45f, 0.08f, 1.12f), reservedSpaceMaterial, false, false);
 
             // Offset training diagonally behind the HQ so the restored HQ no longer hides most of the facility.
-            CreateReservedPad("Future Training Pad", new Vector3(1.55f, 0.04f, 3f), new Vector3(1.75f, 0.08f, 0.9f), reservedSpaceMaterial);
+            CreateReservedPad("Future Training Pad", new Vector3(1.60f, 0.04f, 4.85f), new Vector3(1.75f, 0.08f, 0.9f), reservedSpaceMaterial, false, false);
         }
 
         private static GameObject CreateReservedPad(string name, Vector3 position, Vector3 scale, Material material, bool showLabel = true, bool showPad = true)
@@ -832,6 +950,191 @@ namespace LaneSurvivor.Base
             return bioLab;
         }
 
+        private static UpgradeableFacilityBuilding CreateHangarBuilding(Material bodyMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, Func<bool> startUpgradeAction)
+        {
+            // The hangar occupies the right-side reserved base slot that previously showed only a future pad.
+            return CreateUpgradeableFacilityBuilding(
+                "Hangar",
+                new Vector3(2.05f, 0.10f, 0.75f),
+                bodyMaterial,
+                referenceMaterial,
+                referenceGlowMaterial,
+                symbolMaterial,
+                progressBackMaterial,
+                progressFillMaterial,
+                startUpgradeAction,
+                new Vector2(142f, 116f),
+                new Vector3(0f, 0.78f, -0.54f),
+                new Vector3(0f, 0.78f, -0.49f),
+                new Vector3(0f, 1.36f, -0.18f),
+                new Vector3(0f, 1.46f, -0.02f),
+                new Vector3(0f, 1.10f, -0.36f),
+                1.42f,
+                1.04f,
+                0.82f,
+                0.025f,
+                2.06f,
+                1.69f,
+                0.035f,
+                0.08f,
+                new Color(0.28f, 0.32f, 0.32f));
+        }
+
+        private static UpgradeableFacilityBuilding CreateTrainingFacilityBuilding(Material bodyMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, Func<bool> startUpgradeAction)
+        {
+            // The training facility occupies the diagonal rear slot so its obstacle-course art stays readable.
+            return CreateUpgradeableFacilityBuilding(
+                "Training Facility",
+                new Vector3(1.60f, 0.10f, 4.85f),
+                bodyMaterial,
+                referenceMaterial,
+                referenceGlowMaterial,
+                symbolMaterial,
+                progressBackMaterial,
+                progressFillMaterial,
+                startUpgradeAction,
+                new Vector2(146f, 116f),
+                new Vector3(0f, 0.76f, -0.54f),
+                new Vector3(0f, 0.76f, -0.49f),
+                new Vector3(0f, 1.34f, -0.18f),
+                new Vector3(0f, 1.43f, -0.02f),
+                new Vector3(0f, 1.08f, -0.36f),
+                1.48f,
+                1.02f,
+                0.80f,
+                0.025f,
+                2.12f,
+                1.64f,
+                0.035f,
+                0.08f,
+                new Color(0.30f, 0.33f, 0.32f));
+        }
+
+        private static UpgradeableFacilityBuilding CreateUpgradeableFacilityBuilding(string displayName, Vector3 rootPosition, Material bodyMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, Func<bool> startUpgradeAction, Vector2 clickSizePixels, Vector3 referenceLocalPosition, Vector3 glowReferenceLocalPosition, Vector3 symbolLocalPosition, Vector3 progressLocalPosition, Vector3 labelLocalPosition, float visualWidth, float visualDepth, float visualHeight, float heightPerLevel, float referenceWidth, float referenceHeight, float referenceHeightPerLevel, float referenceGlowPadding, Color bodyColor)
+        {
+            // The facility root owns map placement while its visual root can pop on upgrade completion.
+            GameObject facilityObject = new(displayName);
+            facilityObject.transform.position = rootPosition;
+
+            // The visual root lets completion effects bounce the art without moving the logical map slot.
+            GameObject visualRootObject = new($"{displayName} Visual Root");
+            visualRootObject.transform.SetParent(facilityObject.transform, false);
+
+            // A simple scaffold cube stays present for fallback rendering, sizing, and test inspection.
+            GameObject bodyObject = PrototypeGeometryFactory.CreateCube($"{displayName} Body", Vector3.zero, Vector3.one, bodyMaterial);
+            bodyObject.transform.SetParent(visualRootObject.transform, false);
+
+            // The reference-textured model is the visible source of truth for matching the generated concept image.
+            GameObject referenceModelObject = CreateReferenceQuad(visualRootObject.transform, referenceMaterial, $"{displayName} Reference Model", $"{displayName} Reference Model Quad");
+            if (referenceModelObject != null)
+            {
+                // Keep the scaffold available for alignment and tests without letting it alter the visual match.
+                SetRenderersEnabled(bodyObject.transform, false);
+            }
+
+            // A fallback label keeps missing-texture builds identifiable in the angled Base camera.
+            GameObject labelObject = new($"{displayName} Label");
+            labelObject.transform.SetParent(visualRootObject.transform, false);
+            labelObject.transform.localPosition = labelLocalPosition;
+            labelObject.transform.localRotation = Quaternion.Euler(65f, 0f, 0f);
+            labelObject.transform.localScale = Vector3.one * 0.16f;
+
+            TextMesh label = labelObject.AddComponent<TextMesh>();
+            label.anchor = TextAnchor.MiddleCenter;
+            label.alignment = TextAlignment.Center;
+            label.characterSize = 1f;
+            label.color = Color.white;
+            labelObject.SetActive(referenceModelObject == null);
+
+            // The upgrade symbol is generated above the facility and hidden until the facility is tapped.
+            GameObject symbolRootObject = CreateFacilityUpgradeSymbol(displayName, visualRootObject.transform, symbolMaterial, out Renderer[] symbolRenderers);
+
+            // The circular progress icon overlays the facility while the saved timer is active.
+            GameObject progressRootObject = CreateFacilityProgressIcon(displayName, visualRootObject.transform, progressBackMaterial, progressFillMaterial, out MeshFilter progressFillMeshFilter);
+
+            // The completion glow uses the same reference silhouette when the exact concept model is visible.
+            GameObject glowObject = CreateFacilityCompletionGlow(displayName, visualRootObject.transform, referenceModelObject != null ? referenceGlowMaterial : null);
+
+            UpgradeableFacilityBuilding facilityBuilding = facilityObject.AddComponent<UpgradeableFacilityBuilding>();
+            facilityBuilding.Configure(displayName, visualRootObject.transform, label, bodyObject.transform, bodyObject.GetComponent<Renderer>(), referenceModelObject != null ? referenceModelObject.transform : null, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, startUpgradeAction, clickSizePixels, referenceLocalPosition, glowReferenceLocalPosition, symbolLocalPosition, progressLocalPosition, labelLocalPosition, visualWidth, visualDepth, visualHeight, heightPerLevel, referenceWidth, referenceHeight, referenceHeightPerLevel, referenceGlowPadding, bodyColor);
+            return facilityBuilding;
+        }
+
+        private static GameObject CreateFacilityUpgradeSymbol(string displayName, Transform parent, Material symbolMaterial, out Renderer[] symbolRenderers)
+        {
+            // The popup symbol is a simple flat upward arrow made from 2D meshes.
+            GameObject symbolRootObject = new($"{displayName} Upgrade Symbol");
+            symbolRootObject.transform.SetParent(parent, false);
+
+            // The stem is a flat rectangle so the arrow reads as 2D rather than a raised block.
+            GameObject stemObject = CreateFlatArrowStem($"{displayName} Upgrade Symbol Stem", 0.16f, 0.32f, symbolMaterial);
+            stemObject.transform.SetParent(symbolRootObject.transform, false);
+            stemObject.transform.localPosition = new Vector3(0f, -0.12f, 0f);
+
+            // The arrow head is a flat triangle paired with the flat stem.
+            GameObject arrowHeadObject = CreateFlatArrowHead($"{displayName} Upgrade Symbol Arrow Head", 0.42f, 0.28f, symbolMaterial);
+            arrowHeadObject.transform.SetParent(symbolRootObject.transform, false);
+            arrowHeadObject.transform.localPosition = new Vector3(0f, 0.15f, 0f);
+
+            // The symbol label makes the affordance readable in early placeholder art.
+            GameObject textObject = new($"{displayName} Upgrade Symbol Text");
+            textObject.transform.SetParent(symbolRootObject.transform, false);
+            textObject.transform.localPosition = new Vector3(0f, 0.36f, -0.08f);
+            textObject.transform.localRotation = Quaternion.Euler(65f, 0f, 0f);
+            textObject.transform.localScale = Vector3.one * 0.12f;
+            TextMesh text = textObject.AddComponent<TextMesh>();
+            text.anchor = TextAnchor.MiddleCenter;
+            text.alignment = TextAlignment.Center;
+            text.characterSize = 1f;
+            text.color = Color.white;
+            text.text = "UP";
+
+            symbolRenderers = new[]
+            {
+                stemObject.GetComponent<Renderer>(),
+                arrowHeadObject.GetComponent<Renderer>()
+            };
+            symbolRootObject.SetActive(false);
+            return symbolRootObject;
+        }
+
+        private static GameObject CreateFacilityProgressIcon(string displayName, Transform parent, Material backMaterial, Material fillMaterial, out MeshFilter fillMeshFilter)
+        {
+            // The progress root sits over the facility roof like a diegetic circular timer.
+            GameObject progressRootObject = new($"{displayName} Progress Icon");
+            progressRootObject.transform.SetParent(parent, false);
+
+            // A dark background disc makes partial fill readable against detailed reference art.
+            GameObject backDiscObject = PrototypeGeometryFactory.CreateCylinder($"{displayName} Progress Back Disc", Vector3.zero, new Vector3(0.88f, 0.035f, 0.88f), backMaterial);
+            backDiscObject.transform.SetParent(progressRootObject.transform, false);
+
+            // The fill mesh is rebuilt as a pie wedge by UpgradeableFacilityBuilding.
+            GameObject fillObject = new($"{displayName} Progress Fill");
+            fillObject.transform.SetParent(progressRootObject.transform, false);
+            fillObject.transform.localPosition = new Vector3(0f, 0.032f, 0f);
+            fillMeshFilter = fillObject.AddComponent<MeshFilter>();
+            MeshRenderer fillRenderer = fillObject.AddComponent<MeshRenderer>();
+            fillRenderer.sharedMaterial = fillMaterial;
+
+            // Start hidden until an active upgrade timer exists.
+            progressRootObject.SetActive(false);
+            return progressRootObject;
+        }
+
+        private static GameObject CreateFacilityCompletionGlow(string displayName, Transform parent, Material referenceGlowMaterial)
+        {
+            // The root stays mesh-free so toggling and pulsing cannot produce one large opaque volume.
+            GameObject glowRootObject = new($"{displayName} Completion Glow");
+            glowRootObject.transform.SetParent(parent, false);
+
+            // The reference aura exactly matches the generated facility silhouette.
+            CreateReferenceQuad(glowRootObject.transform, referenceGlowMaterial, $"{displayName} Completion Reference Aura", $"{displayName} Completion Reference Aura Quad");
+
+            // Completion feedback starts hidden and is activated by UpgradeableFacilityBuilding.PlayCompletionEffects.
+            glowRootObject.SetActive(false);
+            return glowRootObject;
+        }
+
         private static Material CreateBioLabReferenceMaterial()
         {
             // The visible reference model should preserve the generated concept image without tinting it.
@@ -842,6 +1145,30 @@ namespace LaneSurvivor.Base
         {
             // The glow texture keeps the reference silhouette but replaces detail pixels with one aura color.
             return CreateTexturedTransparentMaterial("BioLab/BioLabReferenceGlowSilhouette", "Bio Lab Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
+        }
+
+        private static Material CreateHangarReferenceMaterial()
+        {
+            // The visible hangar model should preserve the generated concept image without tinting it.
+            return CreateTexturedTransparentMaterial("Hangar/HangarReferenceCutout", "Hangar Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
+        }
+
+        private static Material CreateHangarReferenceGlowMaterial()
+        {
+            // The glow texture keeps the exact hangar silhouette but replaces detail pixels with one aura color.
+            return CreateTexturedTransparentMaterial("Hangar/HangarReferenceGlowSilhouette", "Hangar Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
+        }
+
+        private static Material CreateTrainingReferenceMaterial()
+        {
+            // The visible training model should preserve the generated concept image without tinting it.
+            return CreateTexturedTransparentMaterial("Training/TrainingFacilityReferenceCutout", "Training Facility Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
+        }
+
+        private static Material CreateTrainingReferenceGlowMaterial()
+        {
+            // The glow texture keeps the exact training silhouette but replaces detail pixels with one aura color.
+            return CreateTexturedTransparentMaterial("Training/TrainingFacilityReferenceGlowSilhouette", "Training Facility Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
         }
 
         private static Material CreateTexturedTransparentMaterial(string resourcePath, string materialName, Color tintColor, int renderQueue)
@@ -1474,12 +1801,12 @@ namespace LaneSurvivor.Base
             panelRect.anchorMax = new Vector2(0f, 1f);
             panelRect.pivot = new Vector2(0f, 1f);
             panelRect.anchoredPosition = new Vector2(16f, -116f);
-            panelRect.sizeDelta = new Vector2(238f, 136f);
+            panelRect.sizeDelta = new Vector2(254f, 192f);
 
             // The local base values are grouped into a short black-text summary instead of separate HUD labels.
-            detailText = CreateText(panelObject.transform, "Credits Detail Text", "Coins: 0\nHQ Level: 1\nBio Lab: 1\nHQ Upgrade: Ready\nBio Upgrade: Ready", font, new Vector2(12f, -10f), TextAnchor.UpperLeft, new Vector2(214f, 112f));
+            detailText = CreateText(panelObject.transform, "Credits Detail Text", "Coins: 0\nHQ Level: 1\nBio Lab: 1\nHangar: 1\nTraining: 1\nHQ Upgrade: Ready\nBio Upgrade: Ready\nHangar Upgrade: Ready\nTraining Upgrade: Ready", font, new Vector2(12f, -10f), TextAnchor.UpperLeft, new Vector2(230f, 168f));
             detailText.color = Color.black;
-            detailText.fontSize = 16;
+            detailText.fontSize = 14;
             detailText.lineSpacing = 1f;
 
             // Start collapsed so the Base view opens without the old left-side text wall.
