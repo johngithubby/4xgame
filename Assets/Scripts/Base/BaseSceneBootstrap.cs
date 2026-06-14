@@ -15,6 +15,39 @@ namespace LaneSurvivor.Base
 {
     public sealed class BaseSceneBootstrap : MonoBehaviour
     {
+        // Side slots are deliberately wider than the original layout so the lab and hangar do not crowd the HQ.
+        private static readonly Vector3 BioLabSlotPosition = new(-3.20f, 0.10f, 0.75f);
+
+        // Mirroring the hangar against the lab keeps the central HQ visually dominant without overlap.
+        private static readonly Vector3 HangarSlotPosition = new(3.20f, 0.10f, 0.75f);
+
+        // Training stays behind the HQ because its long obstacle-course silhouette reads best in the rear slot.
+        private static readonly Vector3 TrainingFacilitySlotPosition = new(1.60f, 0.10f, 4.85f);
+
+        // The HQ uses a warm tint so the command building no longer shares the lab/hangar teal family.
+        private static readonly Color HqReferenceTint = new(1f, 0.68f, 0.36f, 1f);
+
+        // Completion auras follow each building palette while preserving the exact silhouette texture.
+        private static readonly Color HqCompletionGlowTint = new(1f, 0.62f, 0.12f, 0.40f);
+
+        // The lab keeps a cool clinical tint distinct from the HQ and hangar.
+        private static readonly Color BioLabReferenceTint = new(0.50f, 1f, 0.96f, 1f);
+
+        // The lab aura remains in the cyan-green science range requested for the original glow pass.
+        private static readonly Color BioLabCompletionGlowTint = new(0.20f, 1f, 0.72f, 0.40f);
+
+        // The hangar uses an amber industrial tint so it stops matching the lab/HQ scheme.
+        private static readonly Color HangarReferenceTint = new(1f, 0.54f, 0.25f, 1f);
+
+        // The hangar aura follows the same warm industrial hue as its reference model.
+        private static readonly Color HangarCompletionGlowTint = new(1f, 0.46f, 0.12f, 0.40f);
+
+        // Training shifts blue to keep the broader base palette from collapsing into repeated greens.
+        private static readonly Color TrainingReferenceTint = new(0.62f, 0.80f, 1f, 1f);
+
+        // Training completion uses a blue aura so its feedback stays aligned with the building tint.
+        private static readonly Color TrainingCompletionGlowTint = new(0.45f, 0.74f, 1f, 0.40f);
+
         private SaveGameData saveData;
 
         private HQBuilding hqBuilding;
@@ -550,11 +583,17 @@ namespace LaneSurvivor.Base
             CreateReservedPad("Future Resource Drop-Off Opening", new Vector3(2.35f, 0.04f, -3.05f), new Vector3(1.22f, 0.08f, 0.48f), reservedSpaceMaterial);
 
             // Future lab, hangar, and training pads keep logical build slots while occupied slots hide their slab art.
-            CreateReservedPad("Future Lab Pad", new Vector3(-2.35f, 0.04f, 0.75f), new Vector3(1.35f, 0.08f, 1.05f), reservedSpaceMaterial, false, false);
-            CreateReservedPad("Future Hangar Pad", new Vector3(2.05f, 0.04f, 0.75f), new Vector3(1.45f, 0.08f, 1.12f), reservedSpaceMaterial, false, false);
+            CreateReservedPad("Future Lab Pad", ToPadPosition(BioLabSlotPosition), new Vector3(1.35f, 0.08f, 1.05f), reservedSpaceMaterial, false, false);
+            CreateReservedPad("Future Hangar Pad", ToPadPosition(HangarSlotPosition), new Vector3(1.45f, 0.08f, 1.12f), reservedSpaceMaterial, false, false);
 
             // Offset training diagonally behind the HQ so the restored HQ no longer hides most of the facility.
-            CreateReservedPad("Future Training Pad", new Vector3(1.60f, 0.04f, 4.85f), new Vector3(1.75f, 0.08f, 0.9f), reservedSpaceMaterial, false, false);
+            CreateReservedPad("Future Training Pad", ToPadPosition(TrainingFacilitySlotPosition), new Vector3(1.75f, 0.08f, 0.9f), reservedSpaceMaterial, false, false);
+        }
+
+        private static Vector3 ToPadPosition(Vector3 buildingSlotPosition)
+        {
+            // Logical pads sit just under the building roots, so derive them from the same slot constants.
+            return new Vector3(buildingSlotPosition.x, 0.04f, buildingSlotPosition.z);
         }
 
         private static GameObject CreateReservedPad(string name, Vector3 position, Vector3 scale, Material material, bool showLabel = true, bool showPad = true)
@@ -832,14 +871,14 @@ namespace LaneSurvivor.Base
 
         private static Material CreateHqReferenceMaterial()
         {
-            // The visible HQ model should preserve the generated command-center concept image.
-            return CreateTexturedTransparentMaterial("HQ/HQReferenceCutout", "HQ Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
+            // Warm the HQ into a command-center palette so it no longer matches the lab and hangar at a glance.
+            return CreateTexturedTransparentMaterial("HQ/HQReferenceCutout", "HQ Reference Cutout Material", HqReferenceTint, (int)RenderQueue.Transparent);
         }
 
         private static Material CreateHqReferenceGlowMaterial()
         {
-            // The glow texture keeps the exact HQ silhouette but tints it into one aura color.
-            return CreateTexturedTransparentMaterial("HQ/HQReferenceGlowSilhouette", "HQ Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
+            // The glow texture keeps the exact HQ silhouette while matching the warmer HQ palette.
+            return CreateTexturedTransparentMaterial("HQ/HQReferenceGlowSilhouette", "HQ Reference Glow Silhouette Material", HqCompletionGlowTint, (int)RenderQueue.Transparent - 10);
         }
 
         private static GameObject CreateHqReferenceModel(Transform parent, Material referenceMaterial)
@@ -880,7 +919,7 @@ namespace LaneSurvivor.Base
         {
             // The bio lab occupies the existing future lab pad so V6 base-space reservations become useful.
             GameObject labObject = new("Bio Lab");
-            labObject.transform.position = new Vector3(-2.35f, 0.10f, 0.75f);
+            labObject.transform.position = BioLabSlotPosition;
 
             // The visual root lets completion effects pop the lab without moving click colliders.
             GameObject visualRootObject = new("Bio Lab Visual Root");
@@ -955,7 +994,7 @@ namespace LaneSurvivor.Base
             // The hangar occupies the right-side reserved base slot that previously showed only a future pad.
             return CreateUpgradeableFacilityBuilding(
                 "Hangar",
-                new Vector3(2.05f, 0.10f, 0.75f),
+                HangarSlotPosition,
                 bodyMaterial,
                 referenceMaterial,
                 referenceGlowMaterial,
@@ -985,7 +1024,7 @@ namespace LaneSurvivor.Base
             // The training facility occupies the diagonal rear slot so its obstacle-course art stays readable.
             return CreateUpgradeableFacilityBuilding(
                 "Training Facility",
-                new Vector3(1.60f, 0.10f, 4.85f),
+                TrainingFacilitySlotPosition,
                 bodyMaterial,
                 referenceMaterial,
                 referenceGlowMaterial,
@@ -1137,38 +1176,38 @@ namespace LaneSurvivor.Base
 
         private static Material CreateBioLabReferenceMaterial()
         {
-            // The visible reference model should preserve the generated concept image without tinting it.
-            return CreateTexturedTransparentMaterial("BioLab/BioLabReferenceCutout", "Bio Lab Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
+            // Keep the lab in a cooler cyan palette so it reads separately from HQ and hangar.
+            return CreateTexturedTransparentMaterial("BioLab/BioLabReferenceCutout", "Bio Lab Reference Cutout Material", BioLabReferenceTint, (int)RenderQueue.Transparent);
         }
 
         private static Material CreateBioLabReferenceGlowMaterial()
         {
-            // The glow texture keeps the reference silhouette but replaces detail pixels with one aura color.
-            return CreateTexturedTransparentMaterial("BioLab/BioLabReferenceGlowSilhouette", "Bio Lab Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
+            // The glow texture keeps the reference silhouette but uses the lab's cooler aura color.
+            return CreateTexturedTransparentMaterial("BioLab/BioLabReferenceGlowSilhouette", "Bio Lab Reference Glow Silhouette Material", BioLabCompletionGlowTint, (int)RenderQueue.Transparent - 10);
         }
 
         private static Material CreateHangarReferenceMaterial()
         {
-            // The visible hangar model should preserve the generated concept image without tinting it.
-            return CreateTexturedTransparentMaterial("Hangar/HangarReferenceCutout", "Hangar Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
+            // Nudge the hangar toward an amber industrial palette so it does not collapse into the lab/HQ colors.
+            return CreateTexturedTransparentMaterial("Hangar/HangarReferenceCutout", "Hangar Reference Cutout Material", HangarReferenceTint, (int)RenderQueue.Transparent);
         }
 
         private static Material CreateHangarReferenceGlowMaterial()
         {
-            // The glow texture keeps the exact hangar silhouette but replaces detail pixels with one aura color.
-            return CreateTexturedTransparentMaterial("Hangar/HangarReferenceGlowSilhouette", "Hangar Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
+            // The glow texture keeps the exact hangar silhouette while following the amber hangar palette.
+            return CreateTexturedTransparentMaterial("Hangar/HangarReferenceGlowSilhouette", "Hangar Reference Glow Silhouette Material", HangarCompletionGlowTint, (int)RenderQueue.Transparent - 10);
         }
 
         private static Material CreateTrainingReferenceMaterial()
         {
-            // The visible training model should preserve the generated concept image without tinting it.
-            return CreateTexturedTransparentMaterial("Training/TrainingFacilityReferenceCutout", "Training Facility Reference Cutout Material", Color.white, (int)RenderQueue.Transparent);
+            // Give training a blue tactical tint so the full base palette has more than one repeated hue.
+            return CreateTexturedTransparentMaterial("Training/TrainingFacilityReferenceCutout", "Training Facility Reference Cutout Material", TrainingReferenceTint, (int)RenderQueue.Transparent);
         }
 
         private static Material CreateTrainingReferenceGlowMaterial()
         {
-            // The glow texture keeps the exact training silhouette but replaces detail pixels with one aura color.
-            return CreateTexturedTransparentMaterial("Training/TrainingFacilityReferenceGlowSilhouette", "Training Facility Reference Glow Silhouette Material", new Color(0.20f, 1f, 0.72f, 0.40f), (int)RenderQueue.Transparent - 10);
+            // The training aura follows the tactical blue tint while preserving the exact silhouette.
+            return CreateTexturedTransparentMaterial("Training/TrainingFacilityReferenceGlowSilhouette", "Training Facility Reference Glow Silhouette Material", TrainingCompletionGlowTint, (int)RenderQueue.Transparent - 10);
         }
 
         private static Material CreateTexturedTransparentMaterial(string resourcePath, string materialName, Color tintColor, int renderQueue)
@@ -1180,10 +1219,10 @@ namespace LaneSurvivor.Base
                 return null;
             }
 
-            // Prefer unlit transparent shaders so reference art and aura colors are not altered by scene lighting.
-            Shader shader = Shader.Find("Unlit/Transparent")
-                ?? Shader.Find("Sprites/Default")
+            // Prefer tint-aware transparent shaders so each reference building can keep a distinct palette.
+            Shader shader = Shader.Find("Sprites/Default")
                 ?? Shader.Find("Universal Render Pipeline/Unlit")
+                ?? Shader.Find("Unlit/Transparent")
                 ?? Shader.Find("Standard");
             if (shader == null)
             {

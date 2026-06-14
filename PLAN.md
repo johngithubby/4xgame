@@ -533,6 +533,7 @@ Implemented in this slice:
 
 - The Base scene now creates a hangar on the former future hangar pad and a training facility on the former future training pad.
 - The visible hangar uses `Resources/Hangar/HangarReferenceCutout`; the visible training facility uses `Resources/Training/TrainingFacilityReferenceCutout`.
+- The lab and hangar side slots have been pushed farther away from the HQ, and HQ/lab/hangar/training reference materials use separate warm/cool/industrial/tactical tints.
 - The occupied hangar and training pads remain logical map slots but no longer draw slabs or separate pad labels.
 - Both buildings keep hidden primitive scaffolds for fallback rendering, click/progress sizing, and tests, while the reference images own the visible look.
 - Tapping either building reveals a grey or green flat 2D upgrade symbol based on whether the saved wallet can afford the next level.
@@ -544,6 +545,7 @@ Implemented in this slice:
 ### Acceptance Criteria
 
 - Hangar and training facility models match their generated concept drawings through reference-textured world quads. Done.
+- HQ, lab, hangar, and training palettes are visually separated while preserving the generated silhouettes. Done.
 - Both buildings use clickable flat 2D popup upgrade arrows with the same green/grey affordability rule as the bio lab. Done.
 - Both buildings start saved timers from the popup arrow, display circular progress while running, and complete from UTC save data after app reopen. Done.
 - Both buildings grow only in height by a few pixels after an upgrade; they do not add exterior complications. Done.
@@ -554,7 +556,7 @@ Implemented in this slice:
 
 - EditMode progression coverage checks hangar and training upgrade costs, timers, completion, malformed timer repair, reset defaults, and save/load persistence. Done.
 - PlayMode coverage checks reference-textured hangar/training model loading, hidden occupied pad renderers/labels, zero-thickness flat 2D arrow mesh generation, saved timer start, circular progress fill, height-only visual leveling, popup dismissal across all buildings, and completion pop/glow feedback. Done.
-- Latest automated verification: Unity EditMode `84/84`, Unity PlayMode `29/29`, graphics-enabled capture test `1/1`, final screenshot reviewed at `/private/tmp/4xgame-hangar-training-base-capture.png`, and clean `git diff --check`.
+- Latest automated verification: Unity EditMode `84/84`, Unity PlayMode `29/29`, rendered Base screenshot reviewed at `/private/tmp/4xgame-spacing-palette/base-spacing-palette.png`, and clean `git diff --check`.
 
 ## Future Local V7: Human Population, Gate Intake, And Role Training
 

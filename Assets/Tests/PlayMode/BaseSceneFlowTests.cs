@@ -211,6 +211,10 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(referenceRenderer);
             Assert.IsTrue(referenceRenderer.enabled);
             Assert.IsNotNull(referenceRenderer.sharedMaterial?.mainTexture);
+            // The HQ reference model should now read warmer than the cool science/industrial buildings.
+            Color hqReferenceTint = GetMaterialColor(referenceRenderer.sharedMaterial);
+            Assert.Greater(hqReferenceTint.r, hqReferenceTint.b);
+            Assert.Greater(hqReferenceTint.g, hqReferenceTint.b);
 
             // The HQ upgrade symbol should exist but stay hidden until the player taps the HQ.
             Transform upgradeSymbol = hqBuilding.transform.Find("HQ Visual Root/HQ Upgrade Symbol");
@@ -239,10 +243,13 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNull(GameObject.Find("Future Moat Space 1"));
             Assert.IsNotNull(GameObject.Find("Future Gate Space"));
             Assert.IsNotNull(GameObject.Find("Future Resource Drop-Off Opening"));
-            Assert.IsNotNull(GameObject.Find("Future Lab Pad"));
+            GameObject labPad = GameObject.Find("Future Lab Pad");
+            Assert.IsNotNull(labPad);
             Renderer hangarPadRenderer = GameObject.Find("Future Hangar Pad")?.GetComponent<Renderer>();
             Assert.IsNotNull(hangarPadRenderer);
             Assert.IsFalse(hangarPadRenderer.enabled);
+            GameObject hangarPad = GameObject.Find("Future Hangar Pad");
+            Assert.IsNotNull(hangarPad);
             GameObject trainingPad = GameObject.Find("Future Training Pad");
             Assert.IsNotNull(trainingPad);
             Renderer trainingPadRenderer = trainingPad.GetComponent<Renderer>();
@@ -250,6 +257,18 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(trainingPadRenderer.enabled);
             Assert.IsNull(GameObject.Find("Future Hangar Pad Label"));
             Assert.IsNull(GameObject.Find("Future Training Pad Label"));
+
+            // The lab and hangar should no longer crowd the HQ; their logical pads should follow the same slots.
+            BioLabBuilding bioLab = GameObject.Find("Bio Lab")?.GetComponent<BioLabBuilding>();
+            UpgradeableFacilityBuilding hangar = GameObject.Find("Hangar")?.GetComponent<UpgradeableFacilityBuilding>();
+            Assert.IsNotNull(bioLab);
+            Assert.IsNotNull(hangar);
+            Assert.Less(bioLab.transform.position.x, -3f);
+            Assert.Greater(hangar.transform.position.x, 3f);
+            Assert.Greater(Mathf.Abs(bioLab.transform.position.x - hqBuilding.transform.position.x), 3f);
+            Assert.Greater(Mathf.Abs(hangar.transform.position.x - hqBuilding.transform.position.x), 3f);
+            Assert.AreEqual(bioLab.transform.position.x, labPad.transform.position.x, 0.001f);
+            Assert.AreEqual(hangar.transform.position.x, hangarPad.transform.position.x, 0.001f);
 
             // Training should sit diagonally behind the HQ so its building is not hidden directly under the restored HQ.
             UpgradeableFacilityBuilding trainingFacility = GameObject.Find("Training Facility")?.GetComponent<UpgradeableFacilityBuilding>();
@@ -599,6 +618,10 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(referenceRenderer);
             Assert.IsTrue(referenceRenderer.enabled);
             Assert.IsNotNull(referenceRenderer.sharedMaterial?.mainTexture);
+            // The lab tint should stay cool and clinical rather than matching the warmer HQ/hangar colors.
+            Color bioLabTint = GetMaterialColor(referenceRenderer.sharedMaterial);
+            Assert.Greater(bioLabTint.g, bioLabTint.r);
+            Assert.Greater(bioLabTint.b, bioLabTint.r);
 
             // The procedural details stay present as the upgrade/click/glow scaffold, but their renderers stay hidden.
             Transform plinthRoot = bioLab.transform.Find("Bio Lab Visual Root/Bio Lab Plinth Root");
@@ -705,6 +728,14 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(1.48f, trainingBody.localScale.x, 0.001f);
             Assert.AreEqual(hangar.CurrentVisualHeight, hangarBody.localScale.y, 0.001f);
             Assert.AreEqual(trainingFacility.CurrentVisualHeight, trainingBody.localScale.y, 0.001f);
+
+            // Hangar and training use distinct tints so their reference art does not collapse into one color scheme.
+            Color hangarTint = GetMaterialColor(hangarReference.GetComponent<MeshRenderer>().sharedMaterial);
+            Color trainingTint = GetMaterialColor(trainingReference.GetComponent<MeshRenderer>().sharedMaterial);
+            Assert.Greater(hangarTint.r, hangarTint.b);
+            Assert.Less(hangarTint.b, hangarTint.g);
+            Assert.Greater(trainingTint.b, trainingTint.r);
+            Assert.Greater(Vector4.Distance(hangarTint, trainingTint), 0.30f);
 
             // Revealing the hangar symbol with enough credits should color its 2D arrow green.
             hangar.ShowUpgradeSymbol();
