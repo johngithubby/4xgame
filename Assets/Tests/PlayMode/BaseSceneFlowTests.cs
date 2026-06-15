@@ -23,6 +23,27 @@ namespace LaneSurvivor.Tests.PlayMode
     {
         private string tempSavePath;
 
+        [Test]
+        public void UpgradeCompletionSoundProfiles_UseDistinctGeneratedSignatures()
+        {
+            // Each building family should synthesize a different local completion chime.
+            UpgradeCompletionSoundProfile[] profiles =
+            {
+                UpgradeCompletionSoundProfile.Hq,
+                UpgradeCompletionSoundProfile.BioLab,
+                UpgradeCompletionSoundProfile.Hangar,
+                UpgradeCompletionSoundProfile.TrainingFacility,
+                UpgradeCompletionSoundProfile.LivingQuarters
+            };
+            HashSet<string> signatures = new();
+
+            foreach (UpgradeCompletionSoundProfile profile in profiles)
+            {
+                // Signature uniqueness catches accidental reuse of one shared tone recipe.
+                Assert.IsTrue(signatures.Add(UpgradeCompletionSound.GetSoundSignature(profile)), $"{profile} should use a unique completion sound signature.");
+            }
+        }
+
         [UnitySetUp]
         public IEnumerator SetUp()
         {
@@ -980,6 +1001,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(1, bioLab.CompletionEffectPlayCount);
             Assert.AreEqual(1, bioLab.CompletionSoundRequestCount);
             Assert.IsTrue(bioLab.HasCompletionSoundSource);
+            Assert.AreEqual(UpgradeCompletionSoundProfile.BioLab, bioLab.CompletionSoundProfile);
             Assert.IsTrue(bioLab.HasGeneratedCompletionSoundClip);
             Assert.IsFalse(bioLab.IsProgressVisible);
 
@@ -1340,9 +1362,10 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsTrue(hqBuilding.IsPopAnimating);
             Assert.AreEqual(1, hqBuilding.CompletionEffectPlayCount);
 
-            // HQ completion should now exercise the shared upgrade chime, not just the bio-lab path.
+            // HQ completion should now exercise its own upgrade chime, not just the bio-lab path.
             Assert.AreEqual(1, hqBuilding.CompletionSoundRequestCount);
             Assert.IsTrue(hqBuilding.HasCompletionSoundSource);
+            Assert.AreEqual(UpgradeCompletionSoundProfile.Hq, hqBuilding.CompletionSoundProfile);
             Assert.IsTrue(hqBuilding.HasGeneratedCompletionSoundClip);
 
             // The completion glow should be a mesh-free root with one reference-silhouette aura, not generated clutter.
@@ -2010,9 +2033,10 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsTrue(facilityBuilding.IsPopAnimating, $"{displayName} pop should be active.");
             Assert.AreEqual(1, facilityBuilding.CompletionEffectPlayCount, $"{displayName} completion effect should play once.");
 
-            // Hangar/training completion should use the same shared generated chime as HQ and bio lab.
+            // Generic-facility completion should use the building-specific generated chime profile.
             Assert.AreEqual(1, facilityBuilding.CompletionSoundRequestCount, $"{displayName} completion sound should play once.");
             Assert.IsTrue(facilityBuilding.HasCompletionSoundSource, $"{displayName} should have a completion sound source.");
+            Assert.AreEqual(GetExpectedCompletionSoundProfile(displayName), facilityBuilding.CompletionSoundProfile, $"{displayName} should use its own completion sound profile.");
             Assert.IsTrue(facilityBuilding.HasGeneratedCompletionSoundClip, $"{displayName} completion sound clip should be generated.");
 
             // The glow root should be a mesh-free holder with a padded reference-silhouette child.
@@ -2033,6 +2057,18 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(referenceRenderer, $"{displayName} reference should render.");
             Assert.IsNotNull(auraRenderer.sharedMaterial?.mainTexture, $"{displayName} aura texture should load.");
             Assert.Less(auraRenderer.sharedMaterial.renderQueue, referenceRenderer.sharedMaterial.renderQueue, $"{displayName} aura should render behind reference art.");
+        }
+
+        private static UpgradeCompletionSoundProfile GetExpectedCompletionSoundProfile(string displayName)
+        {
+            // The generic facility component is shared, so display name maps each runtime instance to its sound identity.
+            return displayName switch
+            {
+                "Hangar" => UpgradeCompletionSoundProfile.Hangar,
+                "Training Facility" => UpgradeCompletionSoundProfile.TrainingFacility,
+                "Living Quarters" => UpgradeCompletionSoundProfile.LivingQuarters,
+                _ => UpgradeCompletionSoundProfile.Hangar
+            };
         }
 
         private static Vector3[] GetRectCorners(RectTransform rectTransform)

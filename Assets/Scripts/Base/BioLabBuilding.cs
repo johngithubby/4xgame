@@ -142,7 +142,9 @@ namespace LaneSurvivor.Base
 
         public bool HasCompletionSoundSource => audioSource != null;
 
-        public bool HasGeneratedCompletionSoundClip => UpgradeCompletionSound.HasGeneratedCompletionSoundClip;
+        public UpgradeCompletionSoundProfile CompletionSoundProfile => UpgradeCompletionSoundProfile.BioLab;
+
+        public bool HasGeneratedCompletionSoundClip => UpgradeCompletionSound.HasGeneratedCompletionSoundClipForProfile(CompletionSoundProfile);
 
         public bool IsUpgradeSymbolVisible => upgradeSymbolRoot != null && upgradeSymbolRoot.gameObject.activeSelf;
 
@@ -770,7 +772,7 @@ namespace LaneSurvivor.Base
             CompletionSoundRequestCount += 1;
 
             // The shared helper handles optional AudioModule reflection and playback.
-            UpgradeCompletionSound.Play(audioSource);
+            UpgradeCompletionSound.Play(audioSource, CompletionSoundProfile);
         }
 
         private void SetUpgradeSymbolColor(Color color)

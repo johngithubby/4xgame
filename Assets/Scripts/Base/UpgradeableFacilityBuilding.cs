@@ -69,6 +69,9 @@ namespace LaneSurvivor.Base
         [SerializeField]
         private Component audioSource;
 
+        [SerializeField]
+        private UpgradeCompletionSoundProfile completionSoundProfile = UpgradeCompletionSoundProfile.Hangar;
+
         private Func<bool> requestUpgradeAction;
 
         private Vector2 buildingClickSizePixels = new(132f, 112f);
@@ -137,7 +140,9 @@ namespace LaneSurvivor.Base
 
         public bool HasCompletionSoundSource => audioSource != null;
 
-        public bool HasGeneratedCompletionSoundClip => UpgradeCompletionSound.HasGeneratedCompletionSoundClip;
+        public UpgradeCompletionSoundProfile CompletionSoundProfile => completionSoundProfile;
+
+        public bool HasGeneratedCompletionSoundClip => UpgradeCompletionSound.HasGeneratedCompletionSoundClipForProfile(CompletionSoundProfile);
 
         public bool IsUpgradeSymbolVisible => upgradeSymbolRoot != null && upgradeSymbolRoot.gameObject.activeSelf;
 
@@ -164,6 +169,7 @@ namespace LaneSurvivor.Base
             MeshFilter progressFill,
             Transform glowContainer,
             Component soundSource,
+            UpgradeCompletionSoundProfile soundProfile,
             Func<bool> startUpgradeAction,
             Vector2 screenClickSizePixels,
             Vector3 referenceLocalPosition,
@@ -196,6 +202,7 @@ namespace LaneSurvivor.Base
             glowReferenceAuraTransform = glowRoot != null ? glowRoot.Find($"{facilityName} Completion Reference Aura") : null;
             glowRenderers = glowRoot != null ? glowRoot.GetComponentsInChildren<Renderer>(true) : Array.Empty<Renderer>();
             audioSource = soundSource;
+            completionSoundProfile = soundProfile;
             requestUpgradeAction = startUpgradeAction;
             buildingClickSizePixels = screenClickSizePixels;
             referenceBaseLocalPosition = referenceLocalPosition;
@@ -335,7 +342,7 @@ namespace LaneSurvivor.Base
             CompletionSoundRequestCount += 1;
 
             // The shared helper handles optional AudioModule reflection and playback.
-            UpgradeCompletionSound.Play(audioSource);
+            UpgradeCompletionSound.Play(audioSource, CompletionSoundProfile);
         }
 
         private void Update()

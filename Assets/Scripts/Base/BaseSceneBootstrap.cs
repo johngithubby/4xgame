@@ -1080,6 +1080,7 @@ namespace LaneSurvivor.Base
                 symbolMaterial,
                 progressBackMaterial,
                 progressFillMaterial,
+                UpgradeCompletionSoundProfile.Hangar,
                 startUpgradeAction,
                 new Vector2(142f, 116f),
                 new Vector3(0f, 0.78f, -0.54f),
@@ -1110,6 +1111,7 @@ namespace LaneSurvivor.Base
                 symbolMaterial,
                 progressBackMaterial,
                 progressFillMaterial,
+                UpgradeCompletionSoundProfile.TrainingFacility,
                 startUpgradeAction,
                 new Vector2(146f, 116f),
                 new Vector3(0f, 0.76f, -0.54f),
@@ -1140,6 +1142,7 @@ namespace LaneSurvivor.Base
                 symbolMaterial,
                 progressBackMaterial,
                 progressFillMaterial,
+                UpgradeCompletionSoundProfile.LivingQuarters,
                 startUpgradeAction,
                 new Vector2(154f, 126f),
                 new Vector3(0f, 0.96f, -0.54f),
@@ -1158,7 +1161,7 @@ namespace LaneSurvivor.Base
                 new Color(0.31f, 0.30f, 0.29f));
         }
 
-        private static UpgradeableFacilityBuilding CreateUpgradeableFacilityBuilding(string displayName, Vector3 rootPosition, Material bodyMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, Func<bool> startUpgradeAction, Vector2 clickSizePixels, Vector3 referenceLocalPosition, Vector3 glowReferenceLocalPosition, Vector3 symbolLocalPosition, Vector3 progressLocalPosition, Vector3 labelLocalPosition, float visualWidth, float visualDepth, float visualHeight, float heightPerLevel, float referenceWidth, float referenceHeight, float referenceHeightPerLevel, float referenceGlowPadding, Color bodyColor)
+        private static UpgradeableFacilityBuilding CreateUpgradeableFacilityBuilding(string displayName, Vector3 rootPosition, Material bodyMaterial, Material referenceMaterial, Material referenceGlowMaterial, Material symbolMaterial, Material progressBackMaterial, Material progressFillMaterial, UpgradeCompletionSoundProfile soundProfile, Func<bool> startUpgradeAction, Vector2 clickSizePixels, Vector3 referenceLocalPosition, Vector3 glowReferenceLocalPosition, Vector3 symbolLocalPosition, Vector3 progressLocalPosition, Vector3 labelLocalPosition, float visualWidth, float visualDepth, float visualHeight, float heightPerLevel, float referenceWidth, float referenceHeight, float referenceHeightPerLevel, float referenceGlowPadding, Color bodyColor)
         {
             // The facility root owns map placement while its visual root can pop on upgrade completion.
             GameObject facilityObject = new(displayName);
@@ -1203,11 +1206,11 @@ namespace LaneSurvivor.Base
             // The completion glow uses the same reference silhouette when the exact concept model is visible.
             GameObject glowObject = CreateFacilityCompletionGlow(displayName, visualRootObject.transform, referenceModelObject != null ? referenceGlowMaterial : null);
 
-            // Generated audio lets every generic facility finish upgrades with the same local chime.
+            // Generated audio lets every generic facility finish upgrades with its own local chime profile.
             Component audioSource = UpgradeCompletionSound.CreateOptionalAudioSource(facilityObject);
 
             UpgradeableFacilityBuilding facilityBuilding = facilityObject.AddComponent<UpgradeableFacilityBuilding>();
-            facilityBuilding.Configure(displayName, visualRootObject.transform, label, bodyObject.transform, bodyObject.GetComponent<Renderer>(), referenceModelObject != null ? referenceModelObject.transform : null, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, audioSource, startUpgradeAction, clickSizePixels, referenceLocalPosition, glowReferenceLocalPosition, symbolLocalPosition, progressLocalPosition, labelLocalPosition, visualWidth, visualDepth, visualHeight, heightPerLevel, referenceWidth, referenceHeight, referenceHeightPerLevel, referenceGlowPadding, bodyColor);
+            facilityBuilding.Configure(displayName, visualRootObject.transform, label, bodyObject.transform, bodyObject.GetComponent<Renderer>(), referenceModelObject != null ? referenceModelObject.transform : null, symbolRootObject.transform, symbolRenderers, progressRootObject.transform, progressFillMeshFilter, glowObject.transform, audioSource, soundProfile, startUpgradeAction, clickSizePixels, referenceLocalPosition, glowReferenceLocalPosition, symbolLocalPosition, progressLocalPosition, labelLocalPosition, visualWidth, visualDepth, visualHeight, heightPerLevel, referenceWidth, referenceHeight, referenceHeightPerLevel, referenceGlowPadding, bodyColor);
             return facilityBuilding;
         }
 
