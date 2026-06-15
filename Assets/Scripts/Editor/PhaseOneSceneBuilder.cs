@@ -156,8 +156,18 @@ namespace LaneSurvivor.EditorTools
                 // Legacy generated scenes may still contain the removed sideways soldier cutout child.
                 bool isLegacySoldierCutout = renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName;
 
-                // Fresh editor rebuilds should show the generated humanoid meshes, not the old cutout plane.
-                renderer.enabled = isVisible && !isLegacySoldierCutout;
+                // Legacy cutouts stay hidden even when old generated scenes still contain them.
+                if (isLegacySoldierCutout)
+                {
+                    renderer.enabled = false;
+                    continue;
+                }
+
+                // Preserve factory-authored renderer visibility when the world player is enabled.
+                if (!isVisible)
+                {
+                    renderer.enabled = false;
+                }
             }
         }
 

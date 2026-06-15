@@ -697,8 +697,12 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Chest Glow"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Backpack"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Backpack Antenna"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Eye Left"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Nose"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Beard"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Helmet Brim"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Helmet Glow"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Helmet Top Seam"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Headset Mic"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
@@ -710,6 +714,13 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsNull(player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
                 Assert.IsNull(player.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
                 Assert.IsNull(player.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+                Assert.IsNull(player.transform.Find("Survivor Leader/Survivor Reference Shell"));
+
+                // The survivor's local front must align with the muzzle side so rotation does not reveal an inside-out model.
+                Assert.Greater(player.transform.Find("Survivor Leader/Human Nose").localPosition.z, 0f);
+                Assert.Greater(player.transform.Find("Survivor Leader/Human Chest Armor").localPosition.z, 0f);
+                Assert.Less(player.transform.Find("Survivor Leader/Human Backpack").localPosition.z, 0f);
+
                 Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Receiver"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Sight Glow"));
@@ -751,6 +762,9 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.LessOrEqual(leaderBounds.size.y, zombieBounds.size.y * 1.08f);
                 Assert.AreEqual(leaderBounds.size.y, leftBounds.size.y, 0.01f);
                 Assert.AreEqual(leaderBounds.size.y, rightBounds.size.y, 0.01f);
+                Assert.Greater(leaderBounds.size.z, 0.90f);
+                Assert.Greater(leftBounds.size.z, 0.80f);
+                Assert.Greater(rightBounds.size.z, 0.55f);
 
                 // Every distinct weapon profile should own a direct muzzle anchor at the visible barrel tip.
                 AssertWeaponMuzzle(player.transform, "Survivor Leader", PrototypeCharacterFactory.LeaderRifleName);

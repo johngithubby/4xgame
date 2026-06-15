@@ -416,6 +416,7 @@ Implemented in this slice:
 - Survivor shot aim and recoil now animate the visible weapon/arm chain, so the selected gun kicks and yaws/pitches toward the zombie target point.
 - June 15 3D follow-up replaced the old-simple generated survivor look with richer procedural 3D armor based on the approved soldier reference: teal suit, gray plates, cap/helmet, headset, hood collar, backpack, belt/thigh gear, boot armor, cyan glow strips, and chunkier sci-fi weapon details.
 - Survivor shot aim now rotates the selected survivor root, chest, helmet, arms, and weapon in 3D, so the soldier model can turn toward an off-center zombie instead of behaving like a flat card or static body.
+- June 15 correction removed the attempted flat reference-shell survivor path, kept the visible actor as generated 3D geometry, aligned face/chest/helmet details with the forward weapon/muzzle side, added face/nose/beard and raised cap mesh details, and added depth assertions so the soldier cannot regress to a non-rotatable shell.
 
 ### Acceptance Criteria
 
@@ -426,6 +427,7 @@ Implemented in this slice:
 - Tracers no longer start from behind the squad, from the lane stripe, or from a hard-coded approximate offset when muzzle anchors exist. Done.
 - Visible survivor weapons point down-lane toward zombie targets instead of sideways across the lane. Done by making generated humanoid rigs the visible player actors again and moving shot aim/recoil onto the weapon chain.
 - Selected survivor bodies rotate in 3D toward off-center targets during shots, with root/chest/head yaw layered under weapon aim. Done.
+- The visible survivor actor is made of generated 3D meshes with real front-to-back depth, not a flat reference PNG/shell. Done.
 - If a future scene omits weapon anchors, shooting still works with the existing safe fallback origin. Done through the no-muzzle event path.
 - No gameplay balance changes are introduced in this phase. Done.
 
@@ -435,14 +437,17 @@ Implemented in this slice:
 - EditMode coverage checks muzzle anchors are forward of their survivor bodies and parented under the corresponding weapon transforms. Done.
 - EditMode coverage checks rifle/shotgun eye-level holds, SMG hip-fire hold height, and stable survivor weapon arms during running. Done.
 - EditMode coverage now checks the old soldier card is absent, generated survivor renderers are enabled, survivor bodies are zombie-sized, the 3D armor/backpack/helmet/glow details exist, muzzles face down-lane, and visible weapons recoil/yaw on shot. Done.
+- EditMode coverage now checks the flat survivor reference shell is absent, face/cap mesh details exist, the survivor front is aligned with the muzzle side while the backpack stays rearward, and all three visible survivor bounds have meaningful Z-depth for rotation. Done.
 - EditMode coverage checks the selected survivor root, torso, and head rotate in 3D toward an off-center shot target. Done.
 - EditMode coverage checks shot events use a muzzle transform position when one is available. Done.
 - PlayMode coverage checks tracer spawning uses the supplied muzzle transform position without fake offsets. Done.
 - PlayMode coverage checks the runtime Minigame scene spawns visible 3D armored generated survivor bodies, suppresses legacy soldier cards, exposes armor/backpack/helmet/glow details, and exposes all three forward-facing weapons and muzzle anchors. Done.
+- PlayMode coverage checks the runtime Minigame scene has no flat survivor reference shell and preserves generated face/cap/front-back/depth cues for rotatable 3D soldiers. Done.
 - Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `17/17`, clean `git diff --check`, and iOS Simulator export/build/install/launch proof.
 - iOS Simulator verification captured `/private/tmp/4xgame-v5-weapons-20260608.mov`, `/private/tmp/4xgame-v5-weapons.gif`, `/private/tmp/4xgame-v5-combat-contact.jpg`, plus the follow-up firing-pose proof at `/private/tmp/4xgame-pose-20260608.mov`, `/private/tmp/4xgame-pose-20260608.gif`, and `/private/tmp/4xgame-pose-contact-20260608.jpg`; survivors visibly hold distinct generated weapons in firing pose, rifle/shotgun holds stay high, the SMG stays lower, and firing arms stay stable while legs run. Done.
 - Latest June 15 verification: clean `git diff --check`, Unity EditMode `85/85`, Unity PlayMode `31/31`, and a temp PlayMode capture `1/1` that produced `/private/tmp/4xgame-soldier-fix-proof/soldier-facing-fix.gif` plus `/private/tmp/4xgame-soldier-fix-proof/soldier-facing-fix-frame-04.png`; the capture shows generated soldiers with guns aimed up-lane at the proof zombie. Done.
 - Latest June 15 3D follow-up verification: clean `git diff --check`, Unity EditMode `85/85`, Unity PlayMode `31/31`, and a temp turntable PlayMode capture `1/1` that produced `/private/tmp/4xgame-3d-soldier-proof/soldier-3d-rotation.gif` plus `/private/tmp/4xgame-3d-soldier-proof/soldier-3d-rotation-frame-006.png`; the capture shows the generated armored survivor rotating as real 3D geometry with visible side/back gear and cyan accents. Done.
+- Latest June 15 rotatable-survivor correction verification: clean `git diff --check`, Unity EditMode `85/85`, Unity PlayMode `31/31`, and a temp turntable PlayMode capture `1/1` that produced `/private/tmp/4xgame-rotatable-survivor-proof/survivor-rotation.gif`, `/private/tmp/4xgame-rotatable-survivor-proof/survivor-rotation-frame-000.png`, and `/private/tmp/4xgame-rotatable-survivor-proof/survivor-rotation-frame-008.png`; the capture shows the survivor rotating as real 3D geometry with the rear backpack on the camera side at 0 degrees and face/chest/rifle aligned forward on the side frame. Done.
 
 ## Local V6: Base Readability, HQ Growth, And Camera Control
 

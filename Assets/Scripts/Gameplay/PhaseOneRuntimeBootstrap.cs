@@ -83,8 +83,18 @@ namespace LaneSurvivor.Gameplay
                 // Old generated scenes may still include the removed cutout, whose baked rifle points sideways.
                 bool isLegacySoldierCutout = renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName;
 
-                // Generated meshes are the gameplay actor now, so they follow the shared visibility flag directly.
-                renderer.enabled = isVisible && !isLegacySoldierCutout;
+                // Legacy cutouts stay hidden even when old scenes still contain them.
+                if (isLegacySoldierCutout)
+                {
+                    renderer.enabled = false;
+                    continue;
+                }
+
+                // Hiding the whole world player still disables every renderer for marker-only experiments.
+                if (!isVisible)
+                {
+                    renderer.enabled = false;
+                }
             }
         }
 

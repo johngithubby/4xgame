@@ -1563,8 +1563,12 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Chest Glow"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Backpack"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Backpack Antenna"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Eye Left"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Nose"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Beard"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Helmet Brim"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Helmet Glow"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Helmet Top Seam"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Headset Mic"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Arm Left/Human Shoulder Armor Left"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Thigh Holster Left"));
@@ -1574,6 +1578,13 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNull(playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
             Assert.IsNull(playerSquad.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
             Assert.IsNull(playerSquad.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+            Assert.IsNull(playerSquad.transform.Find("Survivor Leader/Survivor Reference Shell"));
+
+            // Runtime survivors should face the same local +Z direction as their weapons and zombie targets.
+            Assert.Greater(playerSquad.transform.Find("Survivor Leader/Human Nose").localPosition.z, 0f);
+            Assert.Greater(playerSquad.transform.Find("Survivor Leader/Human Chest Armor").localPosition.z, 0f);
+            Assert.Less(playerSquad.transform.Find("Survivor Leader/Human Backpack").localPosition.z, 0f);
+
             // Runtime weapon pose checks use visible body anchors, not hard-coded world heights.
             Transform leaderHead = playerSquad.transform.Find("Survivor Leader/Human Head");
             Transform leaderMuzzle = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
@@ -1622,6 +1633,9 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.LessOrEqual(leaderBounds.size.y, zombieBounds.size.y * 1.08f);
             Assert.AreEqual(leaderBounds.size.y, leftBounds.size.y, 0.01f);
             Assert.AreEqual(leaderBounds.size.y, rightBounds.size.y, 0.01f);
+            Assert.Greater(leaderBounds.size.z, 0.90f);
+            Assert.Greater(leftBounds.size.z, 0.80f);
+            Assert.Greater(rightBounds.size.z, 0.55f);
             PlayerSquad playerSquadComponent = playerSquad.GetComponent<PlayerSquad>();
             Assert.IsNotNull(playerSquadComponent);
             Assert.AreEqual(3, playerSquadComponent.WeaponMuzzleCount);
