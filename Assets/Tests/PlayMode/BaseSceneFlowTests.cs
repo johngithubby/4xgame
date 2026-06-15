@@ -1591,6 +1591,13 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(leaderHeadRenderer.enabled);
             Assert.IsTrue(leaderSoldierRenderer.enabled);
             Assert.IsNotNull(leaderSoldierRenderer.sharedMaterial.mainTexture);
+            MeshRenderer leftSoldierRenderer = leftSoldierVisual.GetComponent<MeshRenderer>();
+            MeshRenderer rightSoldierRenderer = rightSoldierVisual.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(leftSoldierRenderer);
+            Assert.IsNotNull(rightSoldierRenderer);
+            Assert.AreEqual(GameplayVisuals.ZombieCardHeight, leaderSoldierRenderer.bounds.size.y, 0.01f);
+            Assert.AreEqual(leaderSoldierRenderer.bounds.size.y, leftSoldierRenderer.bounds.size.y, 0.01f);
+            Assert.AreEqual(leaderSoldierRenderer.bounds.size.y, rightSoldierRenderer.bounds.size.y, 0.01f);
             PlayerSquad playerSquadComponent = playerSquad.GetComponent<PlayerSquad>();
             Assert.IsNotNull(playerSquadComponent);
             Assert.AreEqual(3, playerSquadComponent.WeaponMuzzleCount);

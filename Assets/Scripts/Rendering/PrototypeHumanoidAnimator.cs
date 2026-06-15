@@ -60,6 +60,30 @@ namespace LaneSurvivor.Rendering
         // A small pitch gives the flat card a firing kick while keeping the stance practical.
         private const float ShotRecoilPitchDegrees = -3.2f;
 
+        // Aim pose fades slower than recoil so rapid auto-fire keeps soldiers visibly oriented at their target.
+        private const float ShotAimRecoverySpeed = 2.8f;
+
+        // Target-aware yaw is intentionally modest because the card must still read from the chase camera.
+        private const float ShotAimYawLimitDegrees = 14f;
+
+        // Target-aware pitch gives high and low targets a subtle shoulder/weapon adjustment.
+        private const float ShotAimPitchLimitDegrees = 5f;
+
+        // The card sways side to side so the rendered soldier visibly steps, not only the hidden rig.
+        private const float SoldierWalkSway = 0.035f;
+
+        // A small extra lift makes the PNG boots pulse with the same cadence as the generated leg cycle.
+        private const float SoldierWalkLift = 0.030f;
+
+        // Forward/back card motion creates a stride impression on the lane depth axis.
+        private const float SoldierWalkStrideDepth = 0.028f;
+
+        // Roll is the strongest card-level walk cue at phone scale.
+        private const float SoldierWalkRollDegrees = 4.8f;
+
+        // Pitch is subtle so walking does not look like the soldier is falling.
+        private const float SoldierWalkPitchDegrees = 1.8f;
+
         // Last position is used to detect root motion for survivor walking.
         private Vector3 lastWorldPosition;
 
@@ -136,10 +160,19 @@ namespace LaneSurvivor.Rendering
 
                 // Recoil decays after it has affected this evaluation so a just-fired shot gets one visible kick.
                 rig.shotRecoil = Mathf.MoveTowards(rig.shotRecoil, 0f, ShotRecoilRecoverySpeed * deltaTime);
+
+                // Aim weight fades after the pose so each shot gives at least one target-facing evaluation.
+                rig.shotAimWeight = Mathf.MoveTowards(rig.shotAimWeight, 0f, ShotAimRecoverySpeed * deltaTime);
             }
         }
 
         public void PlaySurvivorShot(Vector3 shotOrigin)
+        {
+            // Legacy callers still trigger recoil and aim along the down-lane forward direction.
+            PlaySurvivorShot(shotOrigin, shotOrigin + Vector3.forward);
+        }
+
+        public void PlaySurvivorShot(Vector3 shotOrigin, Vector3 targetPoint)
         {
             // Rebuild lazily so tests that create hierarchies after Awake can still trigger a card recoil.
             if (rigs.Count == 0)
@@ -196,6 +229,12 @@ namespace LaneSurvivor.Rendering
 
             // A value of one lets ApplyRigPose create the authored recoil offset on the next animation evaluation.
             closestRig.shotRecoil = 1f;
+
+            // A value of one lets ApplyRigPose turn the visible card toward the target for this shot.
+            closestRig.shotAimWeight = 1f;
+
+            // Store the target-facing angles on the rig so recoil recovery does not erase aiming immediately.
+            SetShotAimAngles(closestRig, shotOrigin, targetPoint);
         }
 
         private void Awake()
@@ -423,11 +462,11 @@ namespace LaneSurvivor.Rendering
             // Held weapons should inherit only the stable authored hand pose so tracers remain visually aligned.
             ApplyPartPose(rig.weapon, Quaternion.identity, Vector3.zero);
 
-            // The reference soldier card replaces the visible primitive body and receives the shot kick.
-            ApplySoldierReferencePose(rig);
+            // The reference soldier card replaces the visible primitive body and receives walk, aim, and shot motion.
+            ApplySoldierReferencePose(rig, phase, weight, stride);
         }
 
-        private static void ApplySoldierReferencePose(HumanoidRig rig)
+        private static void ApplySoldierReferencePose(HumanoidRig rig, float phase, float weight, float stride)
         {
             // Older fallback rigs may not have a soldier card, so the visual layer stays optional.
             if (!rig.soldierVisual.IsValid)
@@ -435,14 +474,70 @@ namespace LaneSurvivor.Rendering
                 return;
             }
 
+            // Lateral sway makes the full-body PNG read as walking even though its internal legs are baked into the art.
+            float walkSway = Mathf.Sin(phase) * SoldierWalkSway * weight;
+
+            // Twice-per-cycle lift matches the root bob and gives every footfall a visible pulse.
+            float walkLift = Mathf.Abs(Mathf.Cos(phase)) * SoldierWalkLift * weight;
+
+            // Depth stride keeps the card's lower body from looking like it slides rigidly down the lane.
+            float walkStrideDepth = Mathf.Cos(phase) * SoldierWalkStrideDepth * weight;
+
+            // Roll follows the stride direction, giving the soldier weight over the planted side.
+            float walkRoll = -stride * SoldierWalkRollDegrees * weight;
+
+            // Pitch oscillates gently across the stride so walking and shooting remain distinguishable.
+            float walkPitch = Mathf.Sin(phase + Mathf.PI * 0.5f) * SoldierWalkPitchDegrees * weight;
+
             // Shot recoil moves the flat art just enough to read without drifting away from the hidden rig.
             Vector3 recoilOffset = new(0f, rig.shotRecoil * ShotRecoilLift, -rig.shotRecoil * ShotRecoilBackOffset);
 
+            // Walking and recoil are additive because they describe independent parts of the visible performance.
+            Vector3 additiveOffset = new Vector3(walkSway, walkLift, walkStrideDepth) + recoilOffset;
+
+            // Aim angles fade with their own weight so the soldier keeps facing the zombie between fast shots.
+            float aimPitch = rig.shotAimPitchDegrees * rig.shotAimWeight;
+
+            // Positive local yaw turns the soldier card toward right-side targets while still facing down-lane.
+            float aimYaw = rig.shotAimYawDegrees * rig.shotAimWeight;
+
             // A small pitch sells weapon kick on the full-body card while the hidden muzzle remains stable.
-            Quaternion recoilRotation = Quaternion.Euler(rig.shotRecoil * ShotRecoilPitchDegrees, 0f, 0f);
+            float recoilPitch = rig.shotRecoil * ShotRecoilPitchDegrees;
+
+            // Card rotation combines walk balance, target aim, and recoil into one readable visible pose.
+            Quaternion additiveRotation = Quaternion.Euler(walkPitch + aimPitch + recoilPitch, aimYaw, walkRoll);
 
             // Card pose is additive over the generated rest position set by the character factory.
-            ApplyPartPose(rig.soldierVisual, recoilRotation, recoilOffset);
+            ApplyPartPose(rig.soldierVisual, additiveRotation, additiveOffset);
+        }
+
+        private static void SetShotAimAngles(HumanoidRig rig, Vector3 shotOrigin, Vector3 targetPoint)
+        {
+            // A missing root leaves no stable local frame for target-facing math.
+            if (rig.root == null)
+            {
+                return;
+            }
+
+            // Convert the world shot line into survivor-local space so +Z remains "toward the zombies."
+            Vector3 localShot = rig.root.InverseTransformDirection(targetPoint - shotOrigin);
+
+            // A near-zero line cannot define useful aim angles.
+            if (localShot.sqrMagnitude < 0.0001f)
+            {
+                rig.shotAimYawDegrees = 0f;
+                rig.shotAimPitchDegrees = 0f;
+                return;
+            }
+
+            // Normalize after the zero guard so angle math is independent of target distance.
+            localShot.Normalize();
+
+            // Yaw comes from the horizontal direction to the zombie, clamped to keep the texture readable.
+            rig.shotAimYawDegrees = Mathf.Clamp(Mathf.Atan2(localShot.x, Mathf.Max(0.001f, localShot.z)) * Mathf.Rad2Deg, -ShotAimYawLimitDegrees, ShotAimYawLimitDegrees);
+
+            // Pitch tilts toward vertical target differences without overwhelming the recoil kick.
+            rig.shotAimPitchDegrees = Mathf.Clamp(-Mathf.Asin(Mathf.Clamp(localShot.y, -1f, 1f)) * Mathf.Rad2Deg, -ShotAimPitchLimitDegrees, ShotAimPitchLimitDegrees);
         }
 
         private static void ApplyPartPose(AnimatedPart part, Quaternion additiveRotation, Vector3 additivePosition)
@@ -627,6 +722,12 @@ namespace LaneSurvivor.Rendering
             public float phaseOffset;
 
             public float shotRecoil;
+
+            public float shotAimWeight;
+
+            public float shotAimYawDegrees;
+
+            public float shotAimPitchDegrees;
         }
 
         private readonly struct AnimatedPart

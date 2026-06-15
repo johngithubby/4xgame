@@ -6,7 +6,7 @@ namespace LaneSurvivor.Rendering
 {
     public static class PrototypeCharacterFactory
     {
-        private const float SurvivorWingScale = 0.72f;
+        private const float SurvivorWingScale = 1f;
 
         // The generated PNGs are intentionally named as soldier reference art under Resources/Survivor.
         private const string MaleSoldierResourcePath = "Survivor/SurvivorReferenceCutout";
@@ -17,8 +17,8 @@ namespace LaneSurvivor.Rendering
         // Tests and animation use this exact visual child name to distinguish the rendered cutout from hidden rig anchors.
         public const string SoldierReferenceVisualName = "Soldier Reference Visual";
 
-        // The leader card height matches the previous generated humanoid bounds while preserving the PNG aspect.
-        private const float SoldierReferenceVisualHeight = 1.36f;
+        // Soldier cards match the authored zombie visual height so people and enemies read at the same scale.
+        private const float SoldierReferenceVisualHeight = GameplayVisuals.ZombieCardHeight;
 
         // The source soldier cutouts are 1024x1536, so width is two thirds of height.
         private const float SoldierReferenceAspect = 2f / 3f;
@@ -89,11 +89,11 @@ namespace LaneSurvivor.Rendering
             // A three-person wedge makes squad count feel like people without spawning one mesh per count value.
             CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, femaleSoldierMaterial, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
-            // Side survivors sit slightly lower and behind the leader so the group reads as a formation from the chase camera.
-            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.40f, -0.06f, -0.30f), SurvivorWingScale, LeftWingShotgunName, maleSoldierMaterial, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            // Side survivors sit behind the leader with a wider offset so full-size soldiers do not overlap.
+            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.52f, -0.02f, -0.38f), SurvivorWingScale, LeftWingShotgunName, maleSoldierMaterial, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
             // Mirroring the side placement gives the player a recognizably human squad silhouette in one lane.
-            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.40f, -0.06f, -0.30f), SurvivorWingScale, RightWingSmgName, femaleSoldierMaterial, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.52f, -0.02f, -0.38f), SurvivorWingScale, RightWingSmgName, femaleSoldierMaterial, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
             // The procedural animator swings the generated limbs only when the gameplay root is moving.
             PrototypeHumanoidAnimator animator = squadRoot.AddComponent<PrototypeHumanoidAnimator>();
@@ -281,8 +281,8 @@ namespace LaneSurvivor.Rendering
             // The card faces the fixed chase camera while the transparent material draws both sides for scene view.
             visualObject.transform.localRotation = Quaternion.identity;
 
-            // Unit local scale preserves the authored plane dimensions from CreateVerticalPlane.
-            visualObject.transform.localScale = Vector3.one;
+            // Reapply the authored local dimensions after parenting so the card really stays zombie-height.
+            visualObject.transform.localScale = new Vector3(visualSize.x, visualSize.y, 1f);
         }
 
         private static void SetGeneratedRigRenderersEnabled(Transform survivorRoot, bool isEnabled)

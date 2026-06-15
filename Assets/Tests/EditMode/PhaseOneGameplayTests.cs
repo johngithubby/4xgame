@@ -704,11 +704,20 @@ namespace LaneSurvivor.Tests.EditMode
                 // The old primitive rig remains as hidden anchors; only the soldier PNG cards should be enabled.
                 MeshRenderer leaderHeadRenderer = player.transform.Find("Survivor Leader/Human Head").GetComponent<MeshRenderer>();
                 MeshRenderer leaderSoldierRenderer = player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}").GetComponent<MeshRenderer>();
+                MeshRenderer leftSoldierRenderer = player.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}").GetComponent<MeshRenderer>();
+                MeshRenderer rightSoldierRenderer = player.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}").GetComponent<MeshRenderer>();
                 Assert.IsNotNull(leaderHeadRenderer);
                 Assert.IsNotNull(leaderSoldierRenderer);
+                Assert.IsNotNull(leftSoldierRenderer);
+                Assert.IsNotNull(rightSoldierRenderer);
                 Assert.IsFalse(leaderHeadRenderer.enabled);
                 Assert.IsTrue(leaderSoldierRenderer.enabled);
                 Assert.IsNotNull(leaderSoldierRenderer.sharedMaterial.mainTexture);
+
+                // All three rendered soldiers must be zombie-sized instead of shrinking the wing survivors.
+                Assert.AreEqual(GameplayVisuals.ZombieCardHeight, leaderSoldierRenderer.bounds.size.y, 0.01f);
+                Assert.AreEqual(leaderSoldierRenderer.bounds.size.y, leftSoldierRenderer.bounds.size.y, 0.01f);
+                Assert.AreEqual(leaderSoldierRenderer.bounds.size.y, rightSoldierRenderer.bounds.size.y, 0.01f);
 
                 // Every distinct weapon profile should own a direct muzzle anchor at the visible barrel tip.
                 AssertWeaponMuzzle(player.transform, "Survivor Leader", PrototypeCharacterFactory.LeaderRifleName);
@@ -814,6 +823,8 @@ namespace LaneSurvivor.Tests.EditMode
                 Quaternion playerWeaponHandRestRotation = playerWeaponHand.localRotation;
                 Quaternion playerWeaponRestRotation = playerWeapon.localRotation;
                 Vector3 playerSoldierRestWorldPosition = playerSoldierVisual.position;
+                Vector3 playerSoldierRestLocalPosition = playerSoldierVisual.localPosition;
+                Quaternion playerSoldierRestLocalRotation = playerSoldierVisual.localRotation;
 
                 // A forced moving evaluation should swing the hip and bend the connected knee joint.
                 playerAnimator.ForceEvaluate(0.4f, true);
@@ -824,6 +835,8 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.Greater(playerKneeBend, playerThighSwing + 5f);
                 Assert.Less(Vector3.Distance(playerKnee.position, playerShin.position), 0.001f);
                 Assert.Greater(Vector3.Distance(playerSoldierRestWorldPosition, playerSoldierVisual.position), 0.001f);
+                Assert.Greater(Mathf.Abs(playerSoldierVisual.localPosition.x - playerSoldierRestLocalPosition.x), 0.001f);
+                Assert.Greater(Quaternion.Angle(playerSoldierRestLocalRotation, playerSoldierVisual.localRotation), 0.1f);
 
                 // Survivor firing arms should stay in their authored weapon pose while the legs do the running.
                 Assert.Less(Quaternion.Angle(playerWeaponArmRestRotation, playerWeaponArm.localRotation), 0.001f);
@@ -832,9 +845,10 @@ namespace LaneSurvivor.Tests.EditMode
 
                 // A direct shot notification should add recoil to the visible soldier card without moving the hidden weapon.
                 Vector3 playerSoldierRunningLocalPosition = playerSoldierVisual.localPosition;
-                playerAnimator.PlaySurvivorShot(playerMuzzle.position);
+                playerAnimator.PlaySurvivorShot(playerMuzzle.position, playerMuzzle.position + new Vector3(0.45f, -0.1f, 3f));
                 playerAnimator.ForceEvaluate(0.02f, true);
                 Assert.Less(playerSoldierVisual.localPosition.z, playerSoldierRunningLocalPosition.z - 0.001f);
+                Assert.Greater(Mathf.DeltaAngle(0f, playerSoldierVisual.localEulerAngles.y), 1f);
 
                 // The zombie animator should shamble even when the gameplay root is stationary.
                 PrototypeHumanoidAnimator zombieAnimator = zombie.GetComponent<PrototypeHumanoidAnimator>();
