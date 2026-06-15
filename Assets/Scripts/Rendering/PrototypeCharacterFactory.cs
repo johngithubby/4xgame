@@ -29,11 +29,19 @@ namespace LaneSurvivor.Rendering
 
         private static readonly Color SurvivorSkinColor = new(0.84f, 0.62f, 0.43f);
 
-        private static readonly Color SurvivorPantsColor = new(0.20f, 0.27f, 0.34f);
+        private static readonly Color SurvivorSuitColor = new(0.03f, 0.42f, 0.45f);
+
+        private static readonly Color SurvivorPantsColor = new(0.13f, 0.20f, 0.26f);
 
         private static readonly Color SurvivorBootColor = new(0.035f, 0.035f, 0.04f);
 
-        private static readonly Color SurvivorGearColor = new(0.16f, 0.22f, 0.25f);
+        private static readonly Color SurvivorGearColor = new(0.10f, 0.14f, 0.16f);
+
+        private static readonly Color SurvivorArmorColor = new(0.29f, 0.32f, 0.32f);
+
+        private static readonly Color SurvivorArmorTrimColor = new(0.12f, 0.14f, 0.14f);
+
+        private static readonly Color SurvivorGlowColor = new(0.02f, 0.90f, 1f);
 
         private static readonly Color SurvivorWeaponColor = new(0.08f, 0.075f, 0.07f);
 
@@ -57,23 +65,29 @@ namespace LaneSurvivor.Rendering
             GameObject squadRoot = new(name);
             squadRoot.transform.position = position;
 
+            // Legacy palette parameters stay in the API, while the new 3D soldier uses a fixed reference-art palette.
+            _ = uniformMaterial;
+            _ = accentMaterial;
+
             // Materials are intentionally shared across the three mini survivors to keep the generated scene small.
             Material skinMaterial = CreateMaterial(SurvivorSkinColor);
             Material pantsMaterial = CreateMaterial(SurvivorPantsColor);
             Material bootMaterial = CreateMaterial(SurvivorBootColor);
             Material gearMaterial = CreateMaterial(SurvivorGearColor);
+            Material armorMaterial = CreateMaterial(SurvivorArmorColor);
+            Material armorTrimMaterial = CreateMaterial(SurvivorArmorTrimColor);
+            Material glowMaterial = CreateMaterial(SurvivorGlowColor);
             Material weaponMaterial = CreateMaterial(SurvivorWeaponColor);
-            Material bodyMaterial = uniformMaterial != null ? uniformMaterial : CreateMaterial(new Color(0.12f, 0.74f, 0.86f));
-            Material highlightMaterial = accentMaterial != null ? accentMaterial : CreateMaterial(new Color(1f, 0.13f, 0.72f));
+            Material bodyMaterial = CreateMaterial(SurvivorSuitColor);
 
             // A three-person wedge makes squad count feel like people without spawning one mesh per count value.
-            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, bodyMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial);
 
             // Side survivors sit behind the leader with a wider offset so full-size soldiers do not overlap.
-            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.52f, -0.02f, -0.38f), SurvivorWingScale, LeftWingShotgunName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.52f, -0.02f, -0.38f), SurvivorWingScale, LeftWingShotgunName, bodyMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial);
 
             // Mirroring the side placement gives the player a recognizably human squad silhouette in one lane.
-            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.52f, -0.02f, -0.38f), SurvivorWingScale, RightWingSmgName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.52f, -0.02f, -0.38f), SurvivorWingScale, RightWingSmgName, bodyMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial);
 
             // The procedural animator swings the generated limbs only when the gameplay root is moving.
             PrototypeHumanoidAnimator animator = squadRoot.AddComponent<PrototypeHumanoidAnimator>();
@@ -144,7 +158,7 @@ namespace LaneSurvivor.Rendering
             return zombieRoot;
         }
 
-        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material accentMaterial, Material skinMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material weaponMaterial)
+        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material skinMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial, Material weaponMaterial)
         {
             // A per-survivor transform makes it cheap to scale and offset squad members as a formation.
             GameObject survivorRoot = new(name);
@@ -153,33 +167,90 @@ namespace LaneSurvivor.Rendering
             survivorRoot.transform.localRotation = Quaternion.identity;
             survivorRoot.transform.localScale = Vector3.one * scale;
 
-            // Rounded torso and pelvis replace the old single cube while preserving a compact gameplay footprint.
+            // Rounded torso and pelvis provide the 3D mass that can rotate toward a target.
             CreateSpherePart(survivorRoot.transform, "Human Torso", new Vector3(0f, 0.02f, 0f), new Vector3(0.30f, 0.50f, 0.20f), bodyMaterial, Quaternion.identity);
-            CreateSpherePart(survivorRoot.transform, "Human Vest", new Vector3(0f, 0.06f, -0.09f), new Vector3(0.26f, 0.36f, 0.035f), accentMaterial, Quaternion.identity);
+            CreateSpherePart(survivorRoot.transform, "Human Vest", new Vector3(0f, 0.06f, -0.11f), new Vector3(0.28f, 0.38f, 0.040f), armorTrimMaterial, Quaternion.identity);
             CreateSpherePart(survivorRoot.transform, "Human Pelvis", new Vector3(0f, -0.30f, 0f), new Vector3(0.28f, 0.18f, 0.19f), gearMaterial, Quaternion.identity);
 
-            // Head, helmet, and face direction make the player read as a person even at mobile scale.
+            // Armor plates and light strips make the procedural 3D model read like the generated soldier concept art.
+            CreateSurvivorTorsoArmor(survivorRoot.transform, armorMaterial, armorTrimMaterial, glowMaterial);
+
+            // Head, helmet, and glow details make the player read as a tactical soldier instead of a prototype blob.
             CreateSpherePart(survivorRoot.transform, "Human Head", new Vector3(0f, 0.46f, -0.02f), new Vector3(0.19f, 0.21f, 0.18f), skinMaterial, Quaternion.identity);
-            CreateSpherePart(survivorRoot.transform, "Human Helmet", new Vector3(0f, 0.56f, -0.01f), new Vector3(0.21f, 0.09f, 0.19f), gearMaterial, Quaternion.identity);
+            CreateSpherePart(survivorRoot.transform, "Human Hood Collar", new Vector3(0f, 0.36f, -0.05f), new Vector3(0.26f, 0.12f, 0.20f), bodyMaterial, Quaternion.identity);
+            CreateSpherePart(survivorRoot.transform, "Human Helmet", new Vector3(0f, 0.56f, -0.01f), new Vector3(0.22f, 0.10f, 0.20f), armorTrimMaterial, Quaternion.identity);
+            CreateSurvivorHelmetDetails(survivorRoot.transform, armorMaterial, glowMaterial);
 
             // The weapon profile decides the authored firing pose before any procedural walk animation runs.
             SurvivorWeaponHoldStyle holdStyle = GetWeaponHoldStyle(weaponProfileName);
 
             // Connected shoulder chains make arm swing pivot from the body instead of spinning around a forearm center.
-            CreateHumanArm(survivorRoot.transform, "Left", -1f, holdStyle, bodyMaterial, skinMaterial);
+            CreateHumanArm(survivorRoot.transform, "Left", -1f, holdStyle, bodyMaterial, gearMaterial, armorMaterial, glowMaterial);
 
             // The weapon is parented under the right hand so muzzle anchors follow the procedural arm animation.
-            Transform weaponHand = CreateHumanArm(survivorRoot.transform, "Right", 1f, holdStyle, bodyMaterial, skinMaterial);
+            Transform weaponHand = CreateHumanArm(survivorRoot.transform, "Right", 1f, holdStyle, bodyMaterial, gearMaterial, armorMaterial, glowMaterial);
 
             // Connected hip/knee/ankle chains remove the knee gap and make the run read as a real bent limb.
-            CreateHumanLeg(survivorRoot.transform, "Left", -1f, 0.02f, pantsMaterial, bootMaterial);
-            CreateHumanLeg(survivorRoot.transform, "Right", 1f, -0.02f, pantsMaterial, bootMaterial);
+            CreateHumanLeg(survivorRoot.transform, "Left", -1f, 0.02f, pantsMaterial, bootMaterial, armorMaterial, armorTrimMaterial, glowMaterial);
+            CreateHumanLeg(survivorRoot.transform, "Right", 1f, -0.02f, pantsMaterial, bootMaterial, armorMaterial, armorTrimMaterial, glowMaterial);
 
             // Procedural weapon profiles keep the squad readable without importing any firearm art.
-            CreateSurvivorWeapon(weaponHand, weaponProfileName, holdStyle, weaponMaterial);
+            CreateSurvivorWeapon(weaponHand, weaponProfileName, holdStyle, weaponMaterial, armorMaterial, glowMaterial);
         }
 
-        private static Transform CreateHumanArm(Transform survivorRoot, string sideName, float sideSign, SurvivorWeaponHoldStyle holdStyle, Material sleeveMaterial, Material skinMaterial)
+        private static void CreateSurvivorTorsoArmor(Transform survivorRoot, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial)
+        {
+            // Chest armor gives the 3D body a strong tactical front instead of a simple colored oval.
+            CreateCubePart(survivorRoot, "Human Chest Armor", new Vector3(0f, 0.12f, -0.155f), new Vector3(0.34f, 0.34f, 0.045f), armorMaterial, Quaternion.identity);
+
+            // A darker center panel echoes the layered vest in the approved soldier concept art.
+            CreateCubePart(survivorRoot, "Human Chest Center Plate", new Vector3(0f, 0.02f, -0.185f), new Vector3(0.16f, 0.44f, 0.035f), armorTrimMaterial, Quaternion.identity);
+
+            // Thin zipper rails break up the teal torso like the reference soldier's layered vest panels.
+            CreateCubePart(survivorRoot, "Human Chest Left Rail", new Vector3(-0.085f, 0.02f, -0.210f), new Vector3(0.018f, 0.42f, 0.018f), armorMaterial, Quaternion.identity);
+            CreateCubePart(survivorRoot, "Human Chest Right Rail", new Vector3(0.085f, 0.02f, -0.210f), new Vector3(0.018f, 0.42f, 0.018f), armorMaterial, Quaternion.identity);
+
+            // Cyan chest light makes the soldier readable at small scale and matches the concept glow language.
+            CreateCubePart(survivorRoot, "Human Chest Glow", new Vector3(0f, 0.20f, -0.215f), new Vector3(0.16f, 0.035f, 0.020f), glowMaterial, Quaternion.identity);
+
+            // A compact backpack gives the rear chase view the same equipment-heavy silhouette as the cutout art.
+            CreateCubePart(survivorRoot, "Human Backpack", new Vector3(0f, 0.08f, -0.29f), new Vector3(0.28f, 0.56f, 0.11f), armorTrimMaterial, Quaternion.identity);
+
+            // A vertical backpack light keeps the rear view visually connected to the cyan suit highlights.
+            CreateCubePart(survivorRoot, "Human Backpack Glow", new Vector3(0f, 0.12f, -0.36f), new Vector3(0.055f, 0.30f, 0.025f), glowMaterial, Quaternion.identity);
+
+            // A raised antenna keeps the rotated back view from looking like the old plain body.
+            CreateCylinderPart(survivorRoot, "Human Backpack Antenna", new Vector3(-0.12f, 0.50f, -0.35f), new Vector3(0.012f, 0.24f, 0.012f), armorTrimMaterial, Quaternion.identity);
+
+            // Belt pouches build the chunky utility silhouette visible in the concept without adding colliders.
+            CreateCubePart(survivorRoot, "Human Belt Pouch Left", new Vector3(-0.18f, -0.23f, -0.17f), new Vector3(0.10f, 0.13f, 0.07f), armorTrimMaterial, Quaternion.Euler(0f, 0f, 5f));
+            CreateCubePart(survivorRoot, "Human Belt Pouch Right", new Vector3(0.18f, -0.23f, -0.17f), new Vector3(0.10f, 0.13f, 0.07f), armorTrimMaterial, Quaternion.Euler(0f, 0f, -5f));
+
+            // The center buckle gives the front-facing model the same tactical belt focal point as the reference.
+            CreateCubePart(survivorRoot, "Human Belt Buckle", new Vector3(0f, -0.225f, -0.205f), new Vector3(0.13f, 0.070f, 0.028f), armorMaterial, Quaternion.identity);
+        }
+
+        private static void CreateSurvivorHelmetDetails(Transform survivorRoot, Material armorMaterial, Material glowMaterial)
+        {
+            // The brim/cap plate helps the helmet read like the new soldier art from the chase camera.
+            CreateCubePart(survivorRoot, "Human Helmet Brim", new Vector3(0f, 0.56f, -0.18f), new Vector3(0.28f, 0.035f, 0.12f), armorMaterial, Quaternion.Euler(-6f, 0f, 0f));
+
+            // A rear cyan visor strip gives the small head a high-tech focal point.
+            CreateCubePart(survivorRoot, "Human Helmet Glow", new Vector3(0f, 0.61f, -0.20f), new Vector3(0.13f, 0.025f, 0.018f), glowMaterial, Quaternion.identity);
+
+            // Side headset discs make the silhouette closer to the concept-art helmet.
+            CreateSpherePart(survivorRoot, "Human Headset Left", new Vector3(-0.19f, 0.52f, -0.03f), new Vector3(0.055f, 0.075f, 0.045f), armorMaterial, Quaternion.identity);
+            CreateSpherePart(survivorRoot, "Human Headset Right", new Vector3(0.19f, 0.52f, -0.03f), new Vector3(0.055f, 0.075f, 0.045f), armorMaterial, Quaternion.identity);
+
+            // A short mic boom makes the side profile read as the headset from the concept image.
+            CreateCylinderBetween(survivorRoot, "Human Headset Mic", new Vector3(-0.18f, 0.48f, -0.08f), new Vector3(-0.08f, 0.44f, -0.17f), 0.009f, armorMaterial);
+
+            // Cyan headset lights keep side rotations from losing the reference-art glow motif.
+            CreateCubePart(survivorRoot, "Human Headset Glow Left", new Vector3(-0.22f, 0.53f, -0.055f), new Vector3(0.016f, 0.045f, 0.030f), glowMaterial, Quaternion.identity);
+            CreateCubePart(survivorRoot, "Human Headset Glow Right", new Vector3(0.22f, 0.53f, -0.055f), new Vector3(0.016f, 0.045f, 0.030f), glowMaterial, Quaternion.identity);
+        }
+
+        private static Transform CreateHumanArm(Transform survivorRoot, string sideName, float sideSign, SurvivorWeaponHoldStyle holdStyle, Material sleeveMaterial, Material gloveMaterial, Material armorMaterial, Material glowMaterial)
         {
             // Shoulder pivots make arm swing originate from the torso instead of rotating around the arm mesh center.
             Transform shoulder = CreateJoint(survivorRoot, $"Human Arm {sideName}", new Vector3(sideSign * 0.17f, 0.36f, -0.01f), GetHumanShoulderRestRotation(sideSign, holdStyle));
@@ -190,16 +261,28 @@ namespace LaneSurvivor.Rendering
             // The visible upper arm spans from shoulder toward the raised hand instead of hanging at the side.
             CreateCylinderBetween(shoulder, $"Human Upper Arm {sideName} Mesh", Vector3.zero, handLocalPosition, 0.06f, sleeveMaterial);
 
+            // A shoulder armor pad creates the bulky plated silhouette from the new soldier model.
+            CreateSpherePart(shoulder, $"Human Shoulder Armor {sideName}", new Vector3(sideSign * 0.015f, 0.01f, -0.035f), new Vector3(0.13f, 0.085f, 0.10f), armorMaterial, Quaternion.identity);
+
+            // A cyan strip on each shoulder keeps the squad distinct against the road.
+            CreateCubePart(shoulder, $"Human Shoulder Glow {sideName}", new Vector3(sideSign * 0.040f, 0.025f, -0.105f), new Vector3(0.075f, 0.022f, 0.018f), glowMaterial, Quaternion.Euler(0f, 0f, sideSign * 8f));
+
+            // Forearm guards preserve the soldier-art armored sleeve feel while the arm chain rotates in 3D.
+            CreateCylinderBetween(shoulder, $"Human Forearm Armor {sideName}", handLocalPosition * 0.52f, handLocalPosition * 0.82f, 0.075f, armorMaterial);
+
+            // A small forearm light reads clearly in the same cyan accent color as the concept art.
+            CreateCubePart(shoulder, $"Human Forearm Glow {sideName}", handLocalPosition * 0.70f + new Vector3(0f, 0.012f, -0.045f), new Vector3(0.035f, 0.12f, 0.018f), glowMaterial, Quaternion.FromToRotation(Vector3.up, handLocalPosition.normalized));
+
             // The hand is a unit-scale joint so attached weapons are not distorted by the hand mesh scale.
             Transform hand = CreateJoint(shoulder, $"Human Hand {sideName}", handLocalPosition, Quaternion.identity);
 
-            // The visible hand mesh stays on the joint while child weapons inherit a clean transform.
-            CreateSpherePart(hand, $"Human Hand {sideName} Mesh", Vector3.zero, new Vector3(0.075f, 0.065f, 0.065f), skinMaterial, Quaternion.identity);
+            // The visible glove mesh stays on the joint while child weapons inherit a clean transform.
+            CreateSpherePart(hand, $"Human Hand {sideName} Mesh", Vector3.zero, new Vector3(0.075f, 0.065f, 0.065f), gloveMaterial, Quaternion.identity);
 
             return hand;
         }
 
-        private static void CreateSurvivorWeapon(Transform hand, string weaponProfileName, SurvivorWeaponHoldStyle holdStyle, Material weaponMaterial)
+        private static void CreateSurvivorWeapon(Transform hand, string weaponProfileName, SurvivorWeaponHoldStyle holdStyle, Material weaponMaterial, Material armorMaterial, Material glowMaterial)
         {
             // A profile root makes the whole weapon easy for tests, animation, and muzzle lookup to reason about.
             GameObject weaponRoot = new(weaponProfileName);
@@ -219,13 +302,13 @@ namespace LaneSurvivor.Rendering
             switch (weaponProfileName)
             {
                 case LeaderRifleName:
-                    CreateLeaderRifle(weaponRoot.transform, weaponMaterial);
+                    CreateLeaderRifle(weaponRoot.transform, weaponMaterial, armorMaterial, glowMaterial);
                     break;
                 case LeftWingShotgunName:
-                    CreateLeftWingShotgun(weaponRoot.transform, weaponMaterial);
+                    CreateLeftWingShotgun(weaponRoot.transform, weaponMaterial, glowMaterial);
                     break;
                 case RightWingSmgName:
-                    CreateRightWingSmg(weaponRoot.transform, weaponMaterial);
+                    CreateRightWingSmg(weaponRoot.transform, weaponMaterial, glowMaterial);
                     break;
                 default:
                     throw new System.ArgumentOutOfRangeException(nameof(weaponProfileName), weaponProfileName, "Unsupported survivor weapon profile.");
@@ -316,7 +399,7 @@ namespace LaneSurvivor.Rendering
             }
         }
 
-        private static void CreateLeaderRifle(Transform weaponRoot, Material weaponMaterial)
+        private static void CreateLeaderRifle(Transform weaponRoot, Material weaponMaterial, Material armorMaterial, Material glowMaterial)
         {
             // The rifle body is long and narrow so the leader reads as the precision shooter.
             CreateCylinderPart(weaponRoot, "Leader Rifle Body", new Vector3(0f, 0f, 0.24f), new Vector3(0.055f, 0.42f, 0.055f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
@@ -324,17 +407,29 @@ namespace LaneSurvivor.Rendering
             // A thinner forward barrel extends beyond the body and defines the muzzle anchor position.
             CreateCylinderPart(weaponRoot, "Leader Rifle Barrel", new Vector3(0f, 0f, 0.58f), new Vector3(0.028f, 0.42f, 0.028f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
 
+            // A boxy receiver makes the weapon feel closer to the approved futuristic rifle art.
+            CreateCubePart(weaponRoot, "Leader Rifle Receiver", new Vector3(0f, 0.018f, 0.26f), new Vector3(0.13f, 0.09f, 0.34f), armorMaterial, Quaternion.identity);
+
+            // A cyan side strip gives the rifle a readable sci-fi accent from the chase camera.
+            CreateCubePart(weaponRoot, "Leader Rifle Glow Strip", new Vector3(0f, 0.075f, 0.34f), new Vector3(0.105f, 0.020f, 0.20f), glowMaterial, Quaternion.identity);
+
             // The rear stock gives the rifle a shoulder-fired silhouette without imported art.
             CreateCylinderPart(weaponRoot, "Leader Rifle Stock", new Vector3(0f, 0f, -0.08f), new Vector3(0.050f, 0.24f, 0.050f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
 
             // A small vertical grip visually connects the weapon to the hand joint.
             CreateCylinderPart(weaponRoot, "Leader Rifle Grip", new Vector3(0f, -0.09f, 0.15f), new Vector3(0.035f, 0.18f, 0.035f), weaponMaterial, Quaternion.identity);
 
+            // The sight block creates a recognizable top-mounted optic that rotates with the 3D weapon.
+            CreateCubePart(weaponRoot, "Leader Rifle Sight", new Vector3(0f, 0.105f, 0.39f), new Vector3(0.10f, 0.08f, 0.11f), armorMaterial, Quaternion.identity);
+
+            // A glowing sight lens gives shots a clear forward aiming cue.
+            CreateCubePart(weaponRoot, "Leader Rifle Sight Glow", new Vector3(0f, 0.155f, 0.39f), new Vector3(0.055f, 0.018f, 0.055f), glowMaterial, Quaternion.identity);
+
             // The muzzle anchor sits at the barrel tip so tracer origins match the visible rifle.
             CreateWeaponMuzzleAnchor(weaponRoot, 0.79f);
         }
 
-        private static void CreateLeftWingShotgun(Transform weaponRoot, Material weaponMaterial)
+        private static void CreateLeftWingShotgun(Transform weaponRoot, Material weaponMaterial, Material glowMaterial)
         {
             // A chunkier receiver distinguishes the shotgun from the leader's long rifle.
             CreateCylinderPart(weaponRoot, "Shotgun Receiver", new Vector3(0f, 0f, 0.20f), new Vector3(0.070f, 0.32f, 0.070f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
@@ -349,11 +444,14 @@ namespace LaneSurvivor.Rendering
             // A short stock keeps the side survivor weapon compact inside one lane.
             CreateCylinderPart(weaponRoot, "Shotgun Stock", new Vector3(0f, 0f, -0.06f), new Vector3(0.060f, 0.20f, 0.060f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
 
+            // A top glow strip makes the shotgun share the same visual tech language as the rifle.
+            CreateCubePart(weaponRoot, "Shotgun Glow Strip", new Vector3(0f, 0.068f, 0.40f), new Vector3(0.11f, 0.018f, 0.18f), glowMaterial, Quaternion.identity);
+
             // The muzzle anchor is centered between the two visible barrel tips.
             CreateWeaponMuzzleAnchor(weaponRoot, 0.78f);
         }
 
-        private static void CreateRightWingSmg(Transform weaponRoot, Material weaponMaterial)
+        private static void CreateRightWingSmg(Transform weaponRoot, Material weaponMaterial, Material glowMaterial)
         {
             // The SMG body is short and tall so it reads differently from rifle and shotgun profiles.
             CreateSpherePart(weaponRoot, "SMG Receiver", new Vector3(0f, 0f, 0.18f), new Vector3(0.085f, 0.075f, 0.18f), weaponMaterial, Quaternion.identity);
@@ -366,6 +464,9 @@ namespace LaneSurvivor.Rendering
 
             // A tiny rear stock keeps the profile from looking like just another barrel.
             CreateCylinderPart(weaponRoot, "SMG Stock", new Vector3(0f, 0f, -0.03f), new Vector3(0.045f, 0.16f, 0.045f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+
+            // A compact cyan side light makes the smaller weapon readable beside the larger long guns.
+            CreateCubePart(weaponRoot, "SMG Glow Strip", new Vector3(0f, 0.065f, 0.20f), new Vector3(0.095f, 0.018f, 0.11f), glowMaterial, Quaternion.identity);
 
             // The muzzle anchor sits on the shorter SMG barrel tip.
             CreateWeaponMuzzleAnchor(weaponRoot, 0.55f);
@@ -403,7 +504,7 @@ namespace LaneSurvivor.Rendering
             CreateSpherePart(shoulder, $"Zombie Hand {sideName}", new Vector3(0f, -0.52f, 0f), new Vector3(0.095f, 0.075f, 0.085f), skinMaterial, Quaternion.identity);
         }
 
-        private static void CreateHumanLeg(Transform survivorRoot, string sideName, float sideSign, float localZ, Material pantsMaterial, Material bootMaterial)
+        private static void CreateHumanLeg(Transform survivorRoot, string sideName, float sideSign, float localZ, Material pantsMaterial, Material bootMaterial, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial)
         {
             // The hip pivot is the named leg part captured by the procedural animator.
             Transform hip = CreateJoint(survivorRoot, $"Human Leg {sideName}", new Vector3(sideSign * 0.09f, -0.30f, localZ), Quaternion.Euler(0f, 0f, sideSign * 3f));
@@ -423,14 +524,34 @@ namespace LaneSurvivor.Rendering
             // The visible knee cap sits on the pivot itself, closing the gap between thigh and shin.
             CreateSpherePart(knee, $"Human Knee Cap {sideName}", Vector3.zero, new Vector3(0.115f, 0.085f, 0.095f), pantsMaterial, Quaternion.identity);
 
+            // Raised knee armor matches the concept-art hard plates and remains attached while the knee bends.
+            CreateSpherePart(knee, $"Human Knee Armor {sideName}", new Vector3(0f, 0.005f, -0.055f), new Vector3(0.13f, 0.06f, 0.06f), armorMaterial, Quaternion.identity);
+
+            // A small cyan knee light keeps running legs visible against the dark track.
+            CreateCubePart(knee, $"Human Knee Glow {sideName}", new Vector3(0f, 0.020f, -0.105f), new Vector3(0.050f, 0.018f, 0.014f), glowMaterial, Quaternion.identity);
+
             // The named shin pivot begins at the same knee point so tests and animation can verify zero separation.
             Transform shin = CreateJoint(knee, $"Human Shin {sideName}", Vector3.zero, Quaternion.identity);
 
             // The shin mesh is centered below the knee and inherits knee bend from the parent joint.
             CreateCylinderPart(shin, $"Human Shin {sideName} Mesh", new Vector3(0f, -lowerLegLength * 0.5f, 0f), new Vector3(0.068f, lowerLegLength, 0.068f), pantsMaterial, Quaternion.identity);
 
+            // Shin armor gives each leg a chunkier silhouette like the reference soldier boots and guards.
+            CreateCylinderPart(shin, $"Human Shin Armor {sideName}", new Vector3(0f, -lowerLegLength * 0.45f, -0.040f), new Vector3(0.082f, lowerLegLength * 0.55f, 0.058f), armorMaterial, Quaternion.identity);
+
+            // A thigh strap and side holster echo the reference soldier's utility gear and add side-view depth.
+            CreateCubePart(hip, $"Human Thigh Strap {sideName}", new Vector3(sideSign * 0.012f, -upperLegLength * 0.48f, -0.075f), new Vector3(0.14f, 0.030f, 0.035f), armorMaterial, Quaternion.Euler(0f, 0f, sideSign * 3f));
+            CreateCubePart(hip, $"Human Thigh Holster {sideName}", new Vector3(sideSign * 0.075f, -upperLegLength * 0.58f, -0.030f), new Vector3(0.055f, 0.17f, 0.075f), armorTrimMaterial, Quaternion.Euler(0f, 0f, sideSign * 5f));
+            CreateCubePart(hip, $"Human Thigh Glow {sideName}", new Vector3(sideSign * 0.098f, -upperLegLength * 0.58f, -0.075f), new Vector3(0.018f, 0.095f, 0.014f), glowMaterial, Quaternion.Euler(0f, 0f, sideSign * 5f));
+
             // The boot is attached to the bottom of the shin chain, so the ankle stays visually connected.
             CreateSpherePart(shin, $"Human Boot {sideName}", new Vector3(0f, -lowerLegLength - 0.025f, -0.035f), new Vector3(0.135f, 0.065f, 0.22f), bootMaterial, Quaternion.Euler(7f, 0f, 0f));
+
+            // A toe cap makes the boot feel armored rather than like a simple foot oval.
+            CreateCubePart(shin, $"Human Boot Armor {sideName}", new Vector3(0f, -lowerLegLength - 0.020f, -0.16f), new Vector3(0.15f, 0.040f, 0.12f), armorMaterial, Quaternion.Euler(7f, 0f, 0f));
+
+            // Cyan boot lights reproduce the reference-art luminous boot accents at gameplay scale.
+            CreateCubePart(shin, $"Human Boot Glow {sideName}", new Vector3(0f, -lowerLegLength + 0.015f, -0.205f), new Vector3(0.075f, 0.018f, 0.018f), glowMaterial, Quaternion.Euler(7f, 0f, 0f));
         }
 
         private static void CreateZombieLeg(Transform figureRoot, string sideName, float sideSign, float localZ, Material pantsMaterial)
@@ -495,6 +616,14 @@ namespace LaneSurvivor.Rendering
             Vector3 scale = new(radius, Mathf.Max(segment.magnitude, 0.001f), radius);
 
             return CreateCylinderPart(parent, name, midpoint, scale, material, rotation);
+        }
+
+        private static GameObject CreateCubePart(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Material material, Quaternion localRotation)
+        {
+            // Cubes work well for armor plates, lights, pouches, and weapon receivers with crisp hard edges.
+            GameObject part = PrototypeGeometryFactory.CreateCube(name, Vector3.zero, Vector3.one, material);
+            ConfigurePartTransform(part.transform, parent, localPosition, localScale, localRotation);
+            return part;
         }
 
         private static GameObject CreateSpherePart(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Material material, Quaternion localRotation)

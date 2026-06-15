@@ -1558,8 +1558,19 @@ namespace LaneSurvivor.Tests.PlayMode
             GameObject playerSquad = GameObject.Find("Player Squad");
             Assert.IsNotNull(playerSquad);
             Assert.IsNull(playerSquad.GetComponent<MeshFilter>());
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Hood Collar"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Chest Armor"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Chest Glow"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Backpack"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Backpack Antenna"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Helmet Brim"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Helmet Glow"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Headset Mic"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Arm Left/Human Shoulder Armor Left"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Thigh Holster Left"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
+            Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left/Human Boot Glow Left"));
             Assert.IsNull(playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
             Assert.IsNull(playerSquad.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
             Assert.IsNull(playerSquad.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
@@ -1567,12 +1578,14 @@ namespace LaneSurvivor.Tests.PlayMode
             Transform leaderHead = playerSquad.transform.Find("Survivor Leader/Human Head");
             Transform leaderMuzzle = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
             Transform leaderWeaponBody = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Body");
+            Transform leaderRifleSightGlow = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Sight Glow");
             Transform smgHead = playerSquad.transform.Find("Survivor Right Wing/Human Head");
             Transform smgPelvis = playerSquad.transform.Find("Survivor Right Wing/Human Pelvis");
             Transform smgMuzzle = playerSquad.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}/{PlayerSquad.WeaponMuzzleAnchorName}");
             Assert.IsNotNull(leaderHead);
             Assert.IsNotNull(leaderMuzzle);
             Assert.IsNotNull(leaderWeaponBody);
+            Assert.IsNotNull(leaderRifleSightGlow);
             Assert.IsNotNull(playerSquad.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeftWingShotgunName}/{PlayerSquad.WeaponMuzzleAnchorName}"));
             Assert.IsNotNull(smgMuzzle);
             Assert.IsNotNull(smgHead);
@@ -1584,13 +1597,20 @@ namespace LaneSurvivor.Tests.PlayMode
             // The compact SMG should be clearly lower, but still above the lower-body anchor.
             Assert.LessOrEqual(smgMuzzle.position.y, smgHead.position.y - 0.16f);
             Assert.Greater(smgMuzzle.position.y, smgPelvis.position.y);
-            Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 30);
+            Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 90);
             MeshRenderer leaderHeadRenderer = leaderHead.GetComponent<MeshRenderer>();
             MeshRenderer leaderWeaponRenderer = leaderWeaponBody.GetComponent<MeshRenderer>();
+            MeshRenderer leaderChestGlowRenderer = playerSquad.transform.Find("Survivor Leader/Human Chest Glow").GetComponent<MeshRenderer>();
             Assert.IsNotNull(leaderHeadRenderer);
             Assert.IsNotNull(leaderWeaponRenderer);
+            Assert.IsNotNull(leaderChestGlowRenderer);
             Assert.IsTrue(leaderHeadRenderer.enabled);
             Assert.IsTrue(leaderWeaponRenderer.enabled);
+            Assert.IsTrue(leaderChestGlowRenderer.enabled);
+            Color chestGlowColor = GetMaterialColor(leaderChestGlowRenderer.sharedMaterial);
+            Assert.Greater(chestGlowColor.g, 0.70f);
+            Assert.Greater(chestGlowColor.b, 0.80f);
+            Assert.Less(chestGlowColor.r, 0.10f);
             // Runtime survivor bodies should stay comparable to the visible zombie body height.
             Bounds leaderBounds = CalculateEnabledRendererBounds(playerSquad.transform.Find("Survivor Leader"));
             Bounds leftBounds = CalculateEnabledRendererBounds(playerSquad.transform.Find("Survivor Left Wing"));

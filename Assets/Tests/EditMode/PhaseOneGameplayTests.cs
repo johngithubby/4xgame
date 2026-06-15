@@ -692,24 +692,55 @@ namespace LaneSurvivor.Tests.EditMode
                 // The player root remains a gameplay anchor while child meshes create the visible squad.
                 Assert.IsNull(player.GetComponent<MeshFilter>());
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Head"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Hood Collar"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Chest Armor"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Chest Glow"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Backpack"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Backpack Antenna"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Helmet Brim"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Helmet Glow"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Headset Mic"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Arm Left/Human Shoulder Armor Left"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Arm Left/Human Forearm Glow Left"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Thigh Holster Left"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Knee Armor Left"));
+                Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left/Human Boot Glow Left"));
                 Assert.IsNull(player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
                 Assert.IsNull(player.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
                 Assert.IsNull(player.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}"));
+                Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Receiver"));
+                Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Sight Glow"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeftWingShotgunName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}"));
                 Assert.IsNotNull(player.transform.Find("Survivor Right Wing/Human Leg Right/Human Knee Right/Human Shin Right/Human Boot Right"));
-                Assert.GreaterOrEqual(player.GetComponentsInChildren<MeshRenderer>().Length, 30);
+                Assert.GreaterOrEqual(player.GetComponentsInChildren<MeshRenderer>().Length, 90);
 
                 // The generated rig is the visible actor now because the old sideways cutout aimed across the lane.
                 MeshRenderer leaderHeadRenderer = player.transform.Find("Survivor Leader/Human Head").GetComponent<MeshRenderer>();
                 MeshRenderer leaderWeaponRenderer = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Body").GetComponent<MeshRenderer>();
+                MeshRenderer leaderChestGlowRenderer = player.transform.Find("Survivor Leader/Human Chest Glow").GetComponent<MeshRenderer>();
+                MeshRenderer leaderChestArmorRenderer = player.transform.Find("Survivor Leader/Human Chest Armor").GetComponent<MeshRenderer>();
                 Assert.IsNotNull(leaderHeadRenderer);
                 Assert.IsNotNull(leaderWeaponRenderer);
+                Assert.IsNotNull(leaderChestGlowRenderer);
+                Assert.IsNotNull(leaderChestArmorRenderer);
                 Assert.IsTrue(leaderHeadRenderer.enabled);
                 Assert.IsTrue(leaderWeaponRenderer.enabled);
+                Assert.IsTrue(leaderChestGlowRenderer.enabled);
+                Assert.IsTrue(leaderChestArmorRenderer.enabled);
+
+                // The armored 3D survivor should keep the approved teal/gray/cyan scheme, not the old magenta blob palette.
+                Color glowColor = ReadMaterialColor(leaderChestGlowRenderer.sharedMaterial);
+                Color armorColor = ReadMaterialColor(leaderChestArmorRenderer.sharedMaterial);
+                Assert.Greater(glowColor.g, 0.70f);
+                Assert.Greater(glowColor.b, 0.80f);
+                Assert.Less(glowColor.r, 0.10f);
+                Assert.Greater(armorColor.r, 0.20f);
+                Assert.Greater(armorColor.g, 0.20f);
+                Assert.Greater(armorColor.b, 0.20f);
 
                 // All three rendered soldiers must remain comparable to the generated zombie body height.
                 Bounds leaderBounds = CalculateEnabledRendererBounds(player.transform.Find("Survivor Leader"));
@@ -801,6 +832,9 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.AreEqual(3, playerAnimator.AnimatedRigCount);
 
                 // Capture rest-pose leg joint rotations before forcing a run step.
+                Transform playerRoot = player.transform.Find("Survivor Leader");
+                Transform playerTorso = player.transform.Find("Survivor Leader/Human Torso");
+                Transform playerHead = player.transform.Find("Survivor Leader/Human Head");
                 Transform playerLeg = player.transform.Find("Survivor Leader/Human Leg Left");
                 Transform playerKnee = player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left");
                 Transform playerShin = player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left");
@@ -808,6 +842,9 @@ namespace LaneSurvivor.Tests.EditMode
                 Transform playerWeaponHand = player.transform.Find("Survivor Leader/Human Arm Right/Human Hand Right");
                 Transform playerWeapon = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
                 Transform playerMuzzle = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+                Assert.IsNotNull(playerRoot);
+                Assert.IsNotNull(playerTorso);
+                Assert.IsNotNull(playerHead);
                 Assert.IsNotNull(playerLeg);
                 Assert.IsNotNull(playerKnee);
                 Assert.IsNotNull(playerShin);
@@ -831,6 +868,9 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.Greater(playerThighSwing, 0.1f);
                 Assert.Greater(playerKneeBend, playerThighSwing + 5f);
                 Assert.Less(Vector3.Distance(playerKnee.position, playerShin.position), 0.001f);
+                Quaternion playerRootRunningRotation = playerRoot.localRotation;
+                Quaternion playerTorsoRunningRotation = playerTorso.localRotation;
+                Quaternion playerHeadRunningRotation = playerHead.localRotation;
 
                 // Survivor firing arms should stay in their authored weapon pose while the legs do the running.
                 Assert.Less(Quaternion.Angle(playerWeaponArmRestRotation, playerWeaponArm.localRotation), 0.001f);
@@ -844,6 +884,9 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.Less(playerWeapon.localPosition.z, playerWeaponRunningLocalPosition.z - 0.001f);
                 Assert.Greater(Mathf.Abs(Mathf.DeltaAngle(0f, playerWeapon.localEulerAngles.y)), 1f);
                 Assert.Greater(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.1f);
+                Assert.Greater(Mathf.Abs(Mathf.DeltaAngle(playerRootRunningRotation.eulerAngles.y, playerRoot.localEulerAngles.y)), 0.5f);
+                Assert.Greater(Mathf.Abs(Mathf.DeltaAngle(playerTorsoRunningRotation.eulerAngles.y, playerTorso.localEulerAngles.y)), 0.4f);
+                Assert.Greater(Mathf.Abs(Mathf.DeltaAngle(playerHeadRunningRotation.eulerAngles.y, playerHead.localEulerAngles.y)), 0.6f);
 
                 // The zombie animator should shamble even when the gameplay root is stationary.
                 PrototypeHumanoidAnimator zombieAnimator = zombie.GetComponent<PrototypeHumanoidAnimator>();

@@ -69,6 +69,21 @@ namespace LaneSurvivor.Rendering
         // Target-aware pitch gives high and low targets a subtle shoulder/weapon adjustment.
         private const float ShotAimPitchLimitDegrees = 5f;
 
+        // The survivor root receives part of aim yaw so the whole 3D soldier turns instead of only the gun.
+        private const float ShotAimRootYawShare = 0.35f;
+
+        // Torso aim is gentler than weapon aim so the body follows the target without over-twisting the run.
+        private const float ShotAimTorsoYawShare = 0.25f;
+
+        // Torso pitch gives high or low shots a readable upper-body lean.
+        private const float ShotAimTorsoPitchShare = 0.20f;
+
+        // Head yaw helps the helmet and visor visibly track the current target.
+        private const float ShotAimHeadYawShare = 0.40f;
+
+        // Head pitch keeps the face aligned with the target while the weapon recoils separately.
+        private const float ShotAimHeadPitchShare = 0.35f;
+
         // Legacy cutout fallback sways side to side so old generated cards visibly step if they still exist.
         private const float SoldierWalkSway = 0.035f;
 
@@ -411,12 +426,29 @@ namespace LaneSurvivor.Rendering
             // The head nod trails the body roll so the pose feels less mechanical.
             float headNod = Mathf.Sin(phase + Mathf.PI * 0.5f) * headNodDegrees * weight;
 
+            // Survivor aim fades between volleys; non-survivor styles keep the neutral zero values.
+            float survivorAimPitch = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotAimPitchDegrees * rig.shotAimWeight : 0f;
+
+            // Positive yaw means a target is to the right in survivor-local space.
+            float survivorAimYaw = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotAimYawDegrees * rig.shotAimWeight : 0f;
+
+            // Root yaw lets the generated 3D soldier rotate as a body instead of acting like a flat card.
+            float survivorBodyYaw = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? survivorAimYaw * ShotAimRootYawShare : 0f;
+
+            // The recoil pitch is additive with aim so shots kick without changing the target direction permanently.
+            float survivorRecoilPitch = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotRecoil * ShotRecoilPitchDegrees : 0f;
+
+            // Local recoil offset slides the selected gun backward while the root and tracers stay in world space.
+            Vector3 survivorRecoilOffset = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? new Vector3(0f, rig.shotRecoil * ShotRecoilLift, -rig.shotRecoil * ShotRecoilBackOffset) : Vector3.zero;
+
             // Move and roll the rig root as a single body mass.
             rig.root.localPosition = rig.initialRootLocalPosition + Vector3.up * bounce;
-            rig.root.localRotation = rig.initialRootLocalRotation * Quaternion.Euler(0f, 0f, bodyRoll);
+            rig.root.localRotation = rig.initialRootLocalRotation * Quaternion.Euler(0f, survivorBodyYaw, bodyRoll);
 
-            // Torso and pelvis counter-rotate slightly so the body does not look like one stiff piece.
-            ApplyPartPose(rig.torso, Quaternion.Euler(0f, 0f, bodyRoll * 0.35f), Vector3.zero);
+            // Torso aim/yaw makes the chest armor visibly track the same target as the weapon.
+            ApplyPartPose(rig.torso, Quaternion.Euler(survivorAimPitch * ShotAimTorsoPitchShare, survivorAimYaw * ShotAimTorsoYawShare, bodyRoll * 0.35f), Vector3.zero);
+
+            // The pelvis counter-rotates slightly so the body does not look like one stiff piece.
             ApplyPartPose(rig.pelvis, Quaternion.Euler(0f, 0f, -bodyRoll * 0.45f), Vector3.zero);
 
             // Connected hip pivots swing the whole leg chain so knees and ankles remain attached.
@@ -434,18 +466,6 @@ namespace LaneSurvivor.Rendering
             // Feet pitch against knee bend and hip swing, but stay attached to the shin chain.
             ApplyPartPose(rig.leftFoot, Quaternion.Euler(-leftHipSwing * 0.22f - leftKneeBend * 0.30f, 0f, 0f), Vector3.zero);
             ApplyPartPose(rig.rightFoot, Quaternion.Euler(-rightHipSwing * 0.22f - rightKneeBend * 0.30f, 0f, 0f), Vector3.zero);
-
-            // Survivor aim fades between volleys; non-survivor styles keep the neutral zero values.
-            float survivorAimPitch = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotAimPitchDegrees * rig.shotAimWeight : 0f;
-
-            // Positive yaw means a target is to the right in survivor-local space.
-            float survivorAimYaw = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotAimYawDegrees * rig.shotAimWeight : 0f;
-
-            // The recoil pitch is additive with aim so shots kick without changing the target direction permanently.
-            float survivorRecoilPitch = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotRecoil * ShotRecoilPitchDegrees : 0f;
-
-            // Local recoil offset slides the selected gun backward while the root and tracers stay in world space.
-            Vector3 survivorRecoilOffset = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? new Vector3(0f, rig.shotRecoil * ShotRecoilLift, -rig.shotRecoil * ShotRecoilBackOffset) : Vector3.zero;
 
             if (animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad)
             {
@@ -472,8 +492,8 @@ namespace LaneSurvivor.Rendering
                 ApplyPartPose(rig.rightHand, Quaternion.Euler(stride * weightedArmSwing * 0.35f, 0f, 0f), Vector3.zero);
             }
 
-            // The head gets both a nod and a tiny vertical offset so faces read as alive.
-            ApplyPartPose(rig.head, Quaternion.Euler(headNod, 0f, -bodyRoll * 0.2f), Vector3.up * bounce * 0.28f);
+            // The head gets nod, target tracking, and a tiny vertical offset so helmets read as alive.
+            ApplyPartPose(rig.head, Quaternion.Euler(headNod + survivorAimPitch * ShotAimHeadPitchShare, survivorAimYaw * ShotAimHeadYawShare, -bodyRoll * 0.2f), Vector3.up * bounce * 0.28f);
 
             // Held survivor weapons visibly aim and recoil; zombie rigs have no weapon part and stay inert here.
             ApplyPartPose(rig.weapon, Quaternion.Euler(survivorAimPitch + survivorRecoilPitch, survivorAimYaw, 0f), survivorRecoilOffset);
