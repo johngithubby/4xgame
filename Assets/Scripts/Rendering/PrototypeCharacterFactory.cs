@@ -8,6 +8,27 @@ namespace LaneSurvivor.Rendering
     {
         private const float SurvivorWingScale = 0.72f;
 
+        // The generated PNGs are intentionally named as soldier reference art under Resources/Survivor.
+        private const string MaleSoldierResourcePath = "Survivor/SurvivorReferenceCutout";
+
+        // The female soldier shares the same armor tier and faction palette as the original soldier reference.
+        private const string FemaleSoldierResourcePath = "Survivor/FemaleSurvivorReferenceCutout";
+
+        // Tests and animation use this exact visual child name to distinguish the rendered cutout from hidden rig anchors.
+        public const string SoldierReferenceVisualName = "Soldier Reference Visual";
+
+        // The leader card height matches the previous generated humanoid bounds while preserving the PNG aspect.
+        private const float SoldierReferenceVisualHeight = 1.36f;
+
+        // The source soldier cutouts are 1024x1536, so width is two thirds of height.
+        private const float SoldierReferenceAspect = 2f / 3f;
+
+        // The card sits slightly low so the PNG boots land where the generated rig feet used to land.
+        private static readonly Vector3 SoldierReferenceLocalOffset = new(0f, -0.03f, -0.04f);
+
+        // Slightly later transparent rendering keeps the squad visible over the road without entering feedback overlay.
+        private const int SoldierReferenceRenderQueue = 3020;
+
         // The leader keeps the longest profile so the front survivor reads as the primary shooter.
         public const string LeaderRifleName = "Leader Rifle";
 
@@ -62,15 +83,17 @@ namespace LaneSurvivor.Rendering
             Material weaponMaterial = CreateMaterial(SurvivorWeaponColor);
             Material bodyMaterial = uniformMaterial != null ? uniformMaterial : CreateMaterial(new Color(0.12f, 0.74f, 0.86f));
             Material highlightMaterial = accentMaterial != null ? accentMaterial : CreateMaterial(new Color(1f, 0.13f, 0.72f));
+            Material maleSoldierMaterial = CreateSoldierReferenceMaterial(MaleSoldierResourcePath, "Male Soldier Reference Material");
+            Material femaleSoldierMaterial = CreateSoldierReferenceMaterial(FemaleSoldierResourcePath, "Female Soldier Reference Material");
 
             // A three-person wedge makes squad count feel like people without spawning one mesh per count value.
-            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, femaleSoldierMaterial, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
             // Side survivors sit slightly lower and behind the leader so the group reads as a formation from the chase camera.
-            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.40f, -0.06f, -0.30f), SurvivorWingScale, LeftWingShotgunName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.40f, -0.06f, -0.30f), SurvivorWingScale, LeftWingShotgunName, maleSoldierMaterial, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
             // Mirroring the side placement gives the player a recognizably human squad silhouette in one lane.
-            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.40f, -0.06f, -0.30f), SurvivorWingScale, RightWingSmgName, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.40f, -0.06f, -0.30f), SurvivorWingScale, RightWingSmgName, femaleSoldierMaterial, bodyMaterial, highlightMaterial, skinMaterial, pantsMaterial, bootMaterial, gearMaterial, weaponMaterial);
 
             // The procedural animator swings the generated limbs only when the gameplay root is moving.
             PrototypeHumanoidAnimator animator = squadRoot.AddComponent<PrototypeHumanoidAnimator>();
@@ -141,7 +164,7 @@ namespace LaneSurvivor.Rendering
             return zombieRoot;
         }
 
-        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material accentMaterial, Material skinMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material weaponMaterial)
+        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material soldierReferenceMaterial, Material bodyMaterial, Material accentMaterial, Material skinMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material weaponMaterial)
         {
             // A per-survivor transform makes it cheap to scale and offset squad members as a formation.
             GameObject survivorRoot = new(name);
@@ -174,6 +197,9 @@ namespace LaneSurvivor.Rendering
 
             // Procedural weapon profiles keep the squad readable without importing any firearm art.
             CreateSurvivorWeapon(weaponHand, weaponProfileName, holdStyle, weaponMaterial);
+
+            // The reference soldier PNG becomes the visible actor while the generated rig remains as hidden animation anchors.
+            CreateSoldierReferenceVisual(survivorRoot.transform, soldierReferenceMaterial);
         }
 
         private static Transform CreateHumanArm(Transform survivorRoot, string sideName, float sideSign, SurvivorWeaponHoldStyle holdStyle, Material sleeveMaterial, Material skinMaterial)
@@ -226,6 +252,52 @@ namespace LaneSurvivor.Rendering
                     break;
                 default:
                     throw new System.ArgumentOutOfRangeException(nameof(weaponProfileName), weaponProfileName, "Unsupported survivor weapon profile.");
+            }
+        }
+
+        private static void CreateSoldierReferenceVisual(Transform survivorRoot, Material soldierReferenceMaterial)
+        {
+            // If the PNG asset cannot load, leave the generated rig visible as a safe editor/test fallback.
+            if (soldierReferenceMaterial == null)
+            {
+                return;
+            }
+
+            // Hide the old primitive body and weapon meshes while keeping every transform and muzzle anchor alive.
+            SetGeneratedRigRenderersEnabled(survivorRoot, false);
+
+            // Preserve the source PNG aspect ratio so the soldier art is not squashed in the lane.
+            Vector2 visualSize = new(SoldierReferenceVisualHeight * SoldierReferenceAspect, SoldierReferenceVisualHeight);
+
+            // A transparent vertical plane renders the soldier cutout as the new visible survivor model.
+            GameObject visualObject = PrototypeGeometryFactory.CreateVerticalPlane(SoldierReferenceVisualName, Vector3.zero, visualSize, soldierReferenceMaterial);
+
+            // Parent in local space so the card inherits survivor formation offsets and root walk animation.
+            visualObject.transform.SetParent(survivorRoot, false);
+
+            // Offset the card so the boots, torso, and rifle sit over the hidden rig's gameplay anchors.
+            visualObject.transform.localPosition = SoldierReferenceLocalOffset;
+
+            // The card faces the fixed chase camera while the transparent material draws both sides for scene view.
+            visualObject.transform.localRotation = Quaternion.identity;
+
+            // Unit local scale preserves the authored plane dimensions from CreateVerticalPlane.
+            visualObject.transform.localScale = Vector3.one;
+        }
+
+        private static void SetGeneratedRigRenderersEnabled(Transform survivorRoot, bool isEnabled)
+        {
+            // Renderer toggling replaces only visuals; joints, weapons, and muzzle anchors remain usable.
+            foreach (Renderer renderer in survivorRoot.GetComponentsInChildren<Renderer>(true))
+            {
+                // The soldier card is created after this call today, but this guard keeps the helper future-safe.
+                if (renderer.transform.name == SoldierReferenceVisualName)
+                {
+                    continue;
+                }
+
+                // Disabled renderers still let tests and gameplay traverse the full generated hierarchy.
+                renderer.enabled = isEnabled;
             }
         }
 
@@ -549,6 +621,21 @@ namespace LaneSurvivor.Rendering
         {
             // Route all generated character colors through the same shader-safe material helper as the rest of gameplay.
             return PrototypeMaterialFactory.Create(color);
+        }
+
+        private static Material CreateSoldierReferenceMaterial(string resourcePath, string materialName)
+        {
+            // Resources keeps the generated soldier cutouts available in editor, tests, and player builds.
+            Texture2D texture = Resources.Load<Texture2D>(resourcePath);
+
+            // A missing texture should not break test factories; the primitive rig remains visible as fallback.
+            if (texture == null)
+            {
+                return null;
+            }
+
+            // Reference cutouts use a neutral tint because the PNG already owns the soldier palette.
+            return PrototypeMaterialFactory.CreateTexturedTransparent(texture, Color.white, materialName, SoldierReferenceRenderQueue);
         }
     }
 }

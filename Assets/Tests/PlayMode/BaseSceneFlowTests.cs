@@ -1560,6 +1560,12 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNull(playerSquad.GetComponent<MeshFilter>());
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
+            Transform leaderSoldierVisual = playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
+            Transform leftSoldierVisual = playerSquad.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
+            Transform rightSoldierVisual = playerSquad.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
+            Assert.IsNotNull(leaderSoldierVisual);
+            Assert.IsNotNull(leftSoldierVisual);
+            Assert.IsNotNull(rightSoldierVisual);
             // Runtime weapon pose checks use visible body anchors, not hard-coded world heights.
             Transform leaderHead = playerSquad.transform.Find("Survivor Leader/Human Head");
             Transform leaderMuzzle = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
@@ -1578,6 +1584,13 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.LessOrEqual(smgMuzzle.position.y, smgHead.position.y - 0.16f);
             Assert.Greater(smgMuzzle.position.y, smgPelvis.position.y);
             Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 30);
+            MeshRenderer leaderHeadRenderer = leaderHead.GetComponent<MeshRenderer>();
+            MeshRenderer leaderSoldierRenderer = leaderSoldierVisual.GetComponent<MeshRenderer>();
+            Assert.IsNotNull(leaderHeadRenderer);
+            Assert.IsNotNull(leaderSoldierRenderer);
+            Assert.IsFalse(leaderHeadRenderer.enabled);
+            Assert.IsTrue(leaderSoldierRenderer.enabled);
+            Assert.IsNotNull(leaderSoldierRenderer.sharedMaterial.mainTexture);
             PlayerSquad playerSquadComponent = playerSquad.GetComponent<PlayerSquad>();
             Assert.IsNotNull(playerSquadComponent);
             Assert.AreEqual(3, playerSquadComponent.WeaponMuzzleCount);

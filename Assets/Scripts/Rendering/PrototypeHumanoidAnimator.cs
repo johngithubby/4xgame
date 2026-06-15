@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LaneSurvivor.Gameplay;
 using UnityEngine;
 
 namespace LaneSurvivor.Rendering
@@ -46,6 +47,18 @@ namespace LaneSurvivor.Rendering
         // Vertical bob makes footsteps visible even from the chase camera angle.
         [SerializeField]
         private float bobHeight = 0.035f;
+
+        // Shot recoil recovers quickly so every AutoShooter volley can visibly pulse the soldier card.
+        private const float ShotRecoilRecoverySpeed = 9f;
+
+        // Recoil nudges the reference card backward in local Z, away from the visible rifle direction.
+        private const float ShotRecoilBackOffset = 0.045f;
+
+        // A tiny lift keeps the recoil readable on a flat cutout without desynchronizing the hidden muzzle.
+        private const float ShotRecoilLift = 0.025f;
+
+        // A small pitch gives the flat card a firing kick while keeping the stance practical.
+        private const float ShotRecoilPitchDegrees = -3.2f;
 
         // Last position is used to detect root motion for survivor walking.
         private Vector3 lastWorldPosition;
@@ -120,7 +133,69 @@ namespace LaneSurvivor.Rendering
             foreach (HumanoidRig rig in rigs)
             {
                 ApplyRigPose(rig, AnimationPhase + rig.phaseOffset, motionWeight);
+
+                // Recoil decays after it has affected this evaluation so a just-fired shot gets one visible kick.
+                rig.shotRecoil = Mathf.MoveTowards(rig.shotRecoil, 0f, ShotRecoilRecoverySpeed * deltaTime);
             }
+        }
+
+        public void PlaySurvivorShot(Vector3 shotOrigin)
+        {
+            // Rebuild lazily so tests that create hierarchies after Awake can still trigger a card recoil.
+            if (rigs.Count == 0)
+            {
+                RebuildRigCache();
+            }
+
+            // Only survivor squads have soldier reference cards and visible weapon recoil.
+            if (animationStyle != PrototypeHumanoidAnimationStyle.SurvivorSquad)
+            {
+                return;
+            }
+
+            // Find the rig whose weapon anchor is closest to the muzzle origin chosen by AutoShooter.
+            HumanoidRig closestRig = null;
+            float closestDistance = float.MaxValue;
+            foreach (HumanoidRig rig in rigs)
+            {
+                // Prefer the muzzle anchor because it is the exact point AutoShooter used for this shot.
+                Transform matchTransform = rig.weaponMuzzle.IsValid ? rig.weaponMuzzle.transform : null;
+
+                // Fallback to the weapon root if a hand-built rig forgot to include a muzzle anchor.
+                if (matchTransform == null && rig.weapon.IsValid)
+                {
+                    matchTransform = rig.weapon.transform;
+                }
+
+                // Last fallback is the survivor root, which keeps legacy tests from failing hard.
+                if (matchTransform == null)
+                {
+                    matchTransform = rig.root;
+                }
+
+                // Null roots should never happen for captured rigs, but this keeps hand-built tests safe.
+                if (matchTransform == null)
+                {
+                    continue;
+                }
+
+                // Squared distance avoids a square root while preserving nearest-rig ordering.
+                float distance = (matchTransform.position - shotOrigin).sqrMagnitude;
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestRig = rig;
+                }
+            }
+
+            // If no specific rig could be matched, skip rather than kicking every soldier card at once.
+            if (closestRig == null)
+            {
+                return;
+            }
+
+            // A value of one lets ApplyRigPose create the authored recoil offset on the next animation evaluation.
+            closestRig.shotRecoil = 1f;
         }
 
         private void Awake()
@@ -347,6 +422,27 @@ namespace LaneSurvivor.Rendering
 
             // Held weapons should inherit only the stable authored hand pose so tracers remain visually aligned.
             ApplyPartPose(rig.weapon, Quaternion.identity, Vector3.zero);
+
+            // The reference soldier card replaces the visible primitive body and receives the shot kick.
+            ApplySoldierReferencePose(rig);
+        }
+
+        private static void ApplySoldierReferencePose(HumanoidRig rig)
+        {
+            // Older fallback rigs may not have a soldier card, so the visual layer stays optional.
+            if (!rig.soldierVisual.IsValid)
+            {
+                return;
+            }
+
+            // Shot recoil moves the flat art just enough to read without drifting away from the hidden rig.
+            Vector3 recoilOffset = new(0f, rig.shotRecoil * ShotRecoilLift, -rig.shotRecoil * ShotRecoilBackOffset);
+
+            // A small pitch sells weapon kick on the full-body card while the hidden muzzle remains stable.
+            Quaternion recoilRotation = Quaternion.Euler(rig.shotRecoil * ShotRecoilPitchDegrees, 0f, 0f);
+
+            // Card pose is additive over the generated rest position set by the character factory.
+            ApplyPartPose(rig.soldierVisual, recoilRotation, recoilOffset);
         }
 
         private static void ApplyPartPose(AnimatedPart part, Quaternion additiveRotation, Vector3 additivePosition)
@@ -402,6 +498,8 @@ namespace LaneSurvivor.Rendering
                 leftFoot = CapturePart(survivorRoot, "Human Boot Left"),
                 rightFoot = CapturePart(survivorRoot, "Human Boot Right"),
                 weapon = CaptureSurvivorWeapon(survivorRoot),
+                weaponMuzzle = CapturePart(survivorRoot, PlayerSquad.WeaponMuzzleAnchorName),
+                soldierVisual = CapturePart(survivorRoot, PrototypeCharacterFactory.SoldierReferenceVisualName),
                 phaseOffset = phaseOffset
             };
         }
@@ -439,6 +537,8 @@ namespace LaneSurvivor.Rendering
                 leftFoot = CapturePart(zombieRoot, "Zombie Foot Left"),
                 rightFoot = CapturePart(zombieRoot, "Zombie Foot Right"),
                 weapon = default,
+                weaponMuzzle = default,
+                soldierVisual = default,
                 phaseOffset = 0f
             };
         }
@@ -520,7 +620,13 @@ namespace LaneSurvivor.Rendering
 
             public AnimatedPart weapon;
 
+            public AnimatedPart weaponMuzzle;
+
+            public AnimatedPart soldierVisual;
+
             public float phaseOffset;
+
+            public float shotRecoil;
         }
 
         private readonly struct AnimatedPart

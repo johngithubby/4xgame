@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using LaneSurvivor.Rendering;
 using UnityEngine;
 
 namespace LaneSurvivor.Gameplay
@@ -10,6 +11,9 @@ namespace LaneSurvivor.Gameplay
 
         [SerializeField]
         private PlayerSquad playerSquad;
+
+        [SerializeField]
+        private PrototypeHumanoidAnimator survivorAnimator;
 
         [SerializeField]
         private float shootRange = 8f;
@@ -30,6 +34,7 @@ namespace LaneSurvivor.Gameplay
             shootRange = Mathf.Max(0.1f, range);
             shotInterval = Mathf.Max(0.05f, interval);
             laneTolerance = Mathf.Max(0.1f, targetLaneTolerance);
+            survivorAnimator = playerSquad != null ? playerSquad.GetComponent<PrototypeHumanoidAnimator>() : null;
             shotTimer = 0f;
         }
 
@@ -75,6 +80,9 @@ namespace LaneSurvivor.Gameplay
                     // Old or test-only squads without generated weapons keep the existing root-derived fallback origin.
                     shotOrigin = playerSquad.transform.position + Vector3.up * 0.5f;
                 }
+
+                // The card-based soldier visuals recoil from the same muzzle origin used by shot tracers.
+                survivorAnimator?.PlaySurvivorShot(shotOrigin);
 
                 ShotFired?.Invoke(shotOrigin, targetPoint, appliedDamage, shotStartedAtWeaponMuzzle);
             }

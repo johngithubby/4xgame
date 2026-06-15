@@ -77,10 +77,19 @@ namespace LaneSurvivor.Gameplay
 
         private static void SetWorldPlayerRendererVisibility(GameObject playerRoot, bool isVisible)
         {
-            // Apply the central visibility flag to every generated survivor mesh under the gameplay root.
+            // The central flag now controls the soldier cutout cards without reviving hidden rig meshes.
             foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
             {
-                renderer.enabled = isVisible;
+                if (!isVisible)
+                {
+                    renderer.enabled = false;
+                    continue;
+                }
+
+                if (renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName)
+                {
+                    renderer.enabled = true;
+                }
             }
         }
 

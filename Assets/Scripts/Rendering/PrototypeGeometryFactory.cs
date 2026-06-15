@@ -9,6 +9,8 @@ namespace LaneSurvivor.Rendering
 
         private static Mesh sharedHorizontalPlaneMesh;
 
+        private static Mesh sharedVerticalPlaneMesh;
+
         private static Mesh sharedSphereMesh;
 
         private static Mesh sharedCylinderMesh;
@@ -88,6 +90,26 @@ namespace LaneSurvivor.Rendering
             meshFilter.sharedMesh = GetHorizontalPlaneMesh();
 
             // MeshRenderer draws the surface using the track material.
+            MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = material;
+
+            return gameObject;
+        }
+
+        public static GameObject CreateVerticalPlane(string name, Vector3 position, Vector2 size, Material material)
+        {
+            // Vertical planes let generated texture cutouts render as world actors without adding colliders.
+            GameObject gameObject = new(name);
+
+            // The generated mesh is one unit wide and one unit tall, so local scale supplies the requested dimensions.
+            gameObject.transform.position = position;
+            gameObject.transform.localScale = new Vector3(size.x, size.y, 1f);
+
+            // MeshFilter references a shared upright plane mesh centered around the object origin.
+            MeshFilter meshFilter = gameObject.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = GetVerticalPlaneMesh();
+
+            // MeshRenderer draws the cutout using the caller-provided transparent material.
             MeshRenderer meshRenderer = gameObject.AddComponent<MeshRenderer>();
             meshRenderer.sharedMaterial = material;
 
@@ -220,6 +242,66 @@ namespace LaneSurvivor.Rendering
             // Bounds let Unity cull the scaled road surface correctly.
             sharedHorizontalPlaneMesh.RecalculateBounds();
             return sharedHorizontalPlaneMesh;
+        }
+
+        private static Mesh GetVerticalPlaneMesh()
+        {
+            // Reuse one immutable upright plane mesh for all generated character reference cards.
+            if (sharedVerticalPlaneMesh != null)
+            {
+                return sharedVerticalPlaneMesh;
+            }
+
+            // The plane lives in local X/Y space so Y height maps directly to humanoid world height.
+            Vector3[] vertices =
+            {
+                new(-0.5f, -0.5f, 0f),
+                new(0.5f, -0.5f, 0f),
+                new(0.5f, 0.5f, 0f),
+                new(-0.5f, 0.5f, 0f)
+            };
+
+            // Forward normals match the local plane face; materials disable culling for camera-side safety.
+            Vector3[] normals =
+            {
+                Vector3.forward,
+                Vector3.forward,
+                Vector3.forward,
+                Vector3.forward
+            };
+
+            // Basic UVs map the entire PNG cutout onto the full card surface.
+            Vector2[] uvs =
+            {
+                Vector2.zero,
+                Vector2.right,
+                Vector2.one,
+                Vector2.up
+            };
+
+            // Draw both windings so the card remains visible from scene view and the chase camera.
+            int[] triangles =
+            {
+                0, 2, 1,
+                0, 3, 2,
+                0, 1, 2,
+                0, 2, 3
+            };
+
+            // HideFlags prevent the generated helper mesh from being saved as a separate project asset.
+            sharedVerticalPlaneMesh = new Mesh
+            {
+                name = "Prototype Shared Vertical Plane Mesh",
+                hideFlags = HideFlags.HideAndDontSave,
+                vertices = vertices,
+                normals = normals,
+                uv = uvs,
+                triangles = triangles
+            };
+
+            // Bounds let Unity cull the scaled card correctly during lane movement.
+            sharedVerticalPlaneMesh.RecalculateBounds();
+            return sharedVerticalPlaneMesh;
         }
 
         private static Mesh GetSphereMesh()

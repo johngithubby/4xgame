@@ -10,7 +10,7 @@
 - `Gameplay/`: Contains minigame controllers, player squad behavior, weapon muzzle registration, gates, zombies, shooting, tracer feedback, and runtime bootstrap code.
 - `Heroes/`: Contains local hero definitions, inventory helpers, and gameplay reward rules.
 - `Progression/`: Contains HQ upgrade, bio-lab upgrade, timer, mission selection, and mission unlock rules that connect base progress to minigame runs.
-- `Rendering/`: Contains shared placeholder material, collider-free geometry and prism helpers, generated humanoid character construction, and generated survivor weapon profiles for runtime-generated scenes.
+- `Rendering/`: Contains shared placeholder and textured-cutout material helpers, collider-free geometry/prism/card helpers, soldier-card survivor construction with hidden generated muzzle rigs, generated zombie character construction, and survivor weapon profiles for runtime-generated scenes.
 - `Retention/`: Contains local daily objective rules that count minigame wins and pay claimable coin rewards.
 - `Save/`: Contains local JSON save data and persistence helpers.
 - `UI/`: Contains HUD and end-screen controllers.
@@ -21,4 +21,4 @@ Unity compiles runtime scripts through the `LaneSurvivor.Runtime` assembly. Edit
 
 ## Behavior
 
-The runtime assembly owns the local Phase 1 minigame prototype, generated survivor weapon/muzzle visuals, Phase 2 base-building slice with V6 Base readability/zoom/drag visuals and the V6-1 reference-textured bio-lab upgrade, first Phase 3 hero slice, local v2 mission progression, and local daily objective retention slice. Editor tooling references it only to rebuild or configure development scenes.
+The runtime assembly owns the local Phase 1 minigame prototype, visible soldier-card survivor visuals backed by hidden generated weapon/muzzle rigs, Phase 2 base-building slice with V6 Base readability/zoom/drag visuals and the V6-1 reference-textured bio-lab upgrade, first Phase 3 hero slice, local v2 mission progression, and local daily objective retention slice. Editor tooling references it only to rebuild or configure development scenes.

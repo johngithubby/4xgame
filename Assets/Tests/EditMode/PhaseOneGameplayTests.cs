@@ -335,6 +335,11 @@ namespace LaneSurvivor.Tests.EditMode
                 // The first round-robin shot should come from the leader rifle muzzle.
                 Transform expectedMuzzle = playerObject.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
                 Assert.IsNotNull(expectedMuzzle);
+                Transform leaderSoldierVisual = playerObject.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
+                Assert.IsNotNull(leaderSoldierVisual);
+                Vector3 leaderSoldierRestPosition = leaderSoldierVisual.localPosition;
+                PrototypeHumanoidAnimator playerAnimator = playerObject.GetComponent<PrototypeHumanoidAnimator>();
+                Assert.IsNotNull(playerAnimator);
 
                 // Configure the same target path used by normal gameplay.
                 shooter.Initialize(squad, 8f, 0.35f, 0.5f);
@@ -356,6 +361,10 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.AreEqual(expectedMuzzle.position.x, actualOrigin.x, 0.001f);
                 Assert.AreEqual(expectedMuzzle.position.y, actualOrigin.y, 0.001f);
                 Assert.AreEqual(expectedMuzzle.position.z, actualOrigin.z, 0.001f);
+
+                // The same muzzle-driven shot should kick the visible soldier card instead of only spawning a tracer.
+                playerAnimator.ForceEvaluate(0.02f, true);
+                Assert.Less(leaderSoldierVisual.localPosition.z, leaderSoldierRestPosition.z - 0.001f);
             }
             finally
             {
@@ -683,11 +692,23 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Head"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
+                Assert.IsNotNull(player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+                Assert.IsNotNull(player.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+                Assert.IsNotNull(player.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeftWingShotgunName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}"));
                 Assert.IsNotNull(player.transform.Find("Survivor Right Wing/Human Leg Right/Human Knee Right/Human Shin Right/Human Boot Right"));
                 Assert.GreaterOrEqual(player.GetComponentsInChildren<MeshRenderer>().Length, 30);
+
+                // The old primitive rig remains as hidden anchors; only the soldier PNG cards should be enabled.
+                MeshRenderer leaderHeadRenderer = player.transform.Find("Survivor Leader/Human Head").GetComponent<MeshRenderer>();
+                MeshRenderer leaderSoldierRenderer = player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}").GetComponent<MeshRenderer>();
+                Assert.IsNotNull(leaderHeadRenderer);
+                Assert.IsNotNull(leaderSoldierRenderer);
+                Assert.IsFalse(leaderHeadRenderer.enabled);
+                Assert.IsTrue(leaderSoldierRenderer.enabled);
+                Assert.IsNotNull(leaderSoldierRenderer.sharedMaterial.mainTexture);
 
                 // Every distinct weapon profile should own a direct muzzle anchor at the visible barrel tip.
                 AssertWeaponMuzzle(player.transform, "Survivor Leader", PrototypeCharacterFactory.LeaderRifleName);
@@ -775,12 +796,16 @@ namespace LaneSurvivor.Tests.EditMode
                 Transform playerWeaponArm = player.transform.Find("Survivor Leader/Human Arm Right");
                 Transform playerWeaponHand = player.transform.Find("Survivor Leader/Human Arm Right/Human Hand Right");
                 Transform playerWeapon = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
+                Transform playerMuzzle = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+                Transform playerSoldierVisual = player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
                 Assert.IsNotNull(playerLeg);
                 Assert.IsNotNull(playerKnee);
                 Assert.IsNotNull(playerShin);
                 Assert.IsNotNull(playerWeaponArm);
                 Assert.IsNotNull(playerWeaponHand);
                 Assert.IsNotNull(playerWeapon);
+                Assert.IsNotNull(playerMuzzle);
+                Assert.IsNotNull(playerSoldierVisual);
                 Assert.AreSame(playerLeg, playerKnee.parent);
                 Assert.AreSame(playerKnee, playerShin.parent);
                 Quaternion playerLegRestRotation = playerLeg.localRotation;
@@ -788,6 +813,7 @@ namespace LaneSurvivor.Tests.EditMode
                 Quaternion playerWeaponArmRestRotation = playerWeaponArm.localRotation;
                 Quaternion playerWeaponHandRestRotation = playerWeaponHand.localRotation;
                 Quaternion playerWeaponRestRotation = playerWeapon.localRotation;
+                Vector3 playerSoldierRestWorldPosition = playerSoldierVisual.position;
 
                 // A forced moving evaluation should swing the hip and bend the connected knee joint.
                 playerAnimator.ForceEvaluate(0.4f, true);
@@ -797,11 +823,18 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.Greater(playerThighSwing, 0.1f);
                 Assert.Greater(playerKneeBend, playerThighSwing + 5f);
                 Assert.Less(Vector3.Distance(playerKnee.position, playerShin.position), 0.001f);
+                Assert.Greater(Vector3.Distance(playerSoldierRestWorldPosition, playerSoldierVisual.position), 0.001f);
 
                 // Survivor firing arms should stay in their authored weapon pose while the legs do the running.
                 Assert.Less(Quaternion.Angle(playerWeaponArmRestRotation, playerWeaponArm.localRotation), 0.001f);
                 Assert.Less(Quaternion.Angle(playerWeaponHandRestRotation, playerWeaponHand.localRotation), 0.001f);
                 Assert.Less(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.001f);
+
+                // A direct shot notification should add recoil to the visible soldier card without moving the hidden weapon.
+                Vector3 playerSoldierRunningLocalPosition = playerSoldierVisual.localPosition;
+                playerAnimator.PlaySurvivorShot(playerMuzzle.position);
+                playerAnimator.ForceEvaluate(0.02f, true);
+                Assert.Less(playerSoldierVisual.localPosition.z, playerSoldierRunningLocalPosition.z - 0.001f);
 
                 // The zombie animator should shamble even when the gameplay root is stationary.
                 PrototypeHumanoidAnimator zombieAnimator = zombie.GetComponent<PrototypeHumanoidAnimator>();

@@ -127,6 +127,36 @@ namespace LaneSurvivor.Rendering
             return material;
         }
 
+        public static Material CreateTexturedTransparent(Texture texture, Color tintColor, string materialName, int renderQueue)
+        {
+            // Reference-backed actors need a texture-capable transparent shader instead of the solid-color prototype path.
+            Shader shader = FindPreferredFeedbackShader();
+
+            if (shader == null)
+            {
+                throw new System.InvalidOperationException("No supported transparent textured prototype shader was available in this Unity player.");
+            }
+
+            // Clone a material per reference texture so import settings and render state stay isolated from other art.
+            Material material = new(shader)
+            {
+                name = materialName,
+                mainTexture = texture,
+                renderQueue = renderQueue
+            };
+
+            // Character reference cards should alpha-blend over the road without adding rectangular PNG backgrounds.
+            ConfigureForTexturedTransparent(material, renderQueue);
+
+            // Bind the PNG through both common built-in and URP texture property names.
+            ApplyTexture(material, texture);
+
+            // Apply a neutral or authored tint through whichever color property the shader exposes.
+            ApplyColor(material, tintColor);
+
+            return material;
+        }
+
         private static Shader FindPreferredOpaqueShader()
         {
             // Probe a short ordered list so built-in, URP, mobile, and internal shaders can satisfy prototypes.
@@ -262,6 +292,48 @@ namespace LaneSurvivor.Rendering
             material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
         }
 
+        private static void ConfigureForTexturedTransparent(Material material, int renderQueue)
+        {
+            // Reference cards sit in the transparent pass so PNG alpha can cut out the soldier silhouette.
+            material.renderQueue = renderQueue;
+
+            // Transparent classification keeps sprite-card backgrounds out of the opaque depth pass.
+            material.SetOverrideTag("RenderType", "Transparent");
+
+            // URP surface shaders expose _Surface, where 1 means transparent.
+            SetMaterialFloatIfPresent(material, "_Surface", 1f);
+
+            // Built-in Standard exposes _Mode, where 3 means transparent.
+            SetMaterialFloatIfPresent(material, "_Mode", 3f);
+
+            // Standard alpha blending preserves the antialiased edge from the generated soldier cutouts.
+            SetMaterialFloatIfPresent(material, "_SrcBlend", (float)BlendMode.SrcAlpha);
+
+            // Destination alpha blending keeps road and zombie geometry visible around the cutout.
+            SetMaterialFloatIfPresent(material, "_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+
+            // The card should not write depth because the hidden rig and tracer path own gameplay positioning.
+            SetMaterialFloatIfPresent(material, "_ZWrite", 0f);
+
+            // Draw both sides so the fixed chase camera and editor view cannot cull the flat soldier card.
+            SetMaterialFloatIfPresent(material, "_Cull", (float)CullMode.Off);
+
+            // Transparent keywords help compatible shader variants enter their alpha-blended path.
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.EnableKeyword("_ALPHABLEND_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        }
+
+        private static void ApplyTexture(Material material, Texture texture)
+        {
+            // Built-in sprite and transparent shaders usually sample _MainTex.
+            SetMaterialTextureIfPresent(material, "_MainTex", texture);
+
+            // URP unlit and lit shaders usually sample _BaseMap.
+            SetMaterialTextureIfPresent(material, "_BaseMap", texture);
+        }
+
         private static void ApplyColor(Material material, Color color)
         {
             // URP Lit and Unlit use _BaseColor for the visible tint.
@@ -302,6 +374,15 @@ namespace LaneSurvivor.Rendering
             if (material.HasProperty(propertyName))
             {
                 material.SetFloat(propertyName, value);
+            }
+        }
+
+        private static void SetMaterialTextureIfPresent(Material material, string propertyName, Texture texture)
+        {
+            // Shader families expose different texture slots, so only write properties the active shader actually owns.
+            if (material.HasProperty(propertyName))
+            {
+                material.SetTexture(propertyName, texture);
             }
         }
     }

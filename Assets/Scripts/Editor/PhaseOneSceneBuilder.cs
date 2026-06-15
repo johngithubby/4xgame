@@ -153,7 +153,16 @@ namespace LaneSurvivor.EditorTools
             // Keeping this helper local makes editor scene output match runtime bootstrap visibility.
             foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
             {
-                renderer.enabled = isVisible;
+                if (!isVisible)
+                {
+                    renderer.enabled = false;
+                    continue;
+                }
+
+                if (renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName)
+                {
+                    renderer.enabled = true;
+                }
             }
         }
 
