@@ -77,19 +77,14 @@ namespace LaneSurvivor.Gameplay
 
         private static void SetWorldPlayerRendererVisibility(GameObject playerRoot, bool isVisible)
         {
-            // The central flag now controls the soldier cutout cards without reviving hidden rig meshes.
+            // The central flag controls the visible generated rig and keeps any legacy sideways cutout hidden.
             foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
             {
-                if (!isVisible)
-                {
-                    renderer.enabled = false;
-                    continue;
-                }
+                // Old generated scenes may still include the removed cutout, whose baked rifle points sideways.
+                bool isLegacySoldierCutout = renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName;
 
-                if (renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName)
-                {
-                    renderer.enabled = true;
-                }
+                // Generated meshes are the gameplay actor now, so they follow the shared visibility flag directly.
+                renderer.enabled = isVisible && !isLegacySoldierCutout;
             }
         }
 

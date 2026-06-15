@@ -411,6 +411,9 @@ Implemented in this slice:
 - Bypassed the fake forward and lane offsets for weapon-based shots so tracers line up with the visible held weapon.
 - Preserved the current always-visible, depth-safe tracer material and flat strip mesh behavior on iOS Simulator.
 - Kept all weapons generated from existing collider-free primitive mesh helpers; no weapon art or external assets were imported.
+- June 15 follow-up removed the side-facing soldier reference cutout from runtime/editor-generated player squads after it made rifles point across the lane instead of toward zombies.
+- Generated survivor bodies are visible again, with legacy cutout renderers explicitly suppressed if an old scene contains them.
+- Survivor shot aim and recoil now animate the visible weapon/arm chain, so the selected gun kicks and yaws/pitches toward the zombie target point.
 
 ### Acceptance Criteria
 
@@ -419,6 +422,7 @@ Implemented in this slice:
 - Each weapon has a muzzle anchor at the visible barrel tip. Done.
 - Shot tracers start at the selected weapon muzzle in world space and point to the zombie target point. Done for weapon-origin shot events.
 - Tracers no longer start from behind the squad, from the lane stripe, or from a hard-coded approximate offset when muzzle anchors exist. Done.
+- Visible survivor weapons point down-lane toward zombie targets instead of sideways across the lane. Done by making generated humanoid rigs the visible player actors again and moving shot aim/recoil onto the weapon chain.
 - If a future scene omits weapon anchors, shooting still works with the existing safe fallback origin. Done through the no-muzzle event path.
 - No gameplay balance changes are introduced in this phase. Done.
 
@@ -427,11 +431,13 @@ Implemented in this slice:
 - EditMode coverage checks that the generated survivor squad has three distinct weapon profiles, each with a named muzzle anchor. Done.
 - EditMode coverage checks muzzle anchors are forward of their survivor bodies and parented under the corresponding weapon transforms. Done.
 - EditMode coverage checks rifle/shotgun eye-level holds, SMG hip-fire hold height, and stable survivor weapon arms during running. Done.
+- EditMode coverage now checks the old soldier card is absent, generated survivor renderers are enabled, survivor bodies are zombie-sized, muzzles face down-lane, and visible weapons recoil/yaw on shot. Done.
 - EditMode coverage checks shot events use a muzzle transform position when one is available. Done.
 - PlayMode coverage checks tracer spawning uses the supplied muzzle transform position without fake offsets. Done.
-- PlayMode coverage checks the runtime Minigame scene spawns all three weapons and muzzle anchors. Done.
+- PlayMode coverage checks the runtime Minigame scene spawns visible generated survivor bodies, suppresses legacy soldier cards, and exposes all three forward-facing weapons and muzzle anchors. Done.
 - Latest automated verification: Unity EditMode `74/74`, Unity PlayMode `17/17`, clean `git diff --check`, and iOS Simulator export/build/install/launch proof.
 - iOS Simulator verification captured `/private/tmp/4xgame-v5-weapons-20260608.mov`, `/private/tmp/4xgame-v5-weapons.gif`, `/private/tmp/4xgame-v5-combat-contact.jpg`, plus the follow-up firing-pose proof at `/private/tmp/4xgame-pose-20260608.mov`, `/private/tmp/4xgame-pose-20260608.gif`, and `/private/tmp/4xgame-pose-contact-20260608.jpg`; survivors visibly hold distinct generated weapons in firing pose, rifle/shotgun holds stay high, the SMG stays lower, and firing arms stay stable while legs run. Done.
+- Latest June 15 verification: clean `git diff --check`, Unity EditMode `85/85`, Unity PlayMode `31/31`, and a temp PlayMode capture `1/1` that produced `/private/tmp/4xgame-soldier-fix-proof/soldier-facing-fix.gif` plus `/private/tmp/4xgame-soldier-fix-proof/soldier-facing-fix-frame-04.png`; the capture shows generated soldiers with guns aimed up-lane at the proof zombie. Done.
 
 ## Local V6: Base Readability, HQ Growth, And Camera Control
 

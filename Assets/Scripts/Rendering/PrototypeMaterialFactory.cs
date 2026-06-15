@@ -294,7 +294,7 @@ namespace LaneSurvivor.Rendering
 
         private static void ConfigureForTexturedTransparent(Material material, int renderQueue)
         {
-            // Reference cards sit in the transparent pass so PNG alpha can cut out the soldier silhouette.
+            // Reference cards sit in the transparent pass so PNG alpha can cut out authored silhouettes.
             material.renderQueue = renderQueue;
 
             // Transparent classification keeps sprite-card backgrounds out of the opaque depth pass.
@@ -306,16 +306,16 @@ namespace LaneSurvivor.Rendering
             // Built-in Standard exposes _Mode, where 3 means transparent.
             SetMaterialFloatIfPresent(material, "_Mode", 3f);
 
-            // Standard alpha blending preserves the antialiased edge from the generated soldier cutouts.
+            // Standard alpha blending preserves the antialiased edge from generated reference cutouts.
             SetMaterialFloatIfPresent(material, "_SrcBlend", (float)BlendMode.SrcAlpha);
 
             // Destination alpha blending keeps road and zombie geometry visible around the cutout.
             SetMaterialFloatIfPresent(material, "_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
 
-            // The card should not write depth because the hidden rig and tracer path own gameplay positioning.
+            // The card should not write depth because world meshes and tracer paths own gameplay positioning.
             SetMaterialFloatIfPresent(material, "_ZWrite", 0f);
 
-            // Draw both sides so the fixed chase camera and editor view cannot cull the flat soldier card.
+            // Draw both sides so the fixed chase camera and editor view cannot cull flat reference cards.
             SetMaterialFloatIfPresent(material, "_Cull", (float)CullMode.Off);
 
             // Transparent keywords help compatible shader variants enter their alpha-blended path.

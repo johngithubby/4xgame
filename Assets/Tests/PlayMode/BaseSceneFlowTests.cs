@@ -1560,24 +1560,25 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNull(playerSquad.GetComponent<MeshFilter>());
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
             Assert.IsNotNull(playerSquad.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
-            Transform leaderSoldierVisual = playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
-            Transform leftSoldierVisual = playerSquad.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
-            Transform rightSoldierVisual = playerSquad.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
-            Assert.IsNotNull(leaderSoldierVisual);
-            Assert.IsNotNull(leftSoldierVisual);
-            Assert.IsNotNull(rightSoldierVisual);
+            Assert.IsNull(playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+            Assert.IsNull(playerSquad.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+            Assert.IsNull(playerSquad.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
             // Runtime weapon pose checks use visible body anchors, not hard-coded world heights.
             Transform leaderHead = playerSquad.transform.Find("Survivor Leader/Human Head");
             Transform leaderMuzzle = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            Transform leaderWeaponBody = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Body");
             Transform smgHead = playerSquad.transform.Find("Survivor Right Wing/Human Head");
             Transform smgPelvis = playerSquad.transform.Find("Survivor Right Wing/Human Pelvis");
             Transform smgMuzzle = playerSquad.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}/{PlayerSquad.WeaponMuzzleAnchorName}");
             Assert.IsNotNull(leaderHead);
             Assert.IsNotNull(leaderMuzzle);
+            Assert.IsNotNull(leaderWeaponBody);
             Assert.IsNotNull(playerSquad.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeftWingShotgunName}/{PlayerSquad.WeaponMuzzleAnchorName}"));
             Assert.IsNotNull(smgMuzzle);
             Assert.IsNotNull(smgHead);
             Assert.IsNotNull(smgPelvis);
+            // Runtime muzzles must point toward larger Z values, which is where zombies spawn.
+            Assert.Greater(Vector3.Dot(leaderMuzzle.forward.normalized, Vector3.forward), 0.90f);
             // Long-gun muzzle height should stay near the survivor head in the real Minigame scene.
             Assert.GreaterOrEqual(leaderMuzzle.position.y, leaderHead.position.y - 0.08f);
             // The compact SMG should be clearly lower, but still above the lower-body anchor.
@@ -1585,19 +1586,22 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.Greater(smgMuzzle.position.y, smgPelvis.position.y);
             Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 30);
             MeshRenderer leaderHeadRenderer = leaderHead.GetComponent<MeshRenderer>();
-            MeshRenderer leaderSoldierRenderer = leaderSoldierVisual.GetComponent<MeshRenderer>();
+            MeshRenderer leaderWeaponRenderer = leaderWeaponBody.GetComponent<MeshRenderer>();
             Assert.IsNotNull(leaderHeadRenderer);
-            Assert.IsNotNull(leaderSoldierRenderer);
-            Assert.IsFalse(leaderHeadRenderer.enabled);
-            Assert.IsTrue(leaderSoldierRenderer.enabled);
-            Assert.IsNotNull(leaderSoldierRenderer.sharedMaterial.mainTexture);
-            MeshRenderer leftSoldierRenderer = leftSoldierVisual.GetComponent<MeshRenderer>();
-            MeshRenderer rightSoldierRenderer = rightSoldierVisual.GetComponent<MeshRenderer>();
-            Assert.IsNotNull(leftSoldierRenderer);
-            Assert.IsNotNull(rightSoldierRenderer);
-            Assert.AreEqual(GameplayVisuals.ZombieCardHeight, leaderSoldierRenderer.bounds.size.y, 0.01f);
-            Assert.AreEqual(leaderSoldierRenderer.bounds.size.y, leftSoldierRenderer.bounds.size.y, 0.01f);
-            Assert.AreEqual(leaderSoldierRenderer.bounds.size.y, rightSoldierRenderer.bounds.size.y, 0.01f);
+            Assert.IsNotNull(leaderWeaponRenderer);
+            Assert.IsTrue(leaderHeadRenderer.enabled);
+            Assert.IsTrue(leaderWeaponRenderer.enabled);
+            // Runtime survivor bodies should stay comparable to the visible zombie body height.
+            Bounds leaderBounds = CalculateEnabledRendererBounds(playerSquad.transform.Find("Survivor Leader"));
+            Bounds leftBounds = CalculateEnabledRendererBounds(playerSquad.transform.Find("Survivor Left Wing"));
+            Bounds rightBounds = CalculateEnabledRendererBounds(playerSquad.transform.Find("Survivor Right Wing"));
+            GameObject zombie = GameObject.Find("Zombie");
+            Assert.IsNotNull(zombie);
+            Bounds zombieBounds = CalculateEnabledRendererBounds(zombie.transform.Find("Zombie Figure"));
+            Assert.GreaterOrEqual(leaderBounds.size.y, zombieBounds.size.y * 0.90f);
+            Assert.LessOrEqual(leaderBounds.size.y, zombieBounds.size.y * 1.08f);
+            Assert.AreEqual(leaderBounds.size.y, leftBounds.size.y, 0.01f);
+            Assert.AreEqual(leaderBounds.size.y, rightBounds.size.y, 0.01f);
             PlayerSquad playerSquadComponent = playerSquad.GetComponent<PlayerSquad>();
             Assert.IsNotNull(playerSquadComponent);
             Assert.AreEqual(3, playerSquadComponent.WeaponMuzzleCount);
@@ -1610,7 +1614,7 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNull(GameObject.Find("Player Squad Screen Marker"));
 
             // At least one spawned enemy should be a humanoid zombie rather than a single rectangular card.
-            GameObject zombie = GameObject.Find("Zombie");
+            zombie = GameObject.Find("Zombie");
             Assert.IsNotNull(zombie);
             Assert.IsNull(zombie.GetComponent<MeshFilter>());
             Assert.IsNotNull(zombie.transform.Find("Zombie Figure/Zombie Head"));
@@ -2166,6 +2170,44 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.AreEqual(expected.g, actual.g, 0.01f);
             Assert.AreEqual(expected.b, actual.b, 0.01f);
             Assert.AreEqual(expected.a, actual.a, 0.01f);
+        }
+
+        private static Bounds CalculateEnabledRendererBounds(Transform root)
+        {
+            // A null transform means the generated runtime hierarchy no longer matches the expected actor shape.
+            Assert.IsNotNull(root);
+
+            // The first enabled renderer seeds the bounds with the real visible position and extents.
+            bool hasBounds = false;
+
+            // World-space bounds allow runtime survivor and zombie bodies to be compared directly.
+            Bounds combinedBounds = default;
+
+            // Include inactive descendants so renderer.enabled is the only visibility filter.
+            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                // Hidden fallback visuals should not inflate the visible character height.
+                if (!renderer.enabled)
+                {
+                    continue;
+                }
+
+                if (!hasBounds)
+                {
+                    // Seed once so the combined center is not biased toward Vector3.zero.
+                    combinedBounds = renderer.bounds;
+                    hasBounds = true;
+                    continue;
+                }
+
+                // Encapsulate each visible part to get the whole humanoid envelope.
+                combinedBounds.Encapsulate(renderer.bounds);
+            }
+
+            // Runtime actors with no enabled renderer would be invisible even if their gameplay objects exist.
+            Assert.IsTrue(hasBounds, $"{root.name} should have at least one enabled renderer.");
+
+            return combinedBounds;
         }
 
         private static void AssertCornersApproximately(Vector3[] expected, Vector3[] actual, string label)

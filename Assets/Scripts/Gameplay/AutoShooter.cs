@@ -81,7 +81,7 @@ namespace LaneSurvivor.Gameplay
                     shotOrigin = playerSquad.transform.position + Vector3.up * 0.5f;
                 }
 
-                // The visible soldier card uses the same target point as the tracer so the firing pose aims at the zombie.
+                // The visible survivor rig uses the same target point as the tracer so the weapon aims at the zombie.
                 survivorAnimator?.PlaySurvivorShot(shotOrigin, targetPoint);
 
                 ShotFired?.Invoke(shotOrigin, targetPoint, appliedDamage, shotStartedAtWeaponMuzzle);

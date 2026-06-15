@@ -335,9 +335,10 @@ namespace LaneSurvivor.Tests.EditMode
                 // The first round-robin shot should come from the leader rifle muzzle.
                 Transform expectedMuzzle = playerObject.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
                 Assert.IsNotNull(expectedMuzzle);
-                Transform leaderSoldierVisual = playerObject.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
-                Assert.IsNotNull(leaderSoldierVisual);
-                Vector3 leaderSoldierRestPosition = leaderSoldierVisual.localPosition;
+                Transform leaderWeapon = playerObject.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
+                Assert.IsNotNull(leaderWeapon);
+                Vector3 leaderWeaponRestPosition = leaderWeapon.localPosition;
+                Quaternion leaderWeaponRestRotation = leaderWeapon.localRotation;
                 PrototypeHumanoidAnimator playerAnimator = playerObject.GetComponent<PrototypeHumanoidAnimator>();
                 Assert.IsNotNull(playerAnimator);
 
@@ -362,9 +363,10 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.AreEqual(expectedMuzzle.position.y, actualOrigin.y, 0.001f);
                 Assert.AreEqual(expectedMuzzle.position.z, actualOrigin.z, 0.001f);
 
-                // The same muzzle-driven shot should kick the visible soldier card instead of only spawning a tracer.
+                // The same muzzle-driven shot should kick the visible weapon instead of only spawning a tracer.
                 playerAnimator.ForceEvaluate(0.02f, true);
-                Assert.Less(leaderSoldierVisual.localPosition.z, leaderSoldierRestPosition.z - 0.001f);
+                Assert.Less(leaderWeapon.localPosition.z, leaderWeaponRestPosition.z - 0.001f);
+                Assert.Greater(Quaternion.Angle(leaderWeaponRestRotation, leaderWeapon.localRotation), 0.1f);
             }
             finally
             {
@@ -692,32 +694,32 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Head"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left"));
                 Assert.IsNotNull(player.transform.Find("Survivor Leader/Human Leg Left/Human Knee Left/Human Shin Left"));
-                Assert.IsNotNull(player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
-                Assert.IsNotNull(player.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
-                Assert.IsNotNull(player.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+                Assert.IsNull(player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+                Assert.IsNull(player.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
+                Assert.IsNull(player.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeftWingShotgunName}"));
                 Assert.IsNotNull(player.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.RightWingSmgName}"));
                 Assert.IsNotNull(player.transform.Find("Survivor Right Wing/Human Leg Right/Human Knee Right/Human Shin Right/Human Boot Right"));
                 Assert.GreaterOrEqual(player.GetComponentsInChildren<MeshRenderer>().Length, 30);
 
-                // The old primitive rig remains as hidden anchors; only the soldier PNG cards should be enabled.
+                // The generated rig is the visible actor now because the old sideways cutout aimed across the lane.
                 MeshRenderer leaderHeadRenderer = player.transform.Find("Survivor Leader/Human Head").GetComponent<MeshRenderer>();
-                MeshRenderer leaderSoldierRenderer = player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}").GetComponent<MeshRenderer>();
-                MeshRenderer leftSoldierRenderer = player.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}").GetComponent<MeshRenderer>();
-                MeshRenderer rightSoldierRenderer = player.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SoldierReferenceVisualName}").GetComponent<MeshRenderer>();
+                MeshRenderer leaderWeaponRenderer = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Body").GetComponent<MeshRenderer>();
                 Assert.IsNotNull(leaderHeadRenderer);
-                Assert.IsNotNull(leaderSoldierRenderer);
-                Assert.IsNotNull(leftSoldierRenderer);
-                Assert.IsNotNull(rightSoldierRenderer);
-                Assert.IsFalse(leaderHeadRenderer.enabled);
-                Assert.IsTrue(leaderSoldierRenderer.enabled);
-                Assert.IsNotNull(leaderSoldierRenderer.sharedMaterial.mainTexture);
+                Assert.IsNotNull(leaderWeaponRenderer);
+                Assert.IsTrue(leaderHeadRenderer.enabled);
+                Assert.IsTrue(leaderWeaponRenderer.enabled);
 
-                // All three rendered soldiers must be zombie-sized instead of shrinking the wing survivors.
-                Assert.AreEqual(GameplayVisuals.ZombieCardHeight, leaderSoldierRenderer.bounds.size.y, 0.01f);
-                Assert.AreEqual(leaderSoldierRenderer.bounds.size.y, leftSoldierRenderer.bounds.size.y, 0.01f);
-                Assert.AreEqual(leaderSoldierRenderer.bounds.size.y, rightSoldierRenderer.bounds.size.y, 0.01f);
+                // All three rendered soldiers must remain comparable to the generated zombie body height.
+                Bounds leaderBounds = CalculateEnabledRendererBounds(player.transform.Find("Survivor Leader"));
+                Bounds leftBounds = CalculateEnabledRendererBounds(player.transform.Find("Survivor Left Wing"));
+                Bounds rightBounds = CalculateEnabledRendererBounds(player.transform.Find("Survivor Right Wing"));
+                Bounds zombieBounds = CalculateEnabledRendererBounds(zombie.transform.Find("Zombie Figure"));
+                Assert.GreaterOrEqual(leaderBounds.size.y, zombieBounds.size.y * 0.90f);
+                Assert.LessOrEqual(leaderBounds.size.y, zombieBounds.size.y * 1.08f);
+                Assert.AreEqual(leaderBounds.size.y, leftBounds.size.y, 0.01f);
+                Assert.AreEqual(leaderBounds.size.y, rightBounds.size.y, 0.01f);
 
                 // Every distinct weapon profile should own a direct muzzle anchor at the visible barrel tip.
                 AssertWeaponMuzzle(player.transform, "Survivor Leader", PrototypeCharacterFactory.LeaderRifleName);
@@ -806,7 +808,6 @@ namespace LaneSurvivor.Tests.EditMode
                 Transform playerWeaponHand = player.transform.Find("Survivor Leader/Human Arm Right/Human Hand Right");
                 Transform playerWeapon = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
                 Transform playerMuzzle = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
-                Transform playerSoldierVisual = player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SoldierReferenceVisualName}");
                 Assert.IsNotNull(playerLeg);
                 Assert.IsNotNull(playerKnee);
                 Assert.IsNotNull(playerShin);
@@ -814,7 +815,6 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsNotNull(playerWeaponHand);
                 Assert.IsNotNull(playerWeapon);
                 Assert.IsNotNull(playerMuzzle);
-                Assert.IsNotNull(playerSoldierVisual);
                 Assert.AreSame(playerLeg, playerKnee.parent);
                 Assert.AreSame(playerKnee, playerShin.parent);
                 Quaternion playerLegRestRotation = playerLeg.localRotation;
@@ -822,9 +822,6 @@ namespace LaneSurvivor.Tests.EditMode
                 Quaternion playerWeaponArmRestRotation = playerWeaponArm.localRotation;
                 Quaternion playerWeaponHandRestRotation = playerWeaponHand.localRotation;
                 Quaternion playerWeaponRestRotation = playerWeapon.localRotation;
-                Vector3 playerSoldierRestWorldPosition = playerSoldierVisual.position;
-                Vector3 playerSoldierRestLocalPosition = playerSoldierVisual.localPosition;
-                Quaternion playerSoldierRestLocalRotation = playerSoldierVisual.localRotation;
 
                 // A forced moving evaluation should swing the hip and bend the connected knee joint.
                 playerAnimator.ForceEvaluate(0.4f, true);
@@ -834,21 +831,19 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.Greater(playerThighSwing, 0.1f);
                 Assert.Greater(playerKneeBend, playerThighSwing + 5f);
                 Assert.Less(Vector3.Distance(playerKnee.position, playerShin.position), 0.001f);
-                Assert.Greater(Vector3.Distance(playerSoldierRestWorldPosition, playerSoldierVisual.position), 0.001f);
-                Assert.Greater(Mathf.Abs(playerSoldierVisual.localPosition.x - playerSoldierRestLocalPosition.x), 0.001f);
-                Assert.Greater(Quaternion.Angle(playerSoldierRestLocalRotation, playerSoldierVisual.localRotation), 0.1f);
 
                 // Survivor firing arms should stay in their authored weapon pose while the legs do the running.
                 Assert.Less(Quaternion.Angle(playerWeaponArmRestRotation, playerWeaponArm.localRotation), 0.001f);
                 Assert.Less(Quaternion.Angle(playerWeaponHandRestRotation, playerWeaponHand.localRotation), 0.001f);
                 Assert.Less(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.001f);
 
-                // A direct shot notification should add recoil to the visible soldier card without moving the hidden weapon.
-                Vector3 playerSoldierRunningLocalPosition = playerSoldierVisual.localPosition;
+                // A direct shot notification should add target-aware recoil to the visible weapon chain.
+                Vector3 playerWeaponRunningLocalPosition = playerWeapon.localPosition;
                 playerAnimator.PlaySurvivorShot(playerMuzzle.position, playerMuzzle.position + new Vector3(0.45f, -0.1f, 3f));
                 playerAnimator.ForceEvaluate(0.02f, true);
-                Assert.Less(playerSoldierVisual.localPosition.z, playerSoldierRunningLocalPosition.z - 0.001f);
-                Assert.Greater(Mathf.DeltaAngle(0f, playerSoldierVisual.localEulerAngles.y), 1f);
+                Assert.Less(playerWeapon.localPosition.z, playerWeaponRunningLocalPosition.z - 0.001f);
+                Assert.Greater(Mathf.Abs(Mathf.DeltaAngle(0f, playerWeapon.localEulerAngles.y)), 1f);
+                Assert.Greater(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.1f);
 
                 // The zombie animator should shamble even when the gameplay root is stationary.
                 PrototypeHumanoidAnimator zombieAnimator = zombie.GetComponent<PrototypeHumanoidAnimator>();
@@ -1180,6 +1175,9 @@ namespace LaneSurvivor.Tests.EditMode
             Transform survivor = playerRoot.Find(survivorName);
             Assert.IsNotNull(survivor);
             Assert.Greater(muzzle.position.z, survivor.position.z + 0.2f);
+
+            // The muzzle's forward axis should point toward larger Z values, matching the zombie approach direction.
+            Assert.Greater(Vector3.Dot(muzzle.forward.normalized, Vector3.forward), 0.90f, $"{weaponName} muzzle should face down-lane.");
         }
 
         private static void AssertEyeLevelWeaponHold(Transform playerRoot, string survivorName, string weaponName)
@@ -1222,6 +1220,44 @@ namespace LaneSurvivor.Tests.EditMode
             {
                 Assert.IsFalse(component.GetType().Name.Contains("Collider"), $"{component.name} should not have a collider component.");
             }
+        }
+
+        private static Bounds CalculateEnabledRendererBounds(Transform root)
+        {
+            // Tests call this on named generated bodies, so a null transform means the hierarchy regressed.
+            Assert.IsNotNull(root);
+
+            // The first enabled renderer seeds the combined bounds without inventing a fake origin.
+            bool hasBounds = false;
+
+            // Unity bounds are world-space, which lets this compare differently parented survivor and zombie bodies.
+            Bounds combinedBounds = default;
+
+            // Include inactive descendants so renderer visibility, not object activation, decides the visual envelope.
+            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                // Hidden legacy or fallback renderers should not contribute to the visible actor size.
+                if (!renderer.enabled)
+                {
+                    continue;
+                }
+
+                if (!hasBounds)
+                {
+                    // Seed with the first real renderer to preserve its center and extents exactly.
+                    combinedBounds = renderer.bounds;
+                    hasBounds = true;
+                    continue;
+                }
+
+                // Expanding bounds across all visible body parts gives a stable full-character height.
+                combinedBounds.Encapsulate(renderer.bounds);
+            }
+
+            // A generated visible body without renderers would recreate the invisible-player failure mode.
+            Assert.IsTrue(hasBounds, $"{root.name} should have at least one enabled renderer.");
+
+            return combinedBounds;
         }
 
         private static Color ReadMaterialColor(Material material)

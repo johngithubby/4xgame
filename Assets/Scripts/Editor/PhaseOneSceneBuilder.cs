@@ -153,16 +153,11 @@ namespace LaneSurvivor.EditorTools
             // Keeping this helper local makes editor scene output match runtime bootstrap visibility.
             foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
             {
-                if (!isVisible)
-                {
-                    renderer.enabled = false;
-                    continue;
-                }
+                // Legacy generated scenes may still contain the removed sideways soldier cutout child.
+                bool isLegacySoldierCutout = renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName;
 
-                if (renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName)
-                {
-                    renderer.enabled = true;
-                }
+                // Fresh editor rebuilds should show the generated humanoid meshes, not the old cutout plane.
+                renderer.enabled = isVisible && !isLegacySoldierCutout;
             }
         }
 
