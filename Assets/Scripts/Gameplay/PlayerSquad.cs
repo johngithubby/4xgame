@@ -80,27 +80,39 @@ namespace LaneSurvivor.Gameplay
 
         public bool TryGetNextWeaponMuzzlePosition(out Vector3 muzzlePosition)
         {
-            // Destroyed Unity objects compare as null, so prune before indexing the rotation list.
-            PruneMissingWeaponMuzzles();
-
-            if (weaponMuzzles.Count == 0)
+            // Reuse the transform-returning path so visual effects and older position-only callers stay in sync.
+            if (!TryGetNextWeaponMuzzle(out Transform muzzle))
             {
                 // The caller owns fallback origin selection when a future scene has no generated weapons.
                 muzzlePosition = default;
                 return false;
             }
 
+            // World position is used by older position-only shot feedback paths.
+            muzzlePosition = muzzle.position;
+            return true;
+        }
+
+        public bool TryGetNextWeaponMuzzle(out Transform muzzle)
+        {
+            // Destroyed Unity objects compare as null, so prune before indexing the rotation list.
+            PruneMissingWeaponMuzzles();
+
+            if (weaponMuzzles.Count == 0)
+            {
+                // The caller owns fallback origin selection when a future scene has no generated weapons.
+                muzzle = null;
+                return false;
+            }
+
             // Keep the index valid if a muzzle was removed after the last shot.
             nextWeaponMuzzleIndex %= weaponMuzzles.Count;
 
-            // Select the current muzzle before advancing so callers receive a stable world-space point.
-            Transform muzzle = weaponMuzzles[nextWeaponMuzzleIndex];
+            // Select the current muzzle before advancing so callers receive the transform used for this shot.
+            muzzle = weaponMuzzles[nextWeaponMuzzleIndex];
 
             // Advance for the next shot, rotating through leader, left wing, and right wing anchors.
             nextWeaponMuzzleIndex = (nextWeaponMuzzleIndex + 1) % weaponMuzzles.Count;
-
-            // World position is used because shot tracers are world-space feedback meshes.
-            muzzlePosition = muzzle.position;
             return true;
         }
 

@@ -44,21 +44,36 @@ namespace LaneSurvivor.Rendering
         [SerializeField]
         private float headNodDegrees = 3.2f;
 
-        // Vertical bob makes footsteps visible even from the chase camera angle.
+        // Vertical bob supports the stride but stays secondary to visible leg motion.
         [SerializeField]
         private float bobHeight = 0.035f;
+
+        // Survivor roots lean down-lane during a run so they look like they are driving toward the zombies.
+        private const float SurvivorRunForwardLeanDegrees = 8f;
+
+        // A visible local root stride adds forward/back body travel without moving the gameplay anchor or camera target.
+        private const float SurvivorRunStrideDepth = 0.055f;
+
+        // Pelvis twist makes the run read as a human gait rather than two pendulum legs.
+        private const float SurvivorRunPelvisYawDegrees = 7f;
+
+        // The support arm can pump more because it is not responsible for exact muzzle alignment.
+        private const float SurvivorRunSupportArmSwingShare = 0.55f;
+
+        // The weapon arm still moves, but less than the support arm so shooting remains readable.
+        private const float SurvivorRunWeaponArmSwingShare = 0.30f;
 
         // Shot recoil recovers quickly so every AutoShooter volley can visibly kick the selected weapon.
         private const float ShotRecoilRecoverySpeed = 9f;
 
-        // Recoil nudges the visible weapon backward in local Z, away from the authored muzzle direction.
-        private const float ShotRecoilBackOffset = 0.045f;
+        // Recoil nudges the visible weapon rig backward in local Z, away from the authored muzzle direction.
+        private const float ShotRecoilBackOffset = 0.075f;
 
-        // A tiny lift keeps the weapon kick readable without pulling the gun far away from the hands.
-        private const float ShotRecoilLift = 0.025f;
+        // A small lift keeps the weapon kick readable without pulling the gun far away from the hands.
+        private const float ShotRecoilLift = 0.030f;
 
-        // A small pitch gives the generated weapon a firing kick while preserving the forward aim.
-        private const float ShotRecoilPitchDegrees = -5.8f;
+        // A stronger pitch gives the generated weapon and decal a visible firing kick while preserving forward aim.
+        private const float ShotRecoilPitchDegrees = -10.5f;
 
         // Aim pose fades slower than recoil so rapid auto-fire keeps soldiers visibly oriented at their target.
         private const float ShotAimRecoverySpeed = 2.8f;
@@ -84,20 +99,14 @@ namespace LaneSurvivor.Rendering
         // Head pitch keeps the face aligned with the target while the weapon recoils separately.
         private const float ShotAimHeadPitchShare = 0.35f;
 
-        // Legacy cutout fallback sways side to side so old generated cards visibly step if they still exist.
-        private const float SoldierWalkSway = 0.035f;
+        // The approved cutout gets enough recoil to visibly fire even though the primitive weapon mesh is hidden.
+        private const float ShotReferenceUpperRecoilShare = 0.72f;
 
-        // Legacy cutout fallback lift makes baked PNG boots pulse with the generated leg cycle.
-        private const float SoldierWalkLift = 0.030f;
+        // The approved upper cutout follows target yaw enough to read as aiming without over-twisting the art.
+        private const float ShotReferenceUpperYawShare = 0.35f;
 
-        // Legacy cutout fallback depth motion creates a stride impression on the lane axis.
-        private const float SoldierWalkStrideDepth = 0.028f;
-
-        // Legacy cutout fallback roll is its strongest walk cue at phone scale.
-        private const float SoldierWalkRollDegrees = 4.8f;
-
-        // Legacy cutout fallback pitch is subtle so walking does not look like falling.
-        private const float SoldierWalkPitchDegrees = 1.8f;
+        // The approved upper cutout follows target pitch gently because the source model already shoulders the rifle.
+        private const float ShotReferenceUpperPitchShare = 0.25f;
 
         // Last position is used to detect root motion for survivor walking.
         private Vector3 lastWorldPosition;
@@ -195,7 +204,7 @@ namespace LaneSurvivor.Rendering
                 RebuildRigCache();
             }
 
-            // Only survivor squads have visible weapon recoil.
+            // Only survivor squads use weapon recoil and target-aware body aim.
             if (animationStyle != PrototypeHumanoidAnimationStyle.SurvivorSquad)
             {
                 return;
@@ -236,7 +245,7 @@ namespace LaneSurvivor.Rendering
                 }
             }
 
-            // If no specific rig could be matched, skip rather than kicking every visible weapon at once.
+            // If no specific rig could be matched, skip rather than kicking every soldier at once.
             if (closestRig == null)
             {
                 return;
@@ -245,7 +254,7 @@ namespace LaneSurvivor.Rendering
             // A value of one lets ApplyRigPose create the authored recoil offset on the next animation evaluation.
             closestRig.shotRecoil = 1f;
 
-            // A value of one lets ApplyRigPose turn the visible weapon chain toward the target for this shot.
+            // A value of one lets ApplyRigPose turn the jointed soldier and weapon toward the target.
             closestRig.shotAimWeight = 1f;
 
             // Store the target-facing angles on the rig so recoil recovery does not erase aiming immediately.
@@ -291,13 +300,13 @@ namespace LaneSurvivor.Rendering
             {
                 case PrototypeHumanoidAnimationStyle.SurvivorSquad:
                     // Survivors use an exaggerated mobile-scale run cycle so limb motion reads from the chase camera.
-                    cycleSpeed = 9.4f;
-                    legSwingDegrees = 40f;
-                    kneeBendDegrees = 68f;
-                    armSwingDegrees = 40f;
-                    bodyRollDegrees = 5.0f;
-                    headNodDegrees = 5.2f;
-                    bobHeight = 0.065f;
+                    cycleSpeed = 10.2f;
+                    legSwingDegrees = 72f;
+                    kneeBendDegrees = 88f;
+                    armSwingDegrees = 44f;
+                    bodyRollDegrees = 4.2f;
+                    headNodDegrees = 4.6f;
+                    bobHeight = 0.000f;
                     break;
                 case PrototypeHumanoidAnimationStyle.ZombieShamble:
                     // Basic zombies move slower, with connected dragging legs and a heavier body sway.
@@ -426,30 +435,42 @@ namespace LaneSurvivor.Rendering
             // The head nod trails the body roll so the pose feels less mechanical.
             float headNod = Mathf.Sin(phase + Mathf.PI * 0.5f) * headNodDegrees * weight;
 
+            // Survivor style drives the real 3D squad; zombie styles keep the neutral zero values.
+            bool isSurvivorStyle = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad;
+
             // Survivor aim fades between volleys; non-survivor styles keep the neutral zero values.
-            float survivorAimPitch = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotAimPitchDegrees * rig.shotAimWeight : 0f;
+            float survivorAimPitch = isSurvivorStyle ? rig.shotAimPitchDegrees * rig.shotAimWeight : 0f;
 
             // Positive yaw means a target is to the right in survivor-local space.
-            float survivorAimYaw = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotAimYawDegrees * rig.shotAimWeight : 0f;
+            float survivorAimYaw = isSurvivorStyle ? rig.shotAimYawDegrees * rig.shotAimWeight : 0f;
 
             // Root yaw lets the generated 3D soldier rotate as a body instead of acting like a flat card.
-            float survivorBodyYaw = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? survivorAimYaw * ShotAimRootYawShare : 0f;
+            float survivorBodyYaw = isSurvivorStyle ? survivorAimYaw * ShotAimRootYawShare : 0f;
 
             // The recoil pitch is additive with aim so shots kick without changing the target direction permanently.
-            float survivorRecoilPitch = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? rig.shotRecoil * ShotRecoilPitchDegrees : 0f;
+            float survivorRecoilPitch = isSurvivorStyle ? rig.shotRecoil * ShotRecoilPitchDegrees : 0f;
 
             // Local recoil offset slides the selected gun backward while the root and tracers stay in world space.
-            Vector3 survivorRecoilOffset = animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad ? new Vector3(0f, rig.shotRecoil * ShotRecoilLift, -rig.shotRecoil * ShotRecoilBackOffset) : Vector3.zero;
+            Vector3 survivorRecoilOffset = isSurvivorStyle ? new Vector3(0f, rig.shotRecoil * ShotRecoilLift, -rig.shotRecoil * ShotRecoilBackOffset) : Vector3.zero;
 
-            // Move and roll the rig root as a single body mass.
-            rig.root.localPosition = rig.initialRootLocalPosition + Vector3.up * bounce;
-            rig.root.localRotation = rig.initialRootLocalRotation * Quaternion.Euler(0f, survivorBodyYaw, bodyRoll);
+            // A forward lean only applies to running survivors because zombies keep their authored hunch elsewhere.
+            float survivorRunLean = isSurvivorStyle ? SurvivorRunForwardLeanDegrees * weight : 0f;
+
+            // Subtle fore/aft stride travel makes the survivor body run instead of only bobbing vertically.
+            Vector3 survivorRunOffset = isSurvivorStyle ? Vector3.forward * (Mathf.Cos(phase) * SurvivorRunStrideDepth * weight) : Vector3.zero;
+
+            // Alternating hip yaw counterbalances the longer leg swing.
+            float survivorPelvisYaw = isSurvivorStyle ? Mathf.Sin(phase) * SurvivorRunPelvisYawDegrees * weight : 0f;
+
+            // Move, lean, and roll the rig root as a single body mass.
+            rig.root.localPosition = rig.initialRootLocalPosition + Vector3.up * bounce + survivorRunOffset;
+            rig.root.localRotation = rig.initialRootLocalRotation * Quaternion.Euler(survivorRunLean, survivorBodyYaw, bodyRoll);
 
             // Torso aim/yaw makes the chest armor visibly track the same target as the weapon.
-            ApplyPartPose(rig.torso, Quaternion.Euler(survivorAimPitch * ShotAimTorsoPitchShare, survivorAimYaw * ShotAimTorsoYawShare, bodyRoll * 0.35f), Vector3.zero);
+            ApplyPartPose(rig.torso, Quaternion.Euler(survivorAimPitch * ShotAimTorsoPitchShare, survivorAimYaw * ShotAimTorsoYawShare - survivorPelvisYaw * 0.30f, bodyRoll * 0.35f), Vector3.zero);
 
             // The pelvis counter-rotates slightly so the body does not look like one stiff piece.
-            ApplyPartPose(rig.pelvis, Quaternion.Euler(0f, 0f, -bodyRoll * 0.45f), Vector3.zero);
+            ApplyPartPose(rig.pelvis, Quaternion.Euler(0f, survivorPelvisYaw, -bodyRoll * 0.45f), Vector3.zero);
 
             // Connected hip pivots swing the whole leg chain so knees and ankles remain attached.
             ApplyPartPose(rig.leftLeg, Quaternion.Euler(leftHipSwing, 0f, 0f), Vector3.zero);
@@ -467,19 +488,25 @@ namespace LaneSurvivor.Rendering
             ApplyPartPose(rig.leftFoot, Quaternion.Euler(-leftHipSwing * 0.22f - leftKneeBend * 0.30f, 0f, 0f), Vector3.zero);
             ApplyPartPose(rig.rightFoot, Quaternion.Euler(-rightHipSwing * 0.22f - rightKneeBend * 0.30f, 0f, 0f), Vector3.zero);
 
-            if (animationStyle == PrototypeHumanoidAnimationStyle.SurvivorSquad)
+            if (isSurvivorStyle)
             {
+                // The support arm pumps opposite the weapon arm while still tracking part of the aim.
+                float supportArmRunPitch = counterStride * weightedArmSwing * SurvivorRunSupportArmSwingShare;
+
+                // The weapon arm runs with a smaller pump so the rifle still points down-lane.
+                float weaponArmRunPitch = stride * weightedArmSwing * SurvivorRunWeaponArmSwingShare;
+
                 // The support arm tracks part of the aim so the visible grip follows the weapon without flailing.
-                ApplyPartPose(rig.leftArm, Quaternion.Euler(survivorAimPitch * 0.45f, survivorAimYaw * 0.55f, 0f), Vector3.zero);
+                ApplyPartPose(rig.leftArm, Quaternion.Euler(supportArmRunPitch + survivorAimPitch * 0.45f, survivorAimYaw * 0.55f, 0f), Vector3.zero);
 
                 // The firing shoulder receives most of the aim plus a small recoil pitch at shot time.
-                ApplyPartPose(rig.rightArm, Quaternion.Euler(survivorAimPitch * 0.75f + survivorRecoilPitch * 0.45f, survivorAimYaw * 0.75f, 0f), Vector3.zero);
+                ApplyPartPose(rig.rightArm, Quaternion.Euler(weaponArmRunPitch + survivorAimPitch * 0.75f + survivorRecoilPitch * 0.45f, survivorAimYaw * 0.75f, 0f), Vector3.zero);
 
                 // Hand transforms keep eye-level and hip-fire grips coherent while still letting target aim show.
-                ApplyPartPose(rig.leftHand, Quaternion.Euler(survivorAimPitch * 0.55f, survivorAimYaw * 0.65f, 0f), Vector3.zero);
+                ApplyPartPose(rig.leftHand, Quaternion.Euler(supportArmRunPitch * 0.20f + survivorAimPitch * 0.55f, survivorAimYaw * 0.65f, 0f), Vector3.zero);
 
                 // The weapon hand absorbs enough recoil to make the shot visible without desyncing the barrel.
-                ApplyPartPose(rig.rightHand, Quaternion.Euler(survivorAimPitch * 0.65f + survivorRecoilPitch * 0.35f, survivorAimYaw * 0.85f, 0f), Vector3.zero);
+                ApplyPartPose(rig.rightHand, Quaternion.Euler(weaponArmRunPitch * 0.25f + survivorAimPitch * 0.65f + survivorRecoilPitch * 0.35f, survivorAimYaw * 0.85f, 0f), Vector3.zero);
             }
             else
             {
@@ -495,56 +522,11 @@ namespace LaneSurvivor.Rendering
             // The head gets nod, target tracking, and a tiny vertical offset so helmets read as alive.
             ApplyPartPose(rig.head, Quaternion.Euler(headNod + survivorAimPitch * ShotAimHeadPitchShare, survivorAimYaw * ShotAimHeadYawShare, -bodyRoll * 0.2f), Vector3.up * bounce * 0.28f);
 
-            // Held survivor weapons visibly aim and recoil; zombie rigs have no weapon part and stay inert here.
+            // Held survivor weapons visibly aim, run with the arm chain, and recoil; zombie rigs stay inert here.
             ApplyPartPose(rig.weapon, Quaternion.Euler(survivorAimPitch + survivorRecoilPitch, survivorAimYaw, 0f), survivorRecoilOffset);
 
-            // Legacy soldier cards, if present in an old scene, receive fallback walk, aim, and shot motion.
-            ApplySoldierReferencePose(rig, phase, weight, stride);
-        }
-
-        private static void ApplySoldierReferencePose(HumanoidRig rig, float phase, float weight, float stride)
-        {
-            // New runtime rigs omit the old card entirely, so this fallback stays optional.
-            if (!rig.soldierVisual.IsValid)
-            {
-                return;
-            }
-
-            // Lateral sway makes the full-body PNG read as walking even though its internal legs are baked into the art.
-            float walkSway = Mathf.Sin(phase) * SoldierWalkSway * weight;
-
-            // Twice-per-cycle lift matches the root bob and gives every footfall a visible pulse.
-            float walkLift = Mathf.Abs(Mathf.Cos(phase)) * SoldierWalkLift * weight;
-
-            // Depth stride keeps the legacy card's lower body from looking like it slides down the lane.
-            float walkStrideDepth = Mathf.Cos(phase) * SoldierWalkStrideDepth * weight;
-
-            // Roll follows the stride direction, giving the soldier weight over the planted side.
-            float walkRoll = -stride * SoldierWalkRollDegrees * weight;
-
-            // Pitch oscillates gently across the stride so walking and shooting remain distinguishable.
-            float walkPitch = Mathf.Sin(phase + Mathf.PI * 0.5f) * SoldierWalkPitchDegrees * weight;
-
-            // Shot recoil moves legacy flat art just enough to read without drifting away from its rig.
-            Vector3 recoilOffset = new(0f, rig.shotRecoil * ShotRecoilLift, -rig.shotRecoil * ShotRecoilBackOffset);
-
-            // Walking and recoil are additive because they describe independent parts of the visible performance.
-            Vector3 additiveOffset = new Vector3(walkSway, walkLift, walkStrideDepth) + recoilOffset;
-
-            // Aim angles fade with their own weight so the soldier keeps facing the zombie between fast shots.
-            float aimPitch = rig.shotAimPitchDegrees * rig.shotAimWeight;
-
-            // Positive local yaw turns the legacy soldier card toward right-side targets while still facing down-lane.
-            float aimYaw = rig.shotAimYawDegrees * rig.shotAimWeight;
-
-            // A small pitch sells weapon kick on the full-body legacy card while the real muzzle remains stable.
-            float recoilPitch = rig.shotRecoil * ShotRecoilPitchDegrees;
-
-            // Card rotation combines walk balance, target aim, and recoil into one readable visible pose.
-            Quaternion additiveRotation = Quaternion.Euler(walkPitch + aimPitch + recoilPitch, aimYaw, walkRoll);
-
-            // Card pose is additive over the generated rest position set by the character factory.
-            ApplyPartPose(rig.soldierVisual, additiveRotation, additiveOffset);
+            // The approved skinned model tracks the shot without replacing walking leg motion with whole-body bob.
+            ApplyPartPose(rig.referenceUpper, Quaternion.Euler(survivorAimPitch * ShotReferenceUpperPitchShare + survivorRecoilPitch * ShotReferenceUpperRecoilShare, survivorAimYaw * ShotReferenceUpperYawShare, 0f), survivorRecoilOffset * ShotReferenceUpperRecoilShare);
         }
 
         private static void SetShotAimAngles(HumanoidRig rig, Vector3 shotOrigin, Vector3 targetPoint)
@@ -608,6 +590,13 @@ namespace LaneSurvivor.Rendering
             // Phase offsets break up the three-person formation without random runtime state.
             float phaseOffset = survivorIndex * 1.35f;
 
+            // The leader technical trial uses the downloaded Character Creator bone hierarchy instead of generated joints.
+            Transform swatModel = FindDescendant(survivorRoot, PrototypeCharacterFactory.SwatSurvivorModelName);
+            if (swatModel != null)
+            {
+                return CaptureSwatSurvivorRig(survivorRoot, swatModel, phaseOffset);
+            }
+
             return new HumanoidRig
             {
                 root = survivorRoot,
@@ -630,7 +619,44 @@ namespace LaneSurvivor.Rendering
                 rightFoot = CapturePart(survivorRoot, "Human Boot Right"),
                 weapon = CaptureSurvivorWeapon(survivorRoot),
                 weaponMuzzle = CapturePart(survivorRoot, PlayerSquad.WeaponMuzzleAnchorName),
-                soldierVisual = CapturePart(survivorRoot, PrototypeCharacterFactory.SoldierReferenceVisualName),
+                referenceUpper = CapturePart(survivorRoot, PrototypeCharacterFactory.FemaleReferenceUpperName),
+                phaseOffset = phaseOffset
+            };
+        }
+
+        private static HumanoidRig CaptureSwatSurvivorRig(Transform survivorRoot, Transform swatModel, float phaseOffset)
+        {
+            // Authored Animator clips own imported body bones; this legacy rig only keeps formation and muzzle behavior.
+            return new HumanoidRig
+            {
+                // Keep formation motion on the existing gameplay survivor root rather than moving the imported FBX origin.
+                root = survivorRoot,
+                initialRootLocalPosition = survivorRoot.localPosition,
+                initialRootLocalRotation = survivorRoot.localRotation,
+
+                // Empty imported parts prevent LateUpdate procedural posing from fighting the Animator's authored curves.
+                torso = default,
+                pelvis = default,
+                head = default,
+                leftArm = default,
+                rightArm = default,
+                leftHand = default,
+                rightHand = default,
+                leftLeg = default,
+                rightLeg = default,
+                leftKnee = default,
+                rightKnee = default,
+                leftLowerLeg = default,
+                rightLowerLeg = default,
+                leftFoot = default,
+                rightFoot = default,
+
+                // Gameplay keeps its generated invisible muzzle carrier while the imported rifle follows skinned arm bones.
+                weapon = CaptureSurvivorWeapon(survivorRoot),
+                weaponMuzzle = CapturePart(survivorRoot, PlayerSquad.WeaponMuzzleAnchorName),
+
+                // The flat reference card is disabled for this rig, so it must not receive duplicate recoil transforms.
+                referenceUpper = default,
                 phaseOffset = phaseOffset
             };
         }
@@ -669,7 +695,7 @@ namespace LaneSurvivor.Rendering
                 rightFoot = CapturePart(zombieRoot, "Zombie Foot Right"),
                 weapon = default,
                 weaponMuzzle = default,
-                soldierVisual = default,
+                referenceUpper = default,
                 phaseOffset = 0f
             };
         }
@@ -753,7 +779,7 @@ namespace LaneSurvivor.Rendering
 
             public AnimatedPart weaponMuzzle;
 
-            public AnimatedPart soldierVisual;
+            public AnimatedPart referenceUpper;
 
             public float phaseOffset;
 

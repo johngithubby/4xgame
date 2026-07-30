@@ -153,11 +153,8 @@ namespace LaneSurvivor.EditorTools
             // Keeping this helper local makes editor scene output match runtime bootstrap visibility.
             foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
             {
-                // Legacy generated scenes may still contain the removed sideways soldier cutout child.
-                bool isLegacySoldierCutout = renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName;
-
-                // Legacy cutouts stay hidden even when old generated scenes still contain them.
-                if (isLegacySoldierCutout)
+                // Old generated scenes may still contain the flat card, which should not appear in rebuilt scenes.
+                if (renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName)
                 {
                     renderer.enabled = false;
                     continue;

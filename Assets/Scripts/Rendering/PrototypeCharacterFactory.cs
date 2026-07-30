@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using LaneSurvivor.Data;
 using LaneSurvivor.Gameplay;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace LaneSurvivor.Rendering
 {
@@ -8,16 +10,46 @@ namespace LaneSurvivor.Rendering
     {
         private const float SurvivorWingScale = 1f;
 
-        // Legacy generated scenes may still contain this old sideways cutout child, so visibility code can filter it.
+        // Old generated scenes may still contain this flat child, so visibility code can suppress it.
         public const string SoldierReferenceVisualName = "Soldier Reference Visual";
 
-        // The leader keeps the longest profile so the front survivor reads as the primary shooter.
+        // The approved front decal is skinned onto generated walk joints and hidden from rear camera views.
+        public const string FemaleReferenceUpperName = "Female Survivor Model";
+
+        // The rear decal uses the same approved silhouette but a dark back-facing tint for chase-camera views.
+        public const string FemaleReferenceRearName = "Female Survivor Rear Model";
+
+        // Legacy tests and scene audits use this name to ensure old detached left-leg cards are absent.
+        public const string FemaleReferenceLeftLegName = "Female Survivor Left Leg Model";
+
+        // Legacy tests and scene audits use this name to ensure old detached right-leg cards are absent.
+        public const string FemaleReferenceRightLegName = "Female Survivor Right Leg Model";
+
+        // Legacy tests and scene audits use this name to ensure old detached rifle cards are absent.
+        public const string FemaleReferenceRifleName = "Female Survivor Rifle Model";
+
+        // Every visible squad member uses this same rifle silhouette so the soldiers read as one uniform model.
         public const string LeaderRifleName = "Leader Rifle";
 
-        // The left wing uses a chunkier shotgun silhouette to distinguish the side survivor at phone scale.
+        // The technical-trial survivor is kept under a stable child name for animation, tests, and scene audits.
+        public const string SwatSurvivorModelName = "SWAT Survivor 3D Model";
+
+        // Resources keeps the licensed FBX available to both editor-built and runtime-bootstrapped scenes.
+        private const string SwatSurvivorResourcePath = "Survivor3D/SWAT_Survivor_Mobile";
+
+        // The generated controller blends the authored rifle idle and run actions based on gameplay-root movement.
+        private const string SwatSurvivorControllerResourcePath = "Survivor3D/SWAT_Survivor_Controller";
+
+        // The imported character is 1.8 metres tall, so this scale matches the existing 1.58-metre prototype rig.
+        private const float SwatSurvivorScale = 0.88f;
+
+        // The downloaded FBX places its feet at its origin; this offset aligns them with the generated boot joints.
+        private const float SwatSurvivorYOffset = -0.91f;
+
+        // Legacy scenes may still contain this alternate weapon profile, but new squads use the shared rifle.
         public const string LeftWingShotgunName = "Left Wing Shotgun";
 
-        // The right wing uses a compact SMG silhouette to complete the three-profile weapon set.
+        // Legacy scenes may still contain this compact profile, but new squads use the shared rifle.
         public const string RightWingSmgName = "Right Wing SMG";
 
         // Weapon hold style controls whether a survivor aims from the face or from the waist.
@@ -27,13 +59,78 @@ namespace LaneSurvivor.Rendering
             HipFire
         }
 
+        private const string FemaleSurvivorReferenceResourcePath = "Survivor/FemaleSurvivorReferenceCutout";
+
+        // Tests use this texture name to verify rear views are not reusing the front-facing approved PNG.
+        public const string FemaleSurvivorRearReferenceTextureName = "FemaleSurvivorRearReferenceCutout";
+
+        // The full reference card keeps the authored model proportions while fitting the current zombie scale.
+        private const float FemaleReferenceModelHeight = 1.56f;
+
+        // The texture has a 1024x1536 aspect, so a two-thirds width preserves the original model silhouette.
+        private const float FemaleReferenceModelAspect = 2f / 3f;
+
+        // The card center is lowered so the boots sit on the road while the helmet stays near the old head height.
+        private const float FemaleReferenceModelYOffset = -0.24f;
+
+        // The front decal sits on the zombie-facing side for cameras looking back at the squad.
+        private const float FemaleReferenceModelZOffset = 0.44f;
+
+        // The rear cutout sits on the chase-camera side so opaque 3D backpack pieces cannot hide it.
+        private const float FemaleRearReferenceModelZOffset = -0.365f;
+
+        // More columns give the skinned texture enough geometry to deform legs without coarse warping.
+        private const int FemaleReferenceMeshColumns = 12;
+
+        // Extra rows give hip, knee, and boot bones enough vertical bands to show a real stride.
+        private const int FemaleReferenceMeshRows = 28;
+
+        // The source model's legs divide near the texture center after alpha padding is included.
+        private const float FemaleReferenceLegSplitU = 0.50f;
+
+        // Vertices below this V coordinate follow hip/knee/boot bones strongly for visible stepping.
+        private const float FemaleReferenceLegFullWeightV = 0.48f;
+
+        // Vertices above this V coordinate stay on the body bone so the torso remains model-exact.
+        private const float FemaleReferenceBodyFullWeightV = 0.60f;
+
+        // Boot texture rows bind mostly to the generated boot joints so feet visibly trade places.
+        private const float FemaleReferenceBootFullWeightV = 0.18f;
+
+        // Shin texture rows bind mostly to generated knee/shin chains so the run reads as jointed walking.
+        private const float FemaleReferenceShinFullWeightV = 0.34f;
+
+        // The flat texture should show walking but never let a leg bone pull the model apart.
+        private const float FemaleReferenceMaximumLegWeight = 0.78f;
+
+        // Body/root bone index for the skinned front and rear soldier decals.
+        private const int FemaleReferenceBodyBoneIndex = 0;
+
+        // Left hip bone index in the shared soldier decal bone array.
+        private const int FemaleReferenceLeftHipBoneIndex = 1;
+
+        // Right hip bone index in the shared soldier decal bone array.
+        private const int FemaleReferenceRightHipBoneIndex = 2;
+
+        // Left knee bone index in the shared soldier decal bone array.
+        private const int FemaleReferenceLeftKneeBoneIndex = 3;
+
+        // Right knee bone index in the shared soldier decal bone array.
+        private const int FemaleReferenceRightKneeBoneIndex = 4;
+
+        // Left boot bone index in the shared soldier decal bone array.
+        private const int FemaleReferenceLeftBootBoneIndex = 5;
+
+        // Right boot bone index in the shared soldier decal bone array.
+        private const int FemaleReferenceRightBootBoneIndex = 6;
+
         private static readonly Color SurvivorSkinColor = new(0.84f, 0.62f, 0.43f);
 
         // Dark face-detail material gives generated eyes and mouth enough contrast at gameplay scale.
         private static readonly Color SurvivorFaceDetailColor = new(0.07f, 0.05f, 0.04f);
 
-        // Warm beard color keeps the tiny face closer to the approved soldier reference without texture cards.
-        private static readonly Color SurvivorBeardColor = new(0.20f, 0.11f, 0.065f);
+        // Dark hair visible under the helmet makes the soldier read feminine without reducing armor coverage.
+        private static readonly Color SurvivorHairColor = new(0.13f, 0.07f, 0.04f);
 
         private static readonly Color SurvivorSuitColor = new(0.03f, 0.42f, 0.45f);
 
@@ -49,7 +146,7 @@ namespace LaneSurvivor.Rendering
 
         private static readonly Color SurvivorGlowColor = new(0.02f, 0.90f, 1f);
 
-        private static readonly Color SurvivorWeaponColor = new(0.08f, 0.075f, 0.07f);
+        private static readonly Color SurvivorWeaponColor = new(0.18f, 0.17f, 0.15f);
 
         private static readonly Color ZombieSkinColor = new(0.39f, 0.58f, 0.32f);
 
@@ -71,14 +168,14 @@ namespace LaneSurvivor.Rendering
             GameObject squadRoot = new(name);
             squadRoot.transform.position = position;
 
-            // Legacy palette parameters stay in the API, while the new 3D soldier uses a fixed reference-art palette.
+            // Legacy palette parameters stay in the API, while the generated soldier uses a fixed reference-art palette.
             _ = uniformMaterial;
             _ = accentMaterial;
 
-            // Materials are intentionally shared across the three mini survivors to keep the generated scene small.
+            // Materials are shared across all three soldiers so the visible squad keeps one uniform armor scheme.
             Material skinMaterial = CreateMaterial(SurvivorSkinColor);
             Material faceDetailMaterial = CreateMaterial(SurvivorFaceDetailColor);
-            Material beardMaterial = CreateMaterial(SurvivorBeardColor);
+            Material hairMaterial = CreateMaterial(SurvivorHairColor);
             Material pantsMaterial = CreateMaterial(SurvivorPantsColor);
             Material bootMaterial = CreateMaterial(SurvivorBootColor);
             Material gearMaterial = CreateMaterial(SurvivorGearColor);
@@ -87,17 +184,19 @@ namespace LaneSurvivor.Rendering
             Material glowMaterial = CreateMaterial(SurvivorGlowColor);
             Material weaponMaterial = CreateMaterial(SurvivorWeaponColor);
             Material bodyMaterial = CreateMaterial(SurvivorSuitColor);
+            Material referenceModelMaterial = CreateFemaleSurvivorReferenceMaterial();
+            Material referenceRearMaterial = CreateFemaleSurvivorRearMaterial();
 
             // A three-person wedge makes squad count feel like people without spawning one mesh per count value.
-            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, beardMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, true);
 
             // Side survivors sit behind the leader with a wider offset so full-size soldiers do not overlap.
-            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.52f, -0.02f, -0.38f), SurvivorWingScale, LeftWingShotgunName, bodyMaterial, skinMaterial, faceDetailMaterial, beardMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.52f, -0.02f, -0.38f), SurvivorWingScale, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, false);
 
             // Mirroring the side placement gives the player a recognizably human squad silhouette in one lane.
-            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.52f, -0.02f, -0.38f), SurvivorWingScale, RightWingSmgName, bodyMaterial, skinMaterial, faceDetailMaterial, beardMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial);
+            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.52f, -0.02f, -0.38f), SurvivorWingScale, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, false);
 
-            // The procedural animator swings the generated limbs only when the gameplay root is moving.
+            // The procedural animator moves the visible jointed soldiers when the gameplay root is moving.
             PrototypeHumanoidAnimator animator = squadRoot.AddComponent<PrototypeHumanoidAnimator>();
             animator.Configure(PrototypeHumanoidAnimationStyle.SurvivorSquad);
 
@@ -166,7 +265,7 @@ namespace LaneSurvivor.Rendering
             return zombieRoot;
         }
 
-        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material skinMaterial, Material faceDetailMaterial, Material beardMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial, Material weaponMaterial)
+        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material skinMaterial, Material faceDetailMaterial, Material hairMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial, Material weaponMaterial, Material referenceModelMaterial, Material referenceRearMaterial, bool useSwatTechnicalTrial)
         {
             // A per-survivor transform makes it cheap to scale and offset squad members as a formation.
             GameObject survivorRoot = new(name);
@@ -176,18 +275,18 @@ namespace LaneSurvivor.Rendering
             survivorRoot.transform.localScale = Vector3.one * scale;
 
             // Rounded torso and pelvis provide the 3D mass that can rotate toward a target.
-            CreateSpherePart(survivorRoot.transform, "Human Torso", new Vector3(0f, 0.02f, 0f), new Vector3(0.30f, 0.50f, 0.20f), bodyMaterial, Quaternion.identity);
-            CreateSpherePart(survivorRoot.transform, "Human Vest", new Vector3(0f, 0.06f, 0.11f), new Vector3(0.28f, 0.38f, 0.040f), armorTrimMaterial, Quaternion.identity);
-            CreateSpherePart(survivorRoot.transform, "Human Pelvis", new Vector3(0f, -0.30f, 0f), new Vector3(0.28f, 0.18f, 0.19f), gearMaterial, Quaternion.identity);
+            CreateSpherePart(survivorRoot.transform, "Human Torso", new Vector3(0f, 0.02f, 0f), new Vector3(0.34f, 0.50f, 0.20f), bodyMaterial, Quaternion.identity);
+            CreateSpherePart(survivorRoot.transform, "Human Vest", new Vector3(0f, 0.06f, 0.11f), new Vector3(0.32f, 0.38f, 0.040f), armorTrimMaterial, Quaternion.identity);
+            CreateSpherePart(survivorRoot.transform, "Human Pelvis", new Vector3(0f, -0.30f, 0f), new Vector3(0.34f, 0.18f, 0.19f), gearMaterial, Quaternion.identity);
 
             // Armor plates and light strips make the procedural 3D model read like the generated soldier concept art.
-            CreateSurvivorTorsoArmor(survivorRoot.transform, armorMaterial, armorTrimMaterial, glowMaterial);
+            CreateSurvivorTorsoArmor(survivorRoot.transform, bodyMaterial, armorMaterial, armorTrimMaterial, glowMaterial);
 
             // Head, helmet, and glow details make the player read as a tactical soldier instead of a prototype blob.
             CreateSpherePart(survivorRoot.transform, "Human Head", new Vector3(0f, 0.46f, -0.02f), new Vector3(0.19f, 0.21f, 0.18f), skinMaterial, Quaternion.identity);
             CreateSpherePart(survivorRoot.transform, "Human Hood Collar", new Vector3(0f, 0.36f, -0.05f), new Vector3(0.26f, 0.12f, 0.20f), bodyMaterial, Quaternion.identity);
             CreateSpherePart(survivorRoot.transform, "Human Helmet", new Vector3(0f, 0.56f, -0.01f), new Vector3(0.22f, 0.10f, 0.20f), armorTrimMaterial, Quaternion.identity);
-            CreateSurvivorFaceDetails(survivorRoot.transform, skinMaterial, faceDetailMaterial, beardMaterial);
+            CreateSurvivorFaceDetails(survivorRoot.transform, skinMaterial, faceDetailMaterial, hairMaterial);
             CreateSurvivorHelmetDetails(survivorRoot.transform, armorMaterial, glowMaterial);
 
             // The weapon profile decides the authored firing pose before any procedural walk animation runs.
@@ -203,43 +302,353 @@ namespace LaneSurvivor.Rendering
             CreateHumanLeg(survivorRoot.transform, "Left", -1f, 0.02f, pantsMaterial, bootMaterial, armorMaterial, armorTrimMaterial, glowMaterial);
             CreateHumanLeg(survivorRoot.transform, "Right", 1f, -0.02f, pantsMaterial, bootMaterial, armorMaterial, armorTrimMaterial, glowMaterial);
 
-            // Procedural weapon profiles keep the squad readable without importing any firearm art.
-            CreateSurvivorWeapon(weaponHand, weaponProfileName, holdStyle, weaponMaterial, armorMaterial, glowMaterial);
+            // Procedural weapon profiles keep muzzle anchors and target direction stable for gameplay.
+            Transform weaponRoot = CreateSurvivorWeapon(weaponHand, weaponProfileName, holdStyle, weaponMaterial, armorMaterial, glowMaterial);
+
+            // The skinned soldier decals become the visible model, while the generated rig remains as its skeleton.
+            CreateFemaleReferenceRig(survivorRoot.transform, weaponRoot, referenceModelMaterial, referenceRearMaterial);
+
+            if (useSwatTechnicalTrial)
+            {
+                // Only the leader uses the licensed model during this trial, so the shared asset is measured in gameplay.
+                CreateSwatSurvivorTechnicalTrial(survivorRoot.transform);
+            }
+
+            // Hide primitive meshes after the skinned model exists so the minigame does not show doubled soldiers.
+            HideGeneratedSurvivorMeshRenderers(survivorRoot.transform);
         }
 
-        private static void CreateSurvivorTorsoArmor(Transform survivorRoot, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial)
+        private static void CreateSwatSurvivorTechnicalTrial(Transform survivorRoot)
         {
-            // Chest armor gives the 3D body a strong tactical front instead of a simple colored oval.
-            CreateCubePart(survivorRoot, "Human Chest Armor", new Vector3(0f, 0.12f, 0.155f), new Vector3(0.34f, 0.34f, 0.045f), armorMaterial, Quaternion.identity);
+            // Load the optimized FBX as a prefab so Unity shares its meshes and textures across future instances.
+            GameObject swatPrefab = Resources.Load<GameObject>(SwatSurvivorResourcePath);
+            if (swatPrefab == null)
+            {
+                // The existing skinned cutout remains a safe visual fallback if the optional trial asset is absent.
+                Debug.LogWarning($"SWAT technical-trial model was not found at Resources/{SwatSurvivorResourcePath}.");
+                return;
+            }
 
-            // A darker center panel echoes the layered vest in the approved soldier concept art.
-            CreateCubePart(survivorRoot, "Human Chest Center Plate", new Vector3(0f, 0.02f, 0.185f), new Vector3(0.16f, 0.44f, 0.035f), armorTrimMaterial, Quaternion.identity);
+            // Instantiating beneath the survivor root keeps lanes, camera tracking, health, and shooting unchanged.
+            GameObject swatModel = Object.Instantiate(swatPrefab, survivorRoot, false);
+            swatModel.name = SwatSurvivorModelName;
 
-            // Thin zipper rails break up the teal torso like the reference soldier's layered vest panels.
-            CreateCubePart(survivorRoot, "Human Chest Left Rail", new Vector3(-0.085f, 0.02f, 0.210f), new Vector3(0.018f, 0.42f, 0.018f), armorMaterial, Quaternion.identity);
-            CreateCubePart(survivorRoot, "Human Chest Right Rail", new Vector3(0.085f, 0.02f, 0.210f), new Vector3(0.018f, 0.42f, 0.018f), armorMaterial, Quaternion.identity);
+            // The source faces Unity's down-lane direction after Blender's -Z/Y FBX axis conversion.
+            swatModel.transform.localRotation = Quaternion.identity;
+
+            // Scale the 1.8-metre source to the established gameplay silhouette.
+            swatModel.transform.localScale = Vector3.one * SwatSurvivorScale;
+
+            // Lower the feet to the same road contact point as the generated survivor rig.
+            swatModel.transform.localPosition = new Vector3(0f, SwatSurvivorYOffset, 0f);
+
+            // Build explicit lit materials from external diffuse/normal channels instead of unreliable FBX embedding.
+            ApplySwatPbrMaterials(swatModel);
+
+            // Configure the imported Animator before the procedural squad animator caches any survivor transforms.
+            ConfigureSwatLocomotion(swatModel, survivorRoot);
+
+            // Stop the legacy camera-facing component before it can re-enable either hidden flat card.
+            Transform frontReference = survivorRoot.Find(FemaleReferenceUpperName);
+            ReferenceModelFacingVisibility facingVisibility = frontReference != null ? frontReference.GetComponent<ReferenceModelFacingVisibility>() : null;
+            if (facingVisibility != null)
+            {
+                facingVisibility.enabled = false;
+            }
+
+            // Disable both legacy decal views only after the real 3D model has loaded successfully.
+            SetSkinnedRendererEnabled(survivorRoot, FemaleReferenceUpperName, false);
+            SetSkinnedRendererEnabled(survivorRoot, FemaleReferenceRearName, false);
+        }
+
+        private static void ConfigureSwatLocomotion(GameObject swatModel, Transform survivorRoot)
+        {
+            // The controller is generated from the two Blender actions and stored in Resources with the model.
+            RuntimeAnimatorController controller = Resources.Load<RuntimeAnimatorController>(SwatSurvivorControllerResourcePath);
+            if (controller == null)
+            {
+                throw new System.InvalidOperationException($"Missing SWAT locomotion controller at Resources/{SwatSurvivorControllerResourcePath}.");
+            }
+
+            // Humanoid FBX prefabs normally include an Animator; hand-built imports receive one defensively.
+            Animator animator = swatModel.GetComponent<Animator>() ?? swatModel.AddComponent<Animator>();
+            animator.runtimeAnimatorController = controller;
+            animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
+            // A small bridge converts authoritative squad movement into the controller's idle/run bool.
+            SwatSurvivorLocomotionAnimator locomotion = swatModel.AddComponent<SwatSurvivorLocomotionAnimator>();
+            locomotion.Configure(animator, survivorRoot);
+        }
+
+        private static void ApplySwatPbrMaterials(GameObject swatModel)
+        {
+            // Reuse one generated material per authored source slot so repeated submeshes can still batch.
+            Dictionary<string, Material> resolvedMaterials = new();
+
+            foreach (Renderer renderer in swatModel.GetComponentsInChildren<Renderer>(true))
+            {
+                // Preserve the authored material-slot count because body, eyes, helmet, and belt use multiple UV sets.
+                Material[] sourceMaterials = renderer.sharedMaterials;
+                Material[] pbrMaterials = new Material[sourceMaterials.Length];
+                for (int slotIndex = 0; slotIndex < sourceMaterials.Length; slotIndex++)
+                {
+                    // Imported material names match the packed texture prefixes listed in the source Blender file.
+                    string sourceMaterialName = NormalizeImportedMaterialName(sourceMaterials[slotIndex]?.name);
+                    if (!resolvedMaterials.TryGetValue(sourceMaterialName, out Material pbrMaterial))
+                    {
+                        pbrMaterial = CreateSwatPbrMaterial(sourceMaterialName, renderer.gameObject.name);
+                        resolvedMaterials.Add(sourceMaterialName, pbrMaterial);
+                    }
+
+                    pbrMaterials[slotIndex] = pbrMaterial;
+                }
+
+                renderer.sharedMaterials = pbrMaterials;
+            }
+        }
+
+        private static string NormalizeImportedMaterialName(string materialName)
+        {
+            // Unity appends this suffix to cloned/imported material slots, while texture filenames keep the source name.
+            const string instanceSuffix = " (Instance)";
+            if (!string.IsNullOrEmpty(materialName) && materialName.EndsWith(instanceSuffix, System.StringComparison.Ordinal))
+            {
+                return materialName.Substring(0, materialName.Length - instanceSuffix.Length);
+            }
+
+            return string.IsNullOrEmpty(materialName) ? "default" : materialName;
+        }
+
+        private static Material CreateSwatPbrMaterial(string sourceMaterialName, string rendererName)
+        {
+            // Resolve external channels before shader selection because available specular maps use Standard's spec workflow.
+            Texture2D diffuseTexture = Resources.Load<Texture2D>($"Survivor3D/Textures/{sourceMaterialName}_Diffuse");
+            Texture2D normalTexture = Resources.Load<Texture2D>($"Survivor3D/Textures/{sourceMaterialName}_Normal") ??
+                                      Resources.Load<Texture2D>($"Survivor3D/Textures/{sourceMaterialName}_Bump");
+            Texture2D specularTexture = Resources.Load<Texture2D>($"Survivor3D/Textures/{sourceMaterialName}_Specular");
+
+            // Built-in Standard variants are the active PBR path; fallbacks keep the method safe after pipeline changes.
+            Shader shader = (specularTexture != null ? Shader.Find("Standard (Specular setup)") : null) ??
+                            Shader.Find("Standard") ??
+                            Shader.Find("Universal Render Pipeline/Lit") ??
+                            Shader.Find("Mobile/Diffuse");
+            if (shader == null)
+            {
+                throw new System.InvalidOperationException("No lit shader is available for the SWAT PBR material set.");
+            }
+
+            Material material = new(shader)
+            {
+                name = $"SWAT {sourceMaterialName} Runtime PBR"
+            };
+
+            // External Resources textures are deterministic and survive scene serialization and player builds.
+            if (diffuseTexture != null)
+            {
+                material.mainTexture = diffuseTexture;
+                if (material.HasProperty("_BaseMap"))
+                {
+                    material.SetTexture("_BaseMap", diffuseTexture);
+                }
+            }
+
+            // Normal maps restore garment seams, hard-surface panels, and weapon machining lost in flat fallbacks.
+            if (normalTexture != null && material.HasProperty("_BumpMap"))
+            {
+                material.SetTexture("_BumpMap", normalTexture);
+                material.SetFloat("_BumpScale", 1f);
+                material.EnableKeyword("_NORMALMAP");
+            }
+
+            // Source-provided specular maps keep boots and other coated surfaces from using a fabricated metal value.
+            if (specularTexture != null && material.HasProperty("_SpecGlossMap"))
+            {
+                material.SetTexture("_SpecGlossMap", specularTexture);
+                material.EnableKeyword("_SPECGLOSSMAP");
+            }
+
+            // White tint preserves the authored albedo instead of multiplying it by the earlier dark fallback colours.
+            SetSwatMaterialColor(material, Color.white);
+
+            // Weapons and metal hardware receive a modest metallic response; fabric and skin remain dielectric.
+            bool isMetal = sourceMaterialName.StartsWith("M_WP_", System.StringComparison.Ordinal) ||
+                           sourceMaterialName.Contains("Hardware", System.StringComparison.Ordinal) ||
+                           rendererName.StartsWith("SKM_WP_", System.StringComparison.Ordinal) ||
+                           rendererName.StartsWith("SM_WP_", System.StringComparison.Ordinal);
+            if (material.HasProperty("_Metallic"))
+            {
+                material.SetFloat("_Metallic", isMetal ? 0.58f : 0.02f);
+            }
+
+            // Moderate smoothness keeps readable highlights without recreating the overly plastic source suit.
+            if (material.HasProperty("_Glossiness"))
+            {
+                material.SetFloat("_Glossiness", isMetal ? 0.52f : 0.28f);
+            }
+
+            if (material.HasProperty("_GlossMapScale"))
+            {
+                material.SetFloat("_GlossMapScale", isMetal ? 0.52f : 0.28f);
+            }
+
+            return material;
+        }
+
+        private static void SetSwatMaterialColor(Material material, Color color)
+        {
+            // Built-in Standard uses _Color, while URP Lit uses _BaseColor.
+            if (material.HasProperty("_Color"))
+            {
+                material.SetColor("_Color", color);
+            }
+
+            if (material.HasProperty("_BaseColor"))
+            {
+                material.SetColor("_BaseColor", color);
+            }
+        }
+
+        private static void SetSkinnedRendererEnabled(Transform root, string childName, bool isEnabled)
+        {
+            // Direct lookup is sufficient because both generated reference cards are survivor-root children.
+            Transform child = root.Find(childName);
+            if (child == null)
+            {
+                return;
+            }
+
+            // A missing renderer should not block the licensed model from appearing in hand-built test hierarchies.
+            SkinnedMeshRenderer renderer = child.GetComponent<SkinnedMeshRenderer>();
+            if (renderer != null)
+            {
+                renderer.enabled = isEnabled;
+            }
+        }
+
+        private static void HideGeneratedSurvivorMeshRenderers(Transform survivorRoot)
+        {
+            // A null root should never happen from factory construction, but this keeps test-built calls safe.
+            if (survivorRoot == null)
+            {
+                return;
+            }
+
+            // Primitive MeshRenderers stay in the hierarchy as animated bones and muzzle carriers, not visuals.
+            MeshRenderer[] generatedRenderers = survivorRoot.GetComponentsInChildren<MeshRenderer>(true);
+
+            foreach (MeshRenderer generatedRenderer in generatedRenderers)
+            {
+                // Disabled renderers prevent primitive body and weapon anchors from floating over the model cutouts.
+                generatedRenderer.enabled = false;
+            }
+        }
+
+        private static Material CreateFemaleSurvivorReferenceMaterial()
+        {
+            // Load the approved woman soldier model once through the shared guard path.
+            Texture2D texture = LoadFemaleSurvivorReferenceTexture();
+
+            // One transparent material keeps every front decal matched to the same source art.
+            return PrototypeMaterialFactory.CreateTexturedTransparent(texture, Color.white, "LaneSurvivor Female Survivor Reference Model Material", (int)RenderQueue.Transparent);
+        }
+
+        private static Material CreateFemaleSurvivorRearMaterial()
+        {
+            // Load the approved front art so the rear decal can preserve the exact source silhouette and detail rhythm.
+            Texture2D frontReferenceTexture = LoadFemaleSurvivorReferenceTexture();
+
+            // The rear decal is authored from the same source art plus rear-facing armor and backpack details.
+            Texture2D texture = ProceduralSoldierRearTexture.Create(FemaleSurvivorRearReferenceTextureName, frontReferenceTexture);
+
+            // A neutral tint preserves the generated rear art instead of collapsing it to a dark silhouette.
+            return PrototypeMaterialFactory.CreateTexturedTransparent(texture, Color.white, "LaneSurvivor Female Survivor Rear Decal Material", (int)RenderQueue.Transparent - 1);
+        }
+
+        private static Texture2D LoadFemaleSurvivorReferenceTexture()
+        {
+            // The approved woman soldier model lives in Resources beside the earlier survivor cutouts.
+            Texture2D texture = Resources.Load<Texture2D>(FemaleSurvivorReferenceResourcePath);
+
+            // Missing model art would make the minigame fall back to the defective generated look.
+            if (texture == null)
+            {
+                throw new System.InvalidOperationException($"Missing survivor reference texture at Resources/{FemaleSurvivorReferenceResourcePath}.");
+            }
+
+            return texture;
+        }
+
+        private static void CreateFemaleReferenceRig(Transform survivorRoot, Transform weaponRoot, Material referenceModelMaterial, Material referenceRearMaterial)
+        {
+            // The skinned texture needs both hips so the full model walks without chopped detached sprites.
+            Transform leftLeg = survivorRoot.Find("Human Leg Left");
+            Transform rightLeg = survivorRoot.Find("Human Leg Right");
+
+            // The weapon root is still required because muzzle anchors and target-facing recoil use it.
+            if (weaponRoot == null)
+            {
+                throw new System.InvalidOperationException("Female survivor reference model requires a generated weapon root.");
+            }
+
+            // A single full-texture skinned mesh keeps the minigame soldier visually identical to the approved model.
+            CreateSkinnedFemaleReferenceModel(survivorRoot, leftLeg, rightLeg, referenceModelMaterial, referenceRearMaterial);
+        }
+
+        private static void CreateSurvivorTorsoArmor(Transform survivorRoot, Material jacketMaterial, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial)
+        {
+            // Chest armor gives the 3D body a strong tactical front without covering the teal jacket entirely.
+            CreateCubePart(survivorRoot, "Human Chest Armor", new Vector3(0f, 0.13f, 0.158f), new Vector3(0.40f, 0.24f, 0.046f), armorMaterial, Quaternion.identity);
+
+            // A darker center strip echoes the reference jacket zipper and keeps the torso from reading as a shield.
+            CreateCubePart(survivorRoot, "Human Chest Center Plate", new Vector3(0f, 0.02f, 0.188f), new Vector3(0.070f, 0.46f, 0.034f), armorTrimMaterial, Quaternion.identity);
+
+            // Thin zipper rails break up the teal torso like the reference soldier's layered fabric panels.
+            CreateCubePart(survivorRoot, "Human Chest Left Rail", new Vector3(-0.120f, 0.02f, 0.214f), new Vector3(0.018f, 0.42f, 0.018f), armorMaterial, Quaternion.Euler(0f, 0f, -2f));
+            CreateCubePart(survivorRoot, "Human Chest Right Rail", new Vector3(0.120f, 0.02f, 0.214f), new Vector3(0.018f, 0.42f, 0.018f), armorMaterial, Quaternion.Euler(0f, 0f, 2f));
 
             // Cyan chest light makes the soldier readable at small scale and matches the concept glow language.
-            CreateCubePart(survivorRoot, "Human Chest Glow", new Vector3(0f, 0.20f, 0.215f), new Vector3(0.16f, 0.035f, 0.020f), glowMaterial, Quaternion.identity);
+            CreateCubePart(survivorRoot, "Human Chest Glow", new Vector3(0f, 0.21f, 0.218f), new Vector3(0.16f, 0.032f, 0.020f), glowMaterial, Quaternion.identity);
 
-            // A compact backpack gives the rear chase view the same equipment-heavy silhouette as the cutout art.
-            CreateCubePart(survivorRoot, "Human Backpack", new Vector3(0f, 0.08f, -0.29f), new Vector3(0.28f, 0.56f, 0.11f), armorTrimMaterial, Quaternion.identity);
+            // Diagonal teal jacket folds add the same fabric read as the painted reference without reducing armor.
+            CreateCubePart(survivorRoot, "Human Jacket Fold Left", new Vector3(-0.155f, -0.01f, 0.202f), new Vector3(0.018f, 0.34f, 0.016f), armorTrimMaterial, Quaternion.Euler(0f, 0f, -12f));
+            CreateCubePart(survivorRoot, "Human Jacket Fold Right", new Vector3(0.155f, -0.01f, 0.202f), new Vector3(0.018f, 0.34f, 0.016f), armorTrimMaterial, Quaternion.Euler(0f, 0f, 12f));
+
+            // The rear jacket panel keeps the chase camera from reading the soldier as only a dark backpack slab.
+            CreateCubePart(survivorRoot, "Human Rear Jacket Panel", new Vector3(0f, 0.03f, -0.205f), new Vector3(0.30f, 0.43f, 0.034f), jacketMaterial, Quaternion.identity);
+
+            // Rear shoulder armor mirrors the front tactical plating so the turned model still matches the concept.
+            CreateCubePart(survivorRoot, "Human Rear Shoulder Plate", new Vector3(0f, 0.23f, -0.235f), new Vector3(0.34f, 0.10f, 0.036f), armorMaterial, Quaternion.identity);
+
+            // Diagonal rear straps echo the reference harness and break up the large back-facing teal surface.
+            CreateCubePart(survivorRoot, "Human Rear Strap Left", new Vector3(-0.095f, 0.02f, -0.245f), new Vector3(0.035f, 0.42f, 0.034f), armorTrimMaterial, Quaternion.Euler(0f, 0f, -18f));
+            CreateCubePart(survivorRoot, "Human Rear Strap Right", new Vector3(0.095f, 0.02f, -0.245f), new Vector3(0.035f, 0.42f, 0.034f), armorTrimMaterial, Quaternion.Euler(0f, 0f, 18f));
+
+            // A small rear spine light gives the back view the same cyan tech read as the approved front model.
+            CreateCubePart(survivorRoot, "Human Rear Spine Glow", new Vector3(0f, 0.08f, -0.268f), new Vector3(0.050f, 0.28f, 0.022f), glowMaterial, Quaternion.identity);
+
+            // A compact backpack gives the rear chase view equipment without hiding the jacket and limb motion.
+            CreateCubePart(survivorRoot, "Human Backpack", new Vector3(0f, 0.05f, -0.315f), new Vector3(0.24f, 0.35f, 0.080f), armorTrimMaterial, Quaternion.identity);
+
+            // Side pack pods reproduce the reference soldier's stacked utility gear without becoming one rectangle.
+            CreateCubePart(survivorRoot, "Human Backpack Side Pod Left", new Vector3(-0.18f, -0.02f, -0.285f), new Vector3(0.085f, 0.30f, 0.070f), armorTrimMaterial, Quaternion.Euler(0f, 0f, 5f));
+            CreateCubePart(survivorRoot, "Human Backpack Side Pod Right", new Vector3(0.18f, -0.02f, -0.285f), new Vector3(0.085f, 0.30f, 0.070f), armorTrimMaterial, Quaternion.Euler(0f, 0f, -5f));
 
             // A vertical backpack light keeps the rear view visually connected to the cyan suit highlights.
-            CreateCubePart(survivorRoot, "Human Backpack Glow", new Vector3(0f, 0.12f, -0.36f), new Vector3(0.055f, 0.30f, 0.025f), glowMaterial, Quaternion.identity);
+            CreateCubePart(survivorRoot, "Human Backpack Glow", new Vector3(0f, 0.07f, -0.365f), new Vector3(0.045f, 0.22f, 0.022f), glowMaterial, Quaternion.identity);
 
             // A raised antenna keeps the rotated back view from looking like the old plain body.
-            CreateCylinderPart(survivorRoot, "Human Backpack Antenna", new Vector3(-0.12f, 0.50f, -0.35f), new Vector3(0.012f, 0.24f, 0.012f), armorTrimMaterial, Quaternion.identity);
+            CreateCylinderPart(survivorRoot, "Human Backpack Antenna", new Vector3(-0.10f, 0.43f, -0.350f), new Vector3(0.010f, 0.20f, 0.010f), armorTrimMaterial, Quaternion.identity);
 
             // Belt pouches build the chunky utility silhouette visible in the concept without adding colliders.
-            CreateCubePart(survivorRoot, "Human Belt Pouch Left", new Vector3(-0.18f, -0.23f, 0.17f), new Vector3(0.10f, 0.13f, 0.07f), armorTrimMaterial, Quaternion.Euler(0f, 0f, 5f));
-            CreateCubePart(survivorRoot, "Human Belt Pouch Right", new Vector3(0.18f, -0.23f, 0.17f), new Vector3(0.10f, 0.13f, 0.07f), armorTrimMaterial, Quaternion.Euler(0f, 0f, -5f));
+            CreateCubePart(survivorRoot, "Human Belt Pouch Left", new Vector3(-0.22f, -0.23f, 0.17f), new Vector3(0.10f, 0.13f, 0.07f), armorTrimMaterial, Quaternion.Euler(0f, 0f, 5f));
+            CreateCubePart(survivorRoot, "Human Belt Pouch Right", new Vector3(0.22f, -0.23f, 0.17f), new Vector3(0.10f, 0.13f, 0.07f), armorTrimMaterial, Quaternion.Euler(0f, 0f, -5f));
 
             // The center buckle gives the front-facing model the same tactical belt focal point as the reference.
             CreateCubePart(survivorRoot, "Human Belt Buckle", new Vector3(0f, -0.225f, 0.205f), new Vector3(0.13f, 0.070f, 0.028f), armorMaterial, Quaternion.identity);
         }
 
-        private static void CreateSurvivorFaceDetails(Transform survivorRoot, Material skinMaterial, Material faceDetailMaterial, Material beardMaterial)
+        private static void CreateSurvivorFaceDetails(Transform survivorRoot, Material skinMaterial, Material faceDetailMaterial, Material hairMaterial)
         {
             // Dark brows and eyes give the head a forward-facing read when the 3D model rotates toward camera.
             CreateSpherePart(survivorRoot, "Human Eye Left", new Vector3(-0.060f, 0.490f, 0.190f), new Vector3(0.022f, 0.014f, 0.010f), faceDetailMaterial, Quaternion.identity);
@@ -248,8 +657,18 @@ namespace LaneSurvivor.Rendering
             // A small raised nose keeps the face from flattening into the head ellipsoid on side rotations.
             CreateSpherePart(survivorRoot, "Human Nose", new Vector3(0f, 0.455f, 0.205f), new Vector3(0.030f, 0.040f, 0.020f), skinMaterial, Quaternion.Euler(0f, 0f, 2f));
 
-            // The beard and jaw shadow echo the approved art's human face without needing a texture card.
-            CreateSpherePart(survivorRoot, "Human Beard", new Vector3(0f, 0.395f, 0.175f), new Vector3(0.105f, 0.050f, 0.020f), beardMaterial, Quaternion.identity);
+            // Tucked hair under the helmet signals a woman soldier while keeping the full armor silhouette.
+            CreateSpherePart(survivorRoot, "Human Hair Back", new Vector3(0f, 0.465f, -0.170f), new Vector3(0.145f, 0.145f, 0.050f), hairMaterial, Quaternion.identity);
+            CreateSpherePart(survivorRoot, "Human Hair Left", new Vector3(-0.140f, 0.445f, 0.055f), new Vector3(0.035f, 0.105f, 0.026f), hairMaterial, Quaternion.Euler(0f, 0f, -8f));
+            CreateSpherePart(survivorRoot, "Human Hair Right", new Vector3(0.140f, 0.445f, 0.055f), new Vector3(0.035f, 0.105f, 0.026f), hairMaterial, Quaternion.Euler(0f, 0f, 8f));
+
+            // A segmented ponytail matches the reference silhouette and is visible even with the helmet intact.
+            CreateSpherePart(survivorRoot, "Human Ponytail Base", new Vector3(0f, 0.565f, -0.245f), new Vector3(0.075f, 0.080f, 0.070f), hairMaterial, Quaternion.identity);
+            CreateCylinderPart(survivorRoot, "Human Ponytail Upper", new Vector3(0f, 0.665f, -0.300f), new Vector3(0.045f, 0.18f, 0.045f), hairMaterial, Quaternion.Euler(-28f, 0f, 0f));
+            CreateSpherePart(survivorRoot, "Human Ponytail Tip", new Vector3(0f, 0.755f, -0.355f), new Vector3(0.050f, 0.075f, 0.050f), hairMaterial, Quaternion.identity);
+
+            // A small mouth and chin line gives the face expression without reading as facial hair.
+            CreateSpherePart(survivorRoot, "Human Chin Shadow", new Vector3(0f, 0.390f, 0.185f), new Vector3(0.080f, 0.030f, 0.012f), faceDetailMaterial, Quaternion.identity);
             CreateCubePart(survivorRoot, "Human Mouth Shadow", new Vector3(0f, 0.410f, 0.205f), new Vector3(0.080f, 0.012f, 0.008f), faceDetailMaterial, Quaternion.identity);
         }
 
@@ -264,6 +683,9 @@ namespace LaneSurvivor.Rendering
             // Raised cap seams make the helmet read as a dimensional object rather than a smooth ball.
             CreateCubePart(survivorRoot, "Human Helmet Top Seam", new Vector3(0f, 0.645f, -0.020f), new Vector3(0.030f, 0.020f, 0.24f), armorMaterial, Quaternion.identity);
             CreateCubePart(survivorRoot, "Human Helmet Rear Plate", new Vector3(0f, 0.565f, -0.155f), new Vector3(0.19f, 0.060f, 0.030f), armorMaterial, Quaternion.identity);
+
+            // A rear helmet glow keeps the chase view tied to the same cap-mounted cyan accent as the concept.
+            CreateCubePart(survivorRoot, "Human Helmet Rear Glow", new Vector3(0f, 0.595f, -0.205f), new Vector3(0.11f, 0.022f, 0.018f), glowMaterial, Quaternion.identity);
 
             // Side headset discs make the silhouette closer to the concept-art helmet.
             CreateSpherePart(survivorRoot, "Human Headset Left", new Vector3(-0.19f, 0.52f, -0.03f), new Vector3(0.055f, 0.075f, 0.045f), armorMaterial, Quaternion.identity);
@@ -280,7 +702,7 @@ namespace LaneSurvivor.Rendering
         private static Transform CreateHumanArm(Transform survivorRoot, string sideName, float sideSign, SurvivorWeaponHoldStyle holdStyle, Material sleeveMaterial, Material gloveMaterial, Material armorMaterial, Material glowMaterial)
         {
             // Shoulder pivots make arm swing originate from the torso instead of rotating around the arm mesh center.
-            Transform shoulder = CreateJoint(survivorRoot, $"Human Arm {sideName}", new Vector3(sideSign * 0.17f, 0.36f, -0.01f), GetHumanShoulderRestRotation(sideSign, holdStyle));
+            Transform shoulder = CreateJoint(survivorRoot, $"Human Arm {sideName}", new Vector3(sideSign * 0.24f, 0.36f, -0.01f), GetHumanShoulderRestRotation(sideSign, holdStyle));
 
             // The hand target separates shoulder-fired weapons from lower hip-fire weapons.
             Vector3 handLocalPosition = GetHumanHandLocalPosition(sideSign, holdStyle);
@@ -289,7 +711,7 @@ namespace LaneSurvivor.Rendering
             CreateCylinderBetween(shoulder, $"Human Upper Arm {sideName} Mesh", Vector3.zero, handLocalPosition, 0.06f, sleeveMaterial);
 
             // A shoulder armor pad creates the bulky plated silhouette from the new soldier model.
-            CreateSpherePart(shoulder, $"Human Shoulder Armor {sideName}", new Vector3(sideSign * 0.015f, 0.01f, 0.035f), new Vector3(0.13f, 0.085f, 0.10f), armorMaterial, Quaternion.identity);
+            CreateSpherePart(shoulder, $"Human Shoulder Armor {sideName}", new Vector3(sideSign * 0.015f, 0.01f, 0.035f), new Vector3(0.16f, 0.090f, 0.11f), armorMaterial, Quaternion.identity);
 
             // A cyan strip on each shoulder keeps the squad distinct against the road.
             CreateCubePart(shoulder, $"Human Shoulder Glow {sideName}", new Vector3(sideSign * 0.040f, 0.025f, 0.105f), new Vector3(0.075f, 0.022f, 0.018f), glowMaterial, Quaternion.Euler(0f, 0f, sideSign * 8f));
@@ -309,7 +731,7 @@ namespace LaneSurvivor.Rendering
             return hand;
         }
 
-        private static void CreateSurvivorWeapon(Transform hand, string weaponProfileName, SurvivorWeaponHoldStyle holdStyle, Material weaponMaterial, Material armorMaterial, Material glowMaterial)
+        private static Transform CreateSurvivorWeapon(Transform hand, string weaponProfileName, SurvivorWeaponHoldStyle holdStyle, Material weaponMaterial, Material armorMaterial, Material glowMaterial)
         {
             // A profile root makes the whole weapon easy for tests, animation, and muzzle lookup to reason about.
             GameObject weaponRoot = new(weaponProfileName);
@@ -340,6 +762,8 @@ namespace LaneSurvivor.Rendering
                 default:
                     throw new System.ArgumentOutOfRangeException(nameof(weaponProfileName), weaponProfileName, "Unsupported survivor weapon profile.");
             }
+
+            return weaponRoot.transform;
         }
 
         private static SurvivorWeaponHoldStyle GetWeaponHoldStyle(string weaponProfileName)
@@ -348,10 +772,10 @@ namespace LaneSurvivor.Rendering
             {
                 case LeaderRifleName:
                 case LeftWingShotgunName:
-                    // Long weapons are shoulder-fired so their muzzles stay near the survivor's face.
+                    // Rifle-like legacy profiles are shoulder-fired so their muzzles stay near the survivor's face.
                     return SurvivorWeaponHoldStyle.EyeLevel;
                 case RightWingSmgName:
-                    // The compact SMG gives the squad a second read by firing from the hip.
+                    // Legacy compact profiles keep their old lower hold if an older scene still contains one.
                     return SurvivorWeaponHoldStyle.HipFire;
                 default:
                     // Unsupported profiles should fail close to the source of the bad generated hierarchy.
@@ -367,8 +791,8 @@ namespace LaneSurvivor.Rendering
             switch (holdStyle)
             {
                 case SurvivorWeaponHoldStyle.EyeLevel:
-                    // Eye-level support hands cross toward the weapon fore-end instead of swinging at the side.
-                    return isLeftHand ? new Vector3(0.18f, 0.02f, 0.34f) : new Vector3(-0.03f, 0.09f, 0.31f);
+                    // Eye-level hands stay close to the chest so the visible rifle reads as held, not floating up-lane.
+                    return isLeftHand ? new Vector3(0.13f, 0.03f, 0.19f) : new Vector3(-0.04f, 0.09f, 0.17f);
                 case SurvivorWeaponHoldStyle.HipFire:
                     // Hip-fire hands stay lower around the waist while still pointing the barrel down-lane.
                     return isLeftHand ? new Vector3(0.17f, -0.21f, 0.33f) : new Vector3(-0.02f, -0.18f, 0.27f);
@@ -399,8 +823,8 @@ namespace LaneSurvivor.Rendering
             switch (holdStyle)
             {
                 case SurvivorWeaponHoldStyle.EyeLevel:
-                    // Shoulder-fired weapons sit close to the hand so the barrel stays near eye height.
-                    return new Vector3(0f, -0.015f, 0.035f);
+                    // Shoulder-fired rifles shift back toward the centerline so the grip sits under the raised hands.
+                    return new Vector3(-0.14f, -0.015f, 0.015f);
                 case SurvivorWeaponHoldStyle.HipFire:
                     // Hip-fire weapons sit a touch lower and farther forward to clear the waist silhouette.
                     return new Vector3(0f, -0.025f, 0.045f);
@@ -415,8 +839,8 @@ namespace LaneSurvivor.Rendering
             switch (holdStyle)
             {
                 case SurvivorWeaponHoldStyle.EyeLevel:
-                    // Eye-level weapons point straight down-lane so tracer origins line up with sighted shots.
-                    return Quaternion.identity;
+                    // A slight yaw keeps the rifle side readable while preserving a down-lane muzzle direction.
+                    return Quaternion.Euler(0f, -8f, 0f);
                 case SurvivorWeaponHoldStyle.HipFire:
                     // Hip-fire weapons stay mostly level; a tiny upward pitch keeps the muzzle visible above the road.
                     return Quaternion.Euler(-2f, 0f, 0f);
@@ -428,32 +852,41 @@ namespace LaneSurvivor.Rendering
 
         private static void CreateLeaderRifle(Transform weaponRoot, Material weaponMaterial, Material armorMaterial, Material glowMaterial)
         {
-            // The rifle body is long and narrow so the leader reads as the precision shooter.
-            CreateCylinderPart(weaponRoot, "Leader Rifle Body", new Vector3(0f, 0f, 0.24f), new Vector3(0.055f, 0.42f, 0.055f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+            // The rifle body is compact so the chase camera reads it as held at the shoulder, not detached ahead.
+            CreateCylinderPart(weaponRoot, "Leader Rifle Body", new Vector3(0f, 0f, 0.045f), new Vector3(0.055f, 0.13f, 0.055f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
 
-            // A thinner forward barrel extends beyond the body and defines the muzzle anchor position.
-            CreateCylinderPart(weaponRoot, "Leader Rifle Barrel", new Vector3(0f, 0f, 0.58f), new Vector3(0.028f, 0.42f, 0.028f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+            // A short forward barrel keeps the muzzle attached to the soldier footprint while still pointing down-lane.
+            CreateCylinderPart(weaponRoot, "Leader Rifle Barrel", new Vector3(0f, 0f, 0.19f), new Vector3(0.028f, 0.12f, 0.028f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
 
             // A boxy receiver makes the weapon feel closer to the approved futuristic rifle art.
-            CreateCubePart(weaponRoot, "Leader Rifle Receiver", new Vector3(0f, 0.018f, 0.26f), new Vector3(0.13f, 0.09f, 0.34f), armorMaterial, Quaternion.identity);
+            CreateCubePart(weaponRoot, "Leader Rifle Receiver", new Vector3(0f, 0.018f, 0.075f), new Vector3(0.13f, 0.09f, 0.15f), armorMaterial, Quaternion.identity);
 
-            // A cyan side strip gives the rifle a readable sci-fi accent from the chase camera.
-            CreateCubePart(weaponRoot, "Leader Rifle Glow Strip", new Vector3(0f, 0.075f, 0.34f), new Vector3(0.105f, 0.020f, 0.20f), glowMaterial, Quaternion.identity);
+            // A broad side plate makes the yawed rifle read as a weapon instead of only an end-on barrel.
+            CreateCubePart(weaponRoot, "Leader Rifle Side Plate", new Vector3(0.070f, 0.010f, 0.105f), new Vector3(0.030f, 0.115f, 0.14f), armorMaterial, Quaternion.identity);
+
+            // A cyan side strip gives the rifle a readable sci-fi accent from front and three-quarter views.
+            CreateCubePart(weaponRoot, "Leader Rifle Glow Strip", new Vector3(0.088f, 0.075f, 0.115f), new Vector3(0.018f, 0.024f, 0.080f), glowMaterial, Quaternion.identity);
+
+            // A second top glow catches front-on combat screenshots where the side strip is partially hidden.
+            CreateCubePart(weaponRoot, "Leader Rifle Top Glow", new Vector3(0f, 0.095f, 0.165f), new Vector3(0.095f, 0.018f, 0.070f), glowMaterial, Quaternion.identity);
 
             // The rear stock gives the rifle a shoulder-fired silhouette without imported art.
-            CreateCylinderPart(weaponRoot, "Leader Rifle Stock", new Vector3(0f, 0f, -0.08f), new Vector3(0.050f, 0.24f, 0.050f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
+            CreateCylinderPart(weaponRoot, "Leader Rifle Stock", new Vector3(0f, 0f, -0.055f), new Vector3(0.050f, 0.10f, 0.050f), weaponMaterial, Quaternion.Euler(90f, 0f, 0f));
 
             // A small vertical grip visually connects the weapon to the hand joint.
-            CreateCylinderPart(weaponRoot, "Leader Rifle Grip", new Vector3(0f, -0.09f, 0.15f), new Vector3(0.035f, 0.18f, 0.035f), weaponMaterial, Quaternion.identity);
+            CreateCylinderPart(weaponRoot, "Leader Rifle Grip", new Vector3(0f, -0.09f, 0.02f), new Vector3(0.035f, 0.16f, 0.035f), weaponMaterial, Quaternion.identity);
+
+            // The magazine is the reference rifle's strongest lower silhouette cue.
+            CreateCubePart(weaponRoot, "Leader Rifle Magazine", new Vector3(0f, -0.135f, 0.075f), new Vector3(0.085f, 0.18f, 0.055f), weaponMaterial, Quaternion.Euler(7f, 0f, 0f));
 
             // The sight block creates a recognizable top-mounted optic that rotates with the 3D weapon.
-            CreateCubePart(weaponRoot, "Leader Rifle Sight", new Vector3(0f, 0.105f, 0.39f), new Vector3(0.10f, 0.08f, 0.11f), armorMaterial, Quaternion.identity);
+            CreateCubePart(weaponRoot, "Leader Rifle Sight", new Vector3(0f, 0.105f, 0.130f), new Vector3(0.10f, 0.08f, 0.070f), armorMaterial, Quaternion.identity);
 
             // A glowing sight lens gives shots a clear forward aiming cue.
-            CreateCubePart(weaponRoot, "Leader Rifle Sight Glow", new Vector3(0f, 0.155f, 0.39f), new Vector3(0.055f, 0.018f, 0.055f), glowMaterial, Quaternion.identity);
+            CreateCubePart(weaponRoot, "Leader Rifle Sight Glow", new Vector3(0f, 0.155f, 0.130f), new Vector3(0.055f, 0.018f, 0.040f), glowMaterial, Quaternion.identity);
 
-            // The muzzle anchor sits at the barrel tip so tracer origins match the visible rifle.
-            CreateWeaponMuzzleAnchor(weaponRoot, 0.79f);
+            // The effect anchor sits inside the rear-decal rifle art, not the hidden primitive barrel tip.
+            CreateWeaponMuzzleAnchor(weaponRoot, -0.20f);
         }
 
         private static void CreateLeftWingShotgun(Transform weaponRoot, Material weaponMaterial, Material glowMaterial)
@@ -474,7 +907,7 @@ namespace LaneSurvivor.Rendering
             // A top glow strip makes the shotgun share the same visual tech language as the rifle.
             CreateCubePart(weaponRoot, "Shotgun Glow Strip", new Vector3(0f, 0.068f, 0.40f), new Vector3(0.11f, 0.018f, 0.18f), glowMaterial, Quaternion.identity);
 
-            // The muzzle anchor is centered between the two visible barrel tips.
+            // The muzzle anchor is centered between the two authored barrel tips.
             CreateWeaponMuzzleAnchor(weaponRoot, 0.78f);
         }
 
@@ -566,6 +999,9 @@ namespace LaneSurvivor.Rendering
             // Shin armor gives each leg a chunkier silhouette like the reference soldier boots and guards.
             CreateCylinderPart(shin, $"Human Shin Armor {sideName}", new Vector3(0f, -lowerLegLength * 0.45f, 0.040f), new Vector3(0.082f, lowerLegLength * 0.55f, 0.058f), armorMaterial, Quaternion.identity);
 
+            // Rear calf armor keeps the running-away view as armored as the front-facing approved model.
+            CreateCylinderPart(shin, $"Human Rear Shin Armor {sideName}", new Vector3(0f, -lowerLegLength * 0.45f, -0.065f), new Vector3(0.076f, lowerLegLength * 0.50f, 0.045f), armorMaterial, Quaternion.identity);
+
             // A thigh strap and side holster echo the reference soldier's utility gear and add side-view depth.
             CreateCubePart(hip, $"Human Thigh Strap {sideName}", new Vector3(sideSign * 0.012f, -upperLegLength * 0.48f, 0.075f), new Vector3(0.14f, 0.030f, 0.035f), armorMaterial, Quaternion.Euler(0f, 0f, sideSign * 3f));
             CreateCubePart(hip, $"Human Thigh Holster {sideName}", new Vector3(sideSign * 0.075f, -upperLegLength * 0.58f, 0.030f), new Vector3(0.055f, 0.17f, 0.075f), armorTrimMaterial, Quaternion.Euler(0f, 0f, sideSign * 5f));
@@ -579,6 +1015,9 @@ namespace LaneSurvivor.Rendering
 
             // Cyan boot lights reproduce the reference-art luminous boot accents at gameplay scale.
             CreateCubePart(shin, $"Human Boot Glow {sideName}", new Vector3(0f, -lowerLegLength + 0.015f, 0.205f), new Vector3(0.075f, 0.018f, 0.018f), glowMaterial, Quaternion.Euler(-7f, 0f, 0f));
+
+            // Rear heel lights make the step cycle visible from the fixed chase camera.
+            CreateCubePart(shin, $"Human Rear Boot Glow {sideName}", new Vector3(0f, -lowerLegLength + 0.010f, -0.155f), new Vector3(0.065f, 0.016f, 0.016f), glowMaterial, Quaternion.Euler(7f, 0f, 0f));
         }
 
         private static void CreateZombieLeg(Transform figureRoot, string sideName, float sideSign, float localZ, Material pantsMaterial)
@@ -667,6 +1106,395 @@ namespace LaneSurvivor.Rendering
             GameObject part = PrototypeGeometryFactory.CreateCylinder(name, Vector3.zero, Vector3.one, material);
             ConfigurePartTransform(part.transform, parent, localPosition, localScale, localRotation);
             return part;
+        }
+
+        private static GameObject CreateSkinnedFemaleReferenceModel(Transform survivorRoot, Transform leftLeg, Transform rightLeg, Material frontMaterial, Material rearMaterial)
+        {
+            // A missing survivor root would leave the skinned mesh without a stable body bone.
+            if (survivorRoot == null)
+            {
+                throw new System.InvalidOperationException("Female survivor reference model requires a survivor root.");
+            }
+
+            // Missing leg bones would turn walking back into a whole-body bob, so fail instead of faking it.
+            if (leftLeg == null || rightLeg == null)
+            {
+                throw new System.InvalidOperationException("Female survivor reference model requires both generated leg joints.");
+            }
+
+            // Knee bones let the visible decal bend through the same connected joint chain as the hidden rig.
+            Transform leftKnee = RequireDescendant(leftLeg, "Human Knee Left", "left knee");
+
+            // The right knee mirrors the left so both halves of the texture can stride independently.
+            Transform rightKnee = RequireDescendant(rightLeg, "Human Knee Right", "right knee");
+
+            // Boot bones make the lowest texture rows swing as feet instead of sliding with the thigh.
+            Transform leftBoot = RequireDescendant(leftKnee, "Human Boot Left", "left boot");
+
+            // The right boot is bound separately so the two feet can alternate in the capture.
+            Transform rightBoot = RequireDescendant(rightKnee, "Human Boot Right", "right boot");
+
+            // The model object is separate so the animator can recoil the front decal without moving gameplay roots.
+            GameObject model = new(FemaleReferenceUpperName);
+            model.transform.SetParent(survivorRoot, false);
+            model.transform.localPosition = Vector3.zero;
+            model.transform.localRotation = Quaternion.identity;
+            model.transform.localScale = Vector3.one;
+
+            // Body, hip, knee, and boot joints make the exact model art walk without showing the hidden primitives.
+            Transform[] bones =
+            {
+                survivorRoot,
+                leftLeg,
+                rightLeg,
+                leftKnee,
+                rightKnee,
+                leftBoot,
+                rightBoot
+            };
+
+            // Bindposes convert each animated transform back into the model object's local mesh space.
+            Matrix4x4[] bindposes = CreateReferenceBindposes(model.transform, bones);
+
+            // The front mesh samples the entire approved PNG on the zombie-facing side.
+            Mesh frontMesh = CreateSkinnedFemaleReferenceMesh($"{FemaleReferenceUpperName} Mesh", bindposes, false);
+
+            // The rear mesh uses the rear-view cutout on the chase-camera side of the same animated bones.
+            Mesh rearMesh = CreateSkinnedFemaleReferenceMesh($"{FemaleReferenceRearName} Mesh", bindposes, true);
+
+            // SkinnedMeshRenderer lets the texture rotate in 3D and bend through the generated leg joints.
+            SkinnedMeshRenderer renderer = model.AddComponent<SkinnedMeshRenderer>();
+            renderer.sharedMesh = frontMesh;
+            renderer.sharedMaterial = frontMaterial;
+            renderer.rootBone = survivorRoot;
+            renderer.bones = bones;
+            renderer.localBounds = frontMesh.bounds;
+            renderer.updateWhenOffscreen = true;
+
+            // The rear decal is a child so aim/recoil offsets applied to the front decal move both silhouettes.
+            GameObject rearModel = new(FemaleReferenceRearName);
+            rearModel.transform.SetParent(model.transform, false);
+            rearModel.transform.localPosition = Vector3.zero;
+            rearModel.transform.localRotation = Quaternion.identity;
+            rearModel.transform.localScale = Vector3.one;
+
+            // The rear renderer has its own rear-side mesh so the chase camera sees the rear soldier cutout.
+            SkinnedMeshRenderer rearRenderer = rearModel.AddComponent<SkinnedMeshRenderer>();
+            rearRenderer.sharedMesh = rearMesh;
+            rearRenderer.sharedMaterial = rearMaterial;
+            rearRenderer.rootBone = survivorRoot;
+            rearRenderer.bones = bones;
+            rearRenderer.localBounds = rearMesh.bounds;
+            rearRenderer.updateWhenOffscreen = true;
+            rearRenderer.enabled = false;
+
+            // Hide the front decal from behind so the minigame camera cannot show a backward-facing soldier.
+            ReferenceModelFacingVisibility visibility = model.AddComponent<ReferenceModelFacingVisibility>();
+            visibility.Configure(renderer, rearRenderer, survivorRoot);
+
+            return model;
+        }
+
+        private static Transform RequireDescendant(Transform root, string childName, string diagnosticName)
+        {
+            // A missing root cannot be searched for required animation bones.
+            if (root == null)
+            {
+                throw new System.InvalidOperationException($"Female survivor reference model requires a {diagnosticName} bone.");
+            }
+
+            // Direct children cover most leg joints and keep normal construction cheap.
+            Transform directChild = root.Find(childName);
+            if (directChild != null)
+            {
+                return directChild;
+            }
+
+            // Boot joints live below shin children, so recurse through the generated leg chain.
+            foreach (Transform child in root)
+            {
+                // Search depth-first so generated hierarchy order remains deterministic.
+                Transform nestedChild = RequireDescendantOrNull(child, childName);
+                if (nestedChild != null)
+                {
+                    return nestedChild;
+                }
+            }
+
+            // Failing here is better than silently returning to a bob-only visible soldier.
+            throw new System.InvalidOperationException($"Female survivor reference model requires a {diagnosticName} bone named {childName}.");
+        }
+
+        private static Transform RequireDescendantOrNull(Transform root, string childName)
+        {
+            // A missing branch cannot contain the requested required child.
+            if (root == null)
+            {
+                return null;
+            }
+
+            // Exact-name lookup keeps unrelated future attachment points out of the binding list.
+            Transform directChild = root.Find(childName);
+            if (directChild != null)
+            {
+                return directChild;
+            }
+
+            // Recursive search handles knee -> shin -> boot nesting without exposing another public helper.
+            foreach (Transform child in root)
+            {
+                // Return the first matching descendant in authored hierarchy order.
+                Transform nestedChild = RequireDescendantOrNull(child, childName);
+                if (nestedChild != null)
+                {
+                    return nestedChild;
+                }
+            }
+
+            // Null tells the required wrapper to keep searching sibling branches.
+            return null;
+        }
+
+        private static Matrix4x4[] CreateReferenceBindposes(Transform modelTransform, Transform[] bones)
+        {
+            // The renderer transform is the local frame where the card vertices are authored.
+            Matrix4x4 rendererLocalToWorld = modelTransform.localToWorldMatrix;
+
+            // Each bindpose captures the inverse rest pose for one generated animation bone.
+            Matrix4x4[] bindposes = new Matrix4x4[bones.Length];
+
+            for (int i = 0; i < bones.Length; i++)
+            {
+                // A missing bone would make the mesh explode once Unity evaluates skinning.
+                if (bones[i] == null)
+                {
+                    throw new System.InvalidOperationException("Female survivor reference model cannot bind a null bone.");
+                }
+
+                // Unity expects each bindpose in renderer-local space.
+                bindposes[i] = bones[i].worldToLocalMatrix * rendererLocalToWorld;
+            }
+
+            return bindposes;
+        }
+
+        private static Mesh CreateSkinnedFemaleReferenceMesh(string name, Matrix4x4[] bindposes, bool isRearView)
+        {
+            // The grid stores one vertex at each row/column intersection across the full source image.
+            int vertexCount = (FemaleReferenceMeshColumns + 1) * (FemaleReferenceMeshRows + 1);
+
+            // Each grid cell contributes two triangles to the front-facing textured model mesh.
+            int triangleIndexCount = FemaleReferenceMeshColumns * FemaleReferenceMeshRows * 6;
+
+            // Vertex positions are authored directly in survivor-local dimensions.
+            Vector3[] vertices = new Vector3[vertexCount];
+
+            // Normals face along local Z while the card width stays readable from the matching side.
+            Vector3[] normals = new Vector3[vertexCount];
+
+            // UVs cover the full approved texture so rest pose remains an exact model match.
+            Vector2[] uvs = new Vector2[vertexCount];
+
+            // Bone weights decide which vertices walk with the left or right generated hip.
+            BoneWeight[] boneWeights = new BoneWeight[vertexCount];
+
+            // The model width is derived from the source texture aspect to avoid squashing the soldier.
+            float modelWidth = FemaleReferenceModelHeight * FemaleReferenceModelAspect;
+
+            // The front and rear decals are broad from their correct viewing sides instead of foreshortened cards.
+            Vector3 modelNormal = isRearView ? Vector3.back : Vector3.forward;
+
+            for (int row = 0; row <= FemaleReferenceMeshRows; row++)
+            {
+                // V runs bottom to top, matching Unity texture coordinate convention.
+                float v = row / (float)FemaleReferenceMeshRows;
+
+                for (int column = 0; column <= FemaleReferenceMeshColumns; column++)
+                {
+                    // U runs left to right across the entire approved PNG.
+                    float u = column / (float)FemaleReferenceMeshColumns;
+
+                    // Flatten the two-dimensional grid coordinate into the vertex arrays.
+                    int vertexIndex = row * (FemaleReferenceMeshColumns + 1) + column;
+
+                    // Width stays horizontal so the selected facing texture remains model-readable in screenshots.
+                    Vector3 modelWidthOffset = Vector3.right * ((u - 0.5f) * modelWidth);
+
+                    // Front and rear cutouts live on opposite sides of the 3D rig to avoid depth hiding.
+                    float modelZOffset = isRearView ? FemaleRearReferenceModelZOffset : FemaleReferenceModelZOffset;
+
+                    // Y preserves model height while X/Z place the card width in the soldier's facing direction.
+                    vertices[vertexIndex] = new Vector3(modelWidthOffset.x, FemaleReferenceModelYOffset + (v - 0.5f) * FemaleReferenceModelHeight, modelZOffset + modelWidthOffset.z);
+
+                    // The full PNG is sampled without cropping so no body part can detach from the reference art.
+                    uvs[vertexIndex] = new Vector2(u, v);
+
+                    // A consistent normal keeps lighting stable if the transparent shader uses scene lights.
+                    normals[vertexIndex] = modelNormal;
+
+                    // Weight lower vertices to generated leg joints while keeping the upper body on the root.
+                    boneWeights[vertexIndex] = CreateFemaleReferenceBoneWeight(u, v);
+                }
+            }
+
+            // Triangle winding is front-facing for local +Z; culling off makes the same card visible from behind.
+            int[] triangles = new int[triangleIndexCount];
+
+            // Fill the triangle list cell by cell so adjacent grid vertices share edges cleanly.
+            int triangleCursor = 0;
+            for (int row = 0; row < FemaleReferenceMeshRows; row++)
+            {
+                for (int column = 0; column < FemaleReferenceMeshColumns; column++)
+                {
+                    // Lower-left vertex for this grid cell.
+                    int bottomLeft = row * (FemaleReferenceMeshColumns + 1) + column;
+
+                    // Lower-right vertex for this grid cell.
+                    int bottomRight = bottomLeft + 1;
+
+                    // Upper-left vertex for this grid cell.
+                    int topLeft = bottomLeft + FemaleReferenceMeshColumns + 1;
+
+                    // Upper-right vertex for this grid cell.
+                    int topRight = topLeft + 1;
+
+                    // First triangle of the rectangular grid cell.
+                    triangles[triangleCursor++] = bottomLeft;
+                    triangles[triangleCursor++] = topLeft;
+                    triangles[triangleCursor++] = bottomRight;
+
+                    // Second triangle of the rectangular grid cell.
+                    triangles[triangleCursor++] = bottomRight;
+                    triangles[triangleCursor++] = topLeft;
+                    triangles[triangleCursor++] = topRight;
+                }
+            }
+
+            // The mesh carries positions, full-image UVs, and skinning data for the approved soldier model.
+            Mesh mesh = new()
+            {
+                name = name,
+                hideFlags = HideFlags.HideAndDontSave,
+                vertices = vertices,
+                normals = normals,
+                uv = uvs,
+                boneWeights = boneWeights,
+                bindposes = bindposes,
+                triangles = triangles
+            };
+
+            // Recalculated bounds keep screenshot crops tight around the skinned full-model rectangle.
+            mesh.RecalculateBounds();
+
+            return mesh;
+        }
+
+        private static BoneWeight CreateFemaleReferenceBoneWeight(float u, float v)
+        {
+            // Vertices above the hip blend stay locked to the survivor root for an exact upper model.
+            if (v >= FemaleReferenceBodyFullWeightV)
+            {
+                return CreateSingleBoneWeight(FemaleReferenceBodyBoneIndex);
+            }
+
+            // Texture-space left and right halves are attached to the matching generated hip joints.
+            bool isLeftSide = u < FemaleReferenceLegSplitU;
+
+            // The hip bone drives the upper leg and the hip band below the belt.
+            int hipBoneIndex = isLeftSide ? FemaleReferenceLeftHipBoneIndex : FemaleReferenceRightHipBoneIndex;
+
+            // The knee bone drives the shin section so the visible decal bends with the generated joint chain.
+            int kneeBoneIndex = isLeftSide ? FemaleReferenceLeftKneeBoneIndex : FemaleReferenceRightKneeBoneIndex;
+
+            // The boot bone drives the lowest rows so foot placement changes clearly between stride frames.
+            int bootBoneIndex = isLeftSide ? FemaleReferenceLeftBootBoneIndex : FemaleReferenceRightBootBoneIndex;
+
+            // Boots need the strongest non-root weighting because foot motion is the clearest anti-bob cue.
+            if (v <= FemaleReferenceBootFullWeightV)
+            {
+                return CreateRootTwoBoneBlendWeight(bootBoneIndex, 0.72f, kneeBoneIndex, 0.18f);
+            }
+
+            // Shin rows follow the knee first, with a little boot contribution for ankle/foot swing.
+            if (v <= FemaleReferenceShinFullWeightV)
+            {
+                return CreateRootTwoBoneBlendWeight(kneeBoneIndex, 0.64f, bootBoneIndex, 0.18f);
+            }
+
+            // Vertices below the hip blend keep root support while receiving enough leg weight to walk.
+            if (v <= FemaleReferenceLegFullWeightV)
+            {
+                return CreateRootTwoBoneBlendWeight(hipBoneIndex, FemaleReferenceMaximumLegWeight, kneeBoneIndex, 0.10f);
+            }
+
+            // The hip band blends root and leg weights so the full model bends instead of tearing at the belt.
+            float legWeight = Mathf.InverseLerp(FemaleReferenceBodyFullWeightV, FemaleReferenceLegFullWeightV, v) * FemaleReferenceMaximumLegWeight;
+
+            return CreateRootLegBlendWeight(hipBoneIndex, legWeight);
+        }
+
+        private static BoneWeight CreateRootLegBlendWeight(int legBoneIndex, float legWeight)
+        {
+            // Clamp protects the model from future tuning values that would let a leg detach from the torso.
+            float clampedLegWeight = Mathf.Clamp01(legWeight);
+
+            // Root weight preserves the complete approved silhouette while the leg contribution adds stride motion.
+            return new BoneWeight
+            {
+                boneIndex0 = FemaleReferenceBodyBoneIndex,
+                weight0 = 1f - clampedLegWeight,
+                boneIndex1 = legBoneIndex,
+                weight1 = clampedLegWeight
+            };
+        }
+
+        private static BoneWeight CreateRootTwoBoneBlendWeight(int primaryBoneIndex, float primaryWeight, int secondaryBoneIndex, float secondaryWeight)
+        {
+            // Clamp each requested contribution so invalid future tuning cannot exceed Unity's normalized range.
+            float clampedPrimaryWeight = Mathf.Clamp01(primaryWeight);
+
+            // Clamp the secondary contribution independently before normalizing the total below.
+            float clampedSecondaryWeight = Mathf.Clamp01(secondaryWeight);
+
+            // If the two moving bones exceed one, scale them together instead of dropping either joint abruptly.
+            float movingWeightTotal = clampedPrimaryWeight + clampedSecondaryWeight;
+            if (movingWeightTotal > 1f)
+            {
+                // The scale preserves the relative hip/knee/boot mix while leaving no negative root weight.
+                float scale = 1f / movingWeightTotal;
+
+                // Apply the shared scale to the primary moving bone contribution.
+                clampedPrimaryWeight *= scale;
+
+                // Apply the shared scale to the secondary moving bone contribution.
+                clampedSecondaryWeight *= scale;
+
+                // The normalized moving contribution now fills the available weight budget.
+                movingWeightTotal = 1f;
+            }
+
+            // Root weight keeps the approved full-model silhouette coherent while the lower joints walk.
+            float rootWeight = 1f - movingWeightTotal;
+
+            return new BoneWeight
+            {
+                boneIndex0 = FemaleReferenceBodyBoneIndex,
+                weight0 = rootWeight,
+                boneIndex1 = primaryBoneIndex,
+                weight1 = clampedPrimaryWeight,
+                boneIndex2 = secondaryBoneIndex,
+                weight2 = clampedSecondaryWeight
+            };
+        }
+
+        private static BoneWeight CreateSingleBoneWeight(int boneIndex)
+        {
+            // Unity treats unspecified weights as zero, so one filled slot gives an exact rigid attachment.
+            return new BoneWeight
+            {
+                boneIndex0 = boneIndex,
+                weight0 = 1f
+            };
         }
 
         private static void ConfigurePartTransform(Transform partTransform, Transform parent, Vector3 localPosition, Vector3 localScale, Quaternion localRotation)

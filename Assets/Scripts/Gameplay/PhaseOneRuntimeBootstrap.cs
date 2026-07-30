@@ -77,20 +77,17 @@ namespace LaneSurvivor.Gameplay
 
         private static void SetWorldPlayerRendererVisibility(GameObject playerRoot, bool isVisible)
         {
-            // The central flag controls the visible generated rig and keeps any legacy sideways cutout hidden.
+            // The central flag can hide all world-player visuals while preserving factory-authored decal visibility.
             foreach (Renderer renderer in playerRoot.GetComponentsInChildren<Renderer>(true))
             {
-                // Old generated scenes may still include the removed cutout, whose baked rifle points sideways.
-                bool isLegacySoldierCutout = renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName;
-
-                // Legacy cutouts stay hidden even when old scenes still contain them.
-                if (isLegacySoldierCutout)
+                // Old generated scenes may still include the flat reference child that made soldiers read backwards.
+                if (renderer.transform.name == PrototypeCharacterFactory.SoldierReferenceVisualName)
                 {
                     renderer.enabled = false;
                     continue;
                 }
 
-                // Hiding the whole world player still disables every renderer for marker-only experiments.
+                // Hiding the whole world player still disables every generated body renderer.
                 if (!isVisible)
                 {
                     renderer.enabled = false;

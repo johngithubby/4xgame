@@ -12,4 +12,4 @@ Unity compiles these files automatically as part of the main runtime assembly an
 
 ## Behavior
 
-The UI is simple and local-only. It reflects gameplay state from `LevelManager` and `PlayerSquad` without storing gameplay data itself. The player marker code remains available as a simulator-visibility fallback, but the current minigame uses visible world-space survivor meshes as the primary player representation.
+The UI is simple and local-only. It reflects gameplay state from `LevelManager` and `PlayerSquad` without storing gameplay data itself. The player marker code remains available as a simulator-visibility fallback, but the current minigame uses visible world-space 3D soldier rigs as the primary player representation.

@@ -7,7 +7,11 @@ namespace LaneSurvivor.Gameplay
 {
     public sealed class AutoShooter : MonoBehaviour
     {
+        // Existing listeners use the position-only shot event for gameplay tests and fallback effects.
         public event Action<Vector3, Vector3, float, bool> ShotFired;
+
+        // Runtime minigame visuals use the detailed event so tracers can remain attached to the firing muzzle.
+        public event Action<Vector3, Vector3, float, bool, Transform> ShotFiredDetailed;
 
         [SerializeField]
         private PlayerSquad playerSquad;
@@ -73,18 +77,20 @@ namespace LaneSurvivor.Gameplay
                 // Target points stay centered on the visible zombie body so tracers aim where damage text appears.
                 Vector3 targetPoint = target.transform.position + Vector3.up * 0.5f;
 
-                // Prefer a generated survivor muzzle, then let the visual layer know when it is safe to skip offsets.
-                bool shotStartedAtWeaponMuzzle = playerSquad.TryGetNextWeaponMuzzlePosition(out Vector3 shotOrigin);
+                // Prefer a generated survivor muzzle transform so the visual layer can keep effects attached.
+                bool shotStartedAtWeaponMuzzle = playerSquad.TryGetNextWeaponMuzzle(out Transform shotMuzzle);
+                Vector3 shotOrigin = shotStartedAtWeaponMuzzle && shotMuzzle != null ? shotMuzzle.position : default;
                 if (!shotStartedAtWeaponMuzzle)
                 {
                     // Old or test-only squads without generated weapons keep the existing root-derived fallback origin.
                     shotOrigin = playerSquad.transform.position + Vector3.up * 0.5f;
                 }
 
-                // The visible survivor rig uses the same target point as the tracer so the weapon aims at the zombie.
+                // The survivor rig uses the same target point as the tracer so the skinned soldier aims at the zombie.
                 survivorAnimator?.PlaySurvivorShot(shotOrigin, targetPoint);
 
                 ShotFired?.Invoke(shotOrigin, targetPoint, appliedDamage, shotStartedAtWeaponMuzzle);
+                ShotFiredDetailed?.Invoke(shotOrigin, targetPoint, appliedDamage, shotStartedAtWeaponMuzzle, shotMuzzle);
             }
         }
 

@@ -90,7 +90,7 @@ namespace LaneSurvivor.Gameplay
             playerSquad.Defeated += HandlePlayerDefeated;
 
             autoShooter.Initialize(playerSquad, levelDefinition.shootRange, levelDefinition.shotInterval, levelDefinition.laneMatchTolerance);
-            autoShooter.ShotFired += HandleShotFired;
+            autoShooter.ShotFiredDetailed += HandleShotFiredDetailed;
 
             hudController.Initialize(this, playerSquad, levelDefinition.finishDistance);
             endScreenController.Initialize(RestartLevel, ReturnToBase);
@@ -160,10 +160,25 @@ namespace LaneSurvivor.Gameplay
 
         private void HandleShotFired(Vector3 origin, Vector3 target, float damage, bool originUsesWeaponMuzzle)
         {
+            // Reflection-based tests use the position-only path; generated gameplay passes the transform-aware path below.
+            HandleShotFiredFromOptionalMuzzle(origin, target, damage, originUsesWeaponMuzzle, null);
+        }
+
+        private void HandleShotFiredDetailed(Vector3 origin, Vector3 target, float damage, bool originUsesWeaponMuzzle, Transform weaponMuzzle)
+        {
+            // Runtime-generated soldiers pass their actual muzzle transform so short effects stay attached in GIF captures.
+            HandleShotFiredFromOptionalMuzzle(origin, target, damage, originUsesWeaponMuzzle, weaponMuzzle);
+        }
+
+        private void HandleShotFiredFromOptionalMuzzle(Vector3 origin, Vector3 target, float damage, bool originUsesWeaponMuzzle, Transform weaponMuzzle)
+        {
             if (WorldSpaceShotTracersEnabled)
             {
+                // A muzzle flash makes firing readable at the soldier, not only at the distant target label.
+                SpawnMuzzleFlash(origin, target, originUsesWeaponMuzzle, weaponMuzzle);
+
                 // A short line tracer makes automatic shooting visible without adding imported art assets.
-                SpawnShotTracer(origin, target, originUsesWeaponMuzzle);
+                SpawnShotTracer(origin, target, originUsesWeaponMuzzle, weaponMuzzle);
             }
 
             // Damage text helps explain why tougher zombies take several shots.
@@ -414,16 +429,25 @@ namespace LaneSurvivor.Gameplay
             }
         }
 
-        private void SpawnShotTracer(Vector3 origin, Vector3 target, bool originUsesWeaponMuzzle)
+        private void SpawnShotTracer(Vector3 origin, Vector3 target, bool originUsesWeaponMuzzle, Transform weaponMuzzle)
         {
-            // Weapon-origin shots already begin at the visible barrel, while legacy roots still need the old forward offset.
+            if (originUsesWeaponMuzzle && weaponMuzzle != null)
+            {
+                // Generated soldier shots stay parented to the muzzle so the visible beam cannot drift ahead of the rifle.
+                SpawnAttachedShotTracer(weaponMuzzle, target);
+                return;
+            }
+
+            // Weapon-origin shots already begin at the authored muzzle anchor, while legacy roots still need the old forward offset.
             Vector3 tracerOrigin = originUsesWeaponMuzzle ? origin : MoveTracerOriginToMuzzle(origin, target);
 
             // Real muzzle anchors are authored above the road, so keep their start point exact for visual alignment.
             Vector3 liftedOrigin = originUsesWeaponMuzzle ? tracerOrigin : OffsetTracerPoint(LiftTracerPoint(tracerOrigin));
 
-            // Legacy fallback shots keep the lane-stripe offset, while weapon shots aim directly at the target point.
-            Vector3 liftedTarget = originUsesWeaponMuzzle ? LiftTracerPoint(target) : OffsetTracerPoint(LiftTracerPoint(target));
+            // Weapon shots use a short muzzle streak; legacy fallback shots still draw toward the target point.
+            Vector3 liftedTarget = originUsesWeaponMuzzle
+                ? ClampWeaponTracerTarget(liftedOrigin, LiftTracerPoint(target))
+                : OffsetTracerPoint(LiftTracerPoint(target));
 
             // Direction and distance guard against invalid zero-length tracer geometry.
             Vector3 direction = liftedTarget - liftedOrigin;
@@ -457,22 +481,167 @@ namespace LaneSurvivor.Gameplay
             Destroy(tracerMaterial, GameplayVisuals.ShotTracerLifetimeSeconds + 0.02f);
         }
 
+        private void SpawnMuzzleFlash(Vector3 origin, Vector3 target, bool originUsesWeaponMuzzle, Transform weaponMuzzle)
+        {
+            if (originUsesWeaponMuzzle && weaponMuzzle != null)
+            {
+                // Generated soldier flashes stay on the rifle tip instead of becoming a separate world marker.
+                SpawnAttachedMuzzleFlash(weaponMuzzle, target);
+                return;
+            }
+
+            // Weapon-origin shots already begin at the authored muzzle; legacy shots reuse the tracer fallback origin.
+            Vector3 flashOrigin = originUsesWeaponMuzzle ? origin : MoveTracerOriginToMuzzle(origin, target);
+
+            // Real muzzle anchors should stay exact, while legacy origins still need the lane-stripe offset.
+            Vector3 liftedOrigin = originUsesWeaponMuzzle ? flashOrigin : OffsetTracerPoint(LiftTracerPoint(flashOrigin));
+
+            // Only fallback roots get a tiny lift because real weapon muzzles are already authored at the rifle tip.
+            if (!originUsesWeaponMuzzle)
+            {
+                liftedOrigin += Vector3.up * GameplayVisuals.MuzzleFlashLiftY;
+            }
+
+            // The flash points in the same world-space direction as the shot tracer.
+            Vector3 shotDirection = LiftTracerPoint(target) - liftedOrigin;
+            if (shotDirection.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            // The muzzle flare mesh starts at the exact visual origin instead of floating ahead as a separate marker.
+            Mesh flashMesh = CreateMuzzleFlashMesh(liftedOrigin, shotDirection.normalized);
+
+            // A saturated orange flare reads as weapon fire without introducing a yellow pickup-like ball.
+            Material flashMaterial = PrototypeMaterialFactory.CreateAlwaysVisibleSolidFeedback(new Color(1f, 0.30f, 0.02f, 1f));
+
+            // The effect is still a normal world-space scene object for camera capture and test visibility.
+            GameObject flash = new("Muzzle Flash");
+
+            // MeshFilter carries the short constant-width flare geometry.
+            MeshFilter meshFilter = flash.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = flashMesh;
+
+            // MeshRenderer draws the flare through the same foreground material family as tracers.
+            MeshRenderer meshRenderer = flash.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = flashMaterial;
+            meshRenderer.sortingOrder = 120;
+
+            // The object, mesh, and material are short-lived prototype effects.
+            Destroy(flash, GameplayVisuals.MuzzleFlashLifetimeSeconds);
+            Destroy(flashMesh, GameplayVisuals.MuzzleFlashLifetimeSeconds + 0.02f);
+            Destroy(flashMaterial, GameplayVisuals.MuzzleFlashLifetimeSeconds + 0.02f);
+        }
+
+        private void SpawnAttachedShotTracer(Transform weaponMuzzle, Vector3 target)
+        {
+            // The target is lifted in the same way as world tracers so the beam points at the readable actor band.
+            Vector3 liftedTarget = LiftTracerPoint(target);
+
+            // Direction is captured in world space before parenting so camera-facing side math stays stable.
+            Vector3 worldDirection = liftedTarget - weaponMuzzle.position;
+            float distance = worldDirection.magnitude;
+            if (distance <= 0.01f)
+            {
+                return;
+            }
+
+            // Keep the visible streak short enough that its start remains visually tied to the raised weapon.
+            float visibleDistance = Mathf.Min(distance, GameplayVisuals.ShotTracerWeaponForwardLength);
+
+            // The tracer child follows the animated muzzle while it lives.
+            GameObject tracer = new("Shot Tracer");
+            tracer.transform.SetParent(weaponMuzzle, false);
+            tracer.transform.localPosition = Vector3.zero;
+            tracer.transform.localRotation = Quaternion.identity;
+            tracer.transform.localScale = Vector3.one;
+
+            // The generated material ignores depth so gates and the road cannot bury the attached beam.
+            Material tracerMaterial = PrototypeMaterialFactory.CreateAlwaysVisibleSolidFeedback(new Color(1f, 0.42f, 0.02f, 1f));
+
+            // Local-space vertices keep the first edge exactly on the muzzle even as the soldier runs.
+            Mesh tracerMesh = CreateAttachedShotEffectMesh(
+                weaponMuzzle,
+                worldDirection.normalized,
+                GameplayVisuals.ShotTracerWidth * 0.25f,
+                visibleDistance,
+                "Shot Tracer Mesh");
+
+            // MeshFilter carries the generated attached strip geometry.
+            MeshFilter meshFilter = tracer.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = tracerMesh;
+
+            // MeshRenderer draws the strip through the same foreground material family as world tracers.
+            MeshRenderer meshRenderer = tracer.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = tracerMaterial;
+            meshRenderer.sortingOrder = 100;
+
+            // The object, mesh, and material are all short-lived prototype effects.
+            Destroy(tracer, GameplayVisuals.ShotTracerLifetimeSeconds);
+            Destroy(tracerMesh, GameplayVisuals.ShotTracerLifetimeSeconds + 0.02f);
+            Destroy(tracerMaterial, GameplayVisuals.ShotTracerLifetimeSeconds + 0.02f);
+        }
+
+        private void SpawnAttachedMuzzleFlash(Transform weaponMuzzle, Vector3 target)
+        {
+            // The target is lifted so the flash points along the same visual line as the tracer.
+            Vector3 liftedTarget = LiftTracerPoint(target);
+
+            // Direction is captured from the current muzzle pose before parenting the effect.
+            Vector3 worldDirection = liftedTarget - weaponMuzzle.position;
+            if (worldDirection.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            // The flash child follows the rifle tip instead of leaving an orange marker ahead of the soldier.
+            GameObject flash = new("Muzzle Flash");
+            flash.transform.SetParent(weaponMuzzle, false);
+            flash.transform.localPosition = Vector3.zero;
+            flash.transform.localRotation = Quaternion.identity;
+            flash.transform.localScale = Vector3.one;
+
+            // A saturated orange flare reads as weapon fire without introducing a yellow pickup-like ball.
+            Material flashMaterial = PrototypeMaterialFactory.CreateAlwaysVisibleSolidFeedback(new Color(1f, 0.30f, 0.02f, 1f));
+
+            // Local-space vertices keep the flash base glued to the exact muzzle transform.
+            Mesh flashMesh = CreateAttachedShotEffectMesh(
+                weaponMuzzle,
+                worldDirection.normalized,
+                GameplayVisuals.MuzzleFlashSize * 0.16f,
+                GameplayVisuals.MuzzleFlashForwardLength,
+                "Muzzle Flash Mesh");
+
+            // MeshFilter carries the short constant-width flare geometry.
+            MeshFilter meshFilter = flash.AddComponent<MeshFilter>();
+            meshFilter.sharedMesh = flashMesh;
+
+            // MeshRenderer draws the flare through the same foreground material family as tracers.
+            MeshRenderer meshRenderer = flash.AddComponent<MeshRenderer>();
+            meshRenderer.sharedMaterial = flashMaterial;
+            meshRenderer.sortingOrder = 120;
+
+            // The object, mesh, and material are short-lived prototype effects.
+            Destroy(flash, GameplayVisuals.MuzzleFlashLifetimeSeconds);
+            Destroy(flashMesh, GameplayVisuals.MuzzleFlashLifetimeSeconds + 0.02f);
+            Destroy(flashMaterial, GameplayVisuals.MuzzleFlashLifetimeSeconds + 0.02f);
+        }
+
         private static Mesh CreateShotTracerMesh(Vector3 origin, Vector3 target, Vector3 direction)
         {
             // The camera right-facing vector makes the strip readable without giving it boxy side faces.
             Vector3 side = CalculateTracerSideVector(direction);
 
-            // A slight taper gives the streak a projectile feel instead of a rigid obstacle silhouette.
-            Vector3 startSide = side * (GameplayVisuals.ShotTracerWidth * 0.5f);
-            Vector3 endSide = side * (GameplayVisuals.ShotTracerWidth * 0.28f);
+            // Constant thin width prevents the short streak from reading as an arrow aimed back at the squad.
+            Vector3 tracerSide = side * (GameplayVisuals.ShotTracerWidth * 0.25f);
 
             // Vertices are stored in world coordinates because the temporary object stays at the origin.
             Vector3[] vertices =
             {
-                origin - startSide,
-                origin + startSide,
-                target + endSide,
-                target - endSide
+                origin - tracerSide,
+                origin + tracerSide,
+                target + tracerSide,
+                target - tracerSide
             };
 
             // Simple UVs keep the quad compatible with sprite and transparent unlit shaders.
@@ -504,6 +673,159 @@ namespace LaneSurvivor.Gameplay
             };
 
             // Bounds let Unity cull the short-lived strip correctly while it exists.
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Vector3 ClampWeaponTracerTarget(Vector3 origin, Vector3 target)
+        {
+            // The direction from muzzle to target decides the visible forward streak direction.
+            Vector3 direction = target - origin;
+
+            // Very close targets should keep their exact endpoint instead of producing unstable normalization.
+            float distance = direction.magnitude;
+            if (distance <= 0.01f)
+            {
+                return target;
+            }
+
+            // Shorten long shots so phone captures show the beam leaving the rifle, not spanning from off-screen.
+            float visibleDistance = Mathf.Min(distance, GameplayVisuals.ShotTracerWeaponForwardLength);
+            return origin + direction.normalized * visibleDistance;
+        }
+
+        private static Mesh CreateMuzzleFlashMesh(Vector3 origin, Vector3 direction)
+        {
+            // The camera-facing side vector makes the small flare readable from the chase camera.
+            Vector3 side = CalculateTracerSideVector(direction);
+
+            // Constant flash width prevents the short muzzle burst from reading as an arrowhead.
+            Vector3 flashSide = side * (GameplayVisuals.MuzzleFlashSize * 0.16f);
+
+            // The flare points only a short distance down-lane so the beam start remains at the weapon.
+            Vector3 tipCenter = origin + direction * GameplayVisuals.MuzzleFlashForwardLength;
+
+            // Vertices are world-space because the temporary effect object stays unparented at the origin.
+            Vector3[] vertices =
+            {
+                origin - flashSide,
+                origin + flashSide,
+                tipCenter + flashSide,
+                tipCenter - flashSide
+            };
+
+            // Simple UVs keep the flare compatible with the same material setup used by tracers.
+            Vector2[] uvs =
+            {
+                Vector2.zero,
+                Vector2.up,
+                Vector2.one,
+                Vector2.right
+            };
+
+            // Two front triangles plus two back triangles keep the small burst visible from either side.
+            int[] triangles =
+            {
+                0, 1, 2,
+                0, 2, 3,
+                0, 2, 1,
+                0, 3, 2
+            };
+
+            // HideFlags prevent this temporary muzzle mesh from being saved into the scene.
+            Mesh mesh = new()
+            {
+                name = "Muzzle Flash Mesh",
+                hideFlags = HideFlags.HideAndDontSave,
+                vertices = vertices,
+                uv = uvs,
+                triangles = triangles
+            };
+
+            // Bounds let Unity cull the short-lived flare correctly while it exists.
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private static Mesh CreateAttachedShotEffectMesh(Transform originTransform, Vector3 worldDirection, float halfWidth, float length, string meshName)
+        {
+            // Convert the shot direction into muzzle-local space so vertex zero stays glued to the weapon tip.
+            Vector3 localDirection = originTransform.InverseTransformDirection(worldDirection);
+            if (localDirection.sqrMagnitude <= 0.0001f)
+            {
+                // A degenerate target should still produce a tiny forward marker instead of invalid geometry.
+                localDirection = Vector3.forward;
+            }
+            else
+            {
+                // Normalized local direction lets the caller own the exact effect length.
+                localDirection.Normalize();
+            }
+
+            // Match the world-space tracer's camera-facing width, then convert that side vector into muzzle space.
+            Vector3 localSide = originTransform.InverseTransformDirection(CalculateTracerSideVector(worldDirection));
+            if (localSide.sqrMagnitude <= 0.0001f)
+            {
+                // A right-vector fallback keeps the quad visible if the shot and camera vectors align.
+                localSide = Vector3.right;
+            }
+            else
+            {
+                // Normalized side vectors make the width independent from parent transform scale.
+                localSide.Normalize();
+            }
+
+            // Clamp defensive values so bad inputs cannot invert or erase the attached effect.
+            float safeHalfWidth = Mathf.Max(halfWidth, 0.001f);
+            float safeLength = Mathf.Max(length, 0.001f);
+
+            // The start edge is centered on local origin, which is the weapon muzzle transform.
+            Vector3 startLeft = -localSide * safeHalfWidth;
+            Vector3 startRight = localSide * safeHalfWidth;
+
+            // The end edge advances only a short distance along the captured target direction.
+            Vector3 endCenter = localDirection * safeLength;
+            Vector3 endRight = endCenter + localSide * safeHalfWidth;
+            Vector3 endLeft = endCenter - localSide * safeHalfWidth;
+
+            // Local-space vertices let the parent muzzle carry the beam through running and recoil animation.
+            Vector3[] vertices =
+            {
+                startLeft,
+                startRight,
+                endRight,
+                endLeft
+            };
+
+            // Simple UVs keep the attached strip compatible with the same solid feedback materials.
+            Vector2[] uvs =
+            {
+                Vector2.zero,
+                Vector2.up,
+                Vector2.one,
+                Vector2.right
+            };
+
+            // Two front triangles plus two back triangles keep the effect visible from both sides of the quad.
+            int[] triangles =
+            {
+                0, 1, 2,
+                0, 2, 3,
+                0, 2, 1,
+                0, 3, 2
+            };
+
+            // HideFlags prevent short-lived effect meshes from being saved into edited scenes.
+            Mesh mesh = new()
+            {
+                name = meshName,
+                hideFlags = HideFlags.HideAndDontSave,
+                vertices = vertices,
+                uv = uvs,
+                triangles = triangles
+            };
+
+            // Bounds let Unity cull the attached strip correctly while it exists.
             mesh.RecalculateBounds();
             return mesh;
         }

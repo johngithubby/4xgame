@@ -2,7 +2,8 @@
     "name": "LaneSurvivor.Runtime",
     "rootNamespace": "LaneSurvivor",
     "references": [
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "UnityEngine.AnimationModule"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

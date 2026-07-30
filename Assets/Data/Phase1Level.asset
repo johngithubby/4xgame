@@ -1,0 +1,57 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c1e0b3ba2ab564b1abca31e3f6322320, type: 3}
+  m_Name: Phase1Level
+  m_EditorClassIdentifier: LaneSurvivor.Runtime::LaneSurvivor.Data.LevelDefinition
+  levelNumber: 1
+  startingSquadCount: 6
+  startingDamagePerMember: 1
+  finishDistance: 42.5
+  squadMoveSpeed: 4.2
+  laneChangeSpeed: 8
+  laneMatchTolerance: 0.85
+  lanePositions:
+  - -2
+  - 0
+  - 2
+  shootRange: 8
+  shotInterval: 0.35
+  gates:
+  - modifierType: 0
+    squadValue: 4
+    damageValue: 0
+    position: {x: -2, y: 1.1, z: 9}
+  - modifierType: 1
+    squadValue: 2
+    damageValue: 0
+    position: {x: 2, y: 1.1, z: 9}
+  - modifierType: 3
+    squadValue: 0
+    damageValue: 0.5
+    position: {x: 0, y: 1.1, z: 22}
+  - modifierType: 2
+    squadValue: 5
+    damageValue: 0
+    position: {x: -2, y: 1.1, z: 36}
+  zombies:
+  - enemyType: 0
+    health: 8
+    breachPenalty: 2
+    position: {x: 0, y: 1, z: 15}
+  - enemyType: 0
+    health: 18
+    breachPenalty: 4
+    position: {x: 2, y: 1, z: 27}
+  - enemyType: 0
+    health: 24
+    breachPenalty: 6
+    position: {x: -2, y: 1, z: 41}

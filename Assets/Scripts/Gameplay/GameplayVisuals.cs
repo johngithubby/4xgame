@@ -22,7 +22,7 @@ namespace LaneSurvivor.Gameplay
         // The player center is raised so humanoid squad feet stay above the road while the chase camera follows the group.
         public const float PlayerCenterY = TrackTopY + 1.10f;
 
-        // The player height now represents the generated survivor formation rather than a single placeholder cube.
+        // The player height represents the visible soldier-shell formation rather than a single placeholder cube.
         public const float PlayerHeight = 1.35f;
 
         // The player footprint fits a three-person mini formation inside one portrait-safe lane.
@@ -31,7 +31,7 @@ namespace LaneSurvivor.Gameplay
         // The world-space humanoid squad is now the primary player visual; the HUD marker remains as an emergency fallback.
         public static readonly bool UseScreenSpacePlayerMarker = false;
 
-        // The generated survivor meshes stay visible so the player is represented by people instead of UI rectangles.
+        // The skinned survivor model renderers stay visible so the player is represented by people instead of UI rectangles.
         public static readonly bool WorldPlayerMeshRenderersEnabled = true;
 
         // The HUD marker is compact so it does not repeat the oversized-world-player regression.
@@ -157,11 +157,26 @@ namespace LaneSurvivor.Gameplay
         // The dark duplicate is slightly offset in text-local space to keep yellow/red labels readable on iOS.
         public static readonly Vector3 FeedbackTextShadowOffset = new(0.045f, -0.045f, 0.015f);
 
-        // Shot tracers are thin camera-facing strips, not stretched cubes that can look like gate pieces.
-        public const float ShotTracerWidth = 0.075f;
+        // Shot tracers are camera-facing strips, narrow enough to read as beams instead of obstacle bars.
+        public const float ShotTracerWidth = 0.11f;
 
-        // Tracers last long enough to communicate auto-fire but short enough to avoid cluttering the chase view.
-        public const float ShotTracerLifetimeSeconds = 0.18f;
+        // Tracers last across a couple of 12fps capture frames without drifting away from the moving squad.
+        public const float ShotTracerLifetimeSeconds = 0.16f;
+
+        // Weapon-origin tracers are very short so captures read the streak as leaving the raised rifle.
+        public const float ShotTracerWeaponForwardLength = 0.22f;
+
+        // Muzzle flashes are compact flares at the rifle tip, not gameplay-sized pickup markers.
+        public const float MuzzleFlashSize = 0.22f;
+
+        // The flash stretches only a tiny distance down-lane so it cannot read as an arrow over the squad.
+        public const float MuzzleFlashForwardLength = 0.12f;
+
+        // Only legacy no-muzzle fallback shots get a tiny readability lift; real muzzles stay exact.
+        public const float MuzzleFlashLiftY = 0.04f;
+
+        // The flash lifetime is short enough that it does not hang behind the running squad.
+        public const float MuzzleFlashLifetimeSeconds = 0.14f;
 
         // Tracer endpoints are lifted to the readable actor band and kept away from the road surface.
         public const float ShotTracerMinimumY = TrackTopY + 1.24f;
