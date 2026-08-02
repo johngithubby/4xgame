@@ -17,7 +17,7 @@ namespace LaneSurvivor.Editor
         public override uint GetVersion()
         {
             // Increment this value whenever importer policy changes so Unity invalidates the cached FBX artifact.
-            return 5;
+            return 7;
         }
 
         private void OnPreprocessModel()
@@ -43,8 +43,8 @@ namespace LaneSurvivor.Editor
             importer.animationType = ModelImporterAnimationType.Human;
             importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
 
-            // Clear any stale custom map so Unity auto-detects the standard names authored into the optimized FBX.
-            importer.humanDescription = new HumanDescription();
+            // Auto-detect the standard bone names while retaining Unity's normal Humanoid twist/stretch distribution.
+            importer.humanDescription = CreateRetargetingDescription();
 
             // Authored rifle idle/walk actions replace the visibly stiff sine-only bone posing.
             importer.importAnimation = true;
@@ -88,13 +88,35 @@ namespace LaneSurvivor.Editor
             importer.materialImportMode = ModelImporterMaterialImportMode.None;
             importer.importBlendShapes = false;
 
-            // Resampling and optimal curve compression keep the 30 FPS motion stable while reducing runtime memory.
+            // Preserve all resampled 30 FPS keys so foot-clearance arcs cannot be flattened by curve reduction.
             importer.resampleCurves = true;
-            importer.animationCompression = ModelImporterAnimationCompression.Optimal;
+            importer.animationCompression = ModelImporterAnimationCompression.Off;
 
             // Transform exposure is unnecessary because the clip is retargeted onto the separate SWAT model Avatar.
             importer.optimizeGameObjects = true;
             importer.isReadable = false;
+        }
+
+        private static HumanDescription CreateRetargetingDescription()
+        {
+            // Unity's standard 50/50 twist distribution prevents rotation from collapsing into one thigh or shin.
+            HumanDescription description = new()
+            {
+                upperArmTwist = 0.5f,
+                lowerArmTwist = 0.5f,
+                upperLegTwist = 0.5f,
+                lowerLegTwist = 0.5f,
+
+                // Small stretch tolerance lets differently proportioned Mixamo and Character Creator rigs share foot plants.
+                armStretch = 0.05f,
+                legStretch = 0.05f,
+
+                // The clip remains in place and retains its authored stance width.
+                feetSpacing = 0f,
+                hasTranslationDoF = false
+            };
+
+            return description;
         }
 
         private void OnPreprocessTexture()

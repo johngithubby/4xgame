@@ -1559,11 +1559,17 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(swatModel);
             Animator animator = swatModel.GetComponent<Animator>();
             SwatSurvivorLocomotionAnimator locomotion = swatModel.GetComponent<SwatSurvivorLocomotionAnimator>();
-            // Unity's Avatar mapping identifies the bone that actually deforms the imported Humanoid skin.
-            Transform leftUpperLeg = animator.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
+
             Assert.IsNotNull(animator);
             Assert.IsNotNull(locomotion);
+
+            // Unity's Avatar mapping identifies the bone that actually deforms the imported Humanoid skin.
+            Transform leftUpperLeg = animator.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
+            Transform leftFoot = animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+            Transform rightFoot = animator.GetBoneTransform(HumanBodyBones.RightFoot);
             Assert.IsNotNull(leftUpperLeg);
+            Assert.IsNotNull(leftFoot);
+            Assert.IsNotNull(rightFoot);
 
             // Select the largest visible skin that actually references the mapped leg so the test follows rendered geometry.
             SkinnedMeshRenderer animatedSkin = null;
@@ -1600,7 +1606,7 @@ namespace LaneSurvivor.Tests.PlayMode
                 SwatSurvivorLocomotionAnimator.LocomotionLayerWeight,
                 animator.GetLayerWeight(SwatSurvivorLocomotionAnimator.LocomotionLayerIndex),
                 0.001f);
-            Assert.IsTrue(animator.GetCurrentAnimatorStateInfo(SwatSurvivorLocomotionAnimator.LocomotionLayerIndex).IsName("Rifle Walk"));
+            Assert.IsTrue(animator.GetCurrentAnimatorStateInfo(SwatSurvivorLocomotionAnimator.LocomotionLayerIndex).IsName("Rifle Run"));
             float firstNormalizedTime = animator.GetCurrentAnimatorStateInfo(SwatSurvivorLocomotionAnimator.LocomotionLayerIndex).normalizedTime;
             Quaternion firstLegRotation = leftUpperLeg.localRotation;
 
@@ -1612,11 +1618,28 @@ namespace LaneSurvivor.Tests.PlayMode
             // Repeated samples cover enough of the gait to require a clearly visible swing rather than sub-pixel jitter.
             float maximumLegSwing = 0f;
             float maximumVertexDisplacement = 0f;
+            float maximumLeftFootYaw = 0f;
+            float maximumRightFootYaw = 0f;
+            float maximumLeftFootCrossing = 0f;
+            float maximumRightFootCrossing = 0f;
+            List<Vector3> leftFootSamples = new();
+            List<Vector3> rightFootSamples = new();
             Mesh sampledPoseMesh = new Mesh { name = "SWAT Sampled Gameplay Pose Test Mesh" };
-            for (int sampleIndex = 0; sampleIndex < 6; sampleIndex++)
+            for (int sampleIndex = 0; sampleIndex < 48; sampleIndex++)
             {
-                yield return new WaitForSeconds(0.10f);
+                // Forty samples per second cover almost two complete rifle-run cycles without temporal aliasing.
+                yield return new WaitForSeconds(0.025f);
                 maximumLegSwing = Mathf.Max(maximumLegSwing, Quaternion.Angle(firstLegRotation, leftUpperLeg.localRotation));
+
+                // The bridge records post-LateUpdate measurements from the exact corrected pose sent to rendering.
+                maximumLeftFootYaw = Mathf.Max(maximumLeftFootYaw, locomotion.LeftFootYawFromTravelDirection);
+                maximumRightFootYaw = Mathf.Max(maximumRightFootYaw, locomotion.RightFootYawFromTravelDirection);
+                maximumLeftFootCrossing = Mathf.Max(maximumLeftFootCrossing, locomotion.LeftFootCentrelineCrossing);
+                maximumRightFootCrossing = Mathf.Max(maximumRightFootCrossing, locomotion.RightFootCentrelineCrossing);
+
+                // Player-root space removes world translation so the samples describe the visible gait itself.
+                leftFootSamples.Add(playerSquad.transform.InverseTransformPoint(leftFoot.position));
+                rightFootSamples.Add(playerSquad.transform.InverseTransformPoint(rightFoot.position));
 
                 // Bake what the SkinnedMeshRenderer would submit for this frame and compare every vertex to the first pose.
                 animatedSkin.BakeMesh(sampledPoseMesh);
@@ -1634,10 +1657,68 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.Greater(secondNormalizedTime, firstNormalizedTime + 0.01f);
             Assert.Greater(maximumLegSwing, 20f, "Mapped Humanoid leg swing must remain visible at the gameplay camera distance.");
             Assert.Greater(maximumVertexDisplacement, 0.02f, "The visible SWAT skin must deform while the authored walk cycle advances.");
+            // Include the complete measurement set in the first message because this NUnit version stops at one failure.
+            string gaitMeasurements =
+                $"Left yaw {maximumLeftFootYaw:F1}, right yaw {maximumRightFootYaw:F1}, " +
+                $"left crossing {maximumLeftFootCrossing:F3}, right crossing {maximumRightFootCrossing:F3}.";
+            Assert.LessOrEqual(maximumLeftFootYaw, SwatSurvivorLocomotionAnimator.MaximumFootYawFromTravelDirection + 0.5f, $"Left boot yaw exceeded the travel-direction limit. {gaitMeasurements}");
+            Assert.LessOrEqual(maximumRightFootYaw, SwatSurvivorLocomotionAnimator.MaximumFootYawFromTravelDirection + 0.5f, $"Right boot yaw exceeded the travel-direction limit. {gaitMeasurements}");
+            Assert.Less(maximumLeftFootCrossing, 0.005f, $"Left foot crossed the hip centreline. {gaitMeasurements}");
+            Assert.Less(maximumRightFootCrossing, 0.005f, $"Right foot crossed the hip centreline. {gaitMeasurements}");
+
+            // A credible swing foot must lift before travelling from behind the body to its next forward plant.
+            float leftDragRatio = CalculateNearGroundForwardTravelRatio(leftFootSamples, out float leftForwardClearance, out float leftForwardTravel);
+            float rightDragRatio = CalculateNearGroundForwardTravelRatio(rightFootSamples, out float rightForwardClearance, out float rightForwardTravel);
+            string swingMeasurements =
+                $"Left clearance {leftForwardClearance:F3}, travel {leftForwardTravel:F3}, drag {leftDragRatio:F2}; " +
+                $"right clearance {rightForwardClearance:F3}, travel {rightForwardTravel:F3}, drag {rightDragRatio:F2}.";
+            Assert.Greater(leftForwardClearance, 0.04f, $"Left foot must lift visibly during its forward swing. {swingMeasurements}");
+            Assert.Greater(rightForwardClearance, 0.04f, $"Right foot must lift visibly during its forward swing. {swingMeasurements}");
+            Assert.Less(leftDragRatio, 0.55f, $"Left foot cannot travel mostly forward while near the road. {swingMeasurements}");
+            Assert.Less(rightDragRatio, 0.55f, $"Right foot cannot travel mostly forward while near the road. {swingMeasurements}");
 
             // Test-only baked meshes are transient and should not survive the completed assertion.
             UnityEngine.Object.Destroy(firstPoseMesh);
             UnityEngine.Object.Destroy(sampledPoseMesh);
+        }
+
+        private static float CalculateNearGroundForwardTravelRatio(
+            IReadOnlyList<Vector3> samples,
+            out float maximumForwardClearance,
+            out float totalForwardTravel)
+        {
+            // The lowest sampled ankle position approximates the planted phase without depending on road height or boot geometry.
+            float minimumHeight = float.PositiveInfinity;
+            foreach (Vector3 sample in samples)
+            {
+                minimumHeight = Mathf.Min(minimumHeight, sample.y);
+            }
+
+            maximumForwardClearance = 0f;
+            totalForwardTravel = 0f;
+            float nearGroundForwardTravel = 0f;
+            for (int sampleIndex = 1; sampleIndex < samples.Count; sampleIndex++)
+            {
+                // Positive local Z movement is the back-to-front swing phase for the down-lane character.
+                float forwardStep = samples[sampleIndex].z - samples[sampleIndex - 1].z;
+                if (forwardStep <= 0.0005f)
+                {
+                    continue;
+                }
+
+                // Midpoint clearance represents the entire small travel segment instead of only its endpoint.
+                float averageClearance =
+                    ((samples[sampleIndex].y + samples[sampleIndex - 1].y) * 0.5f) - minimumHeight;
+                maximumForwardClearance = Mathf.Max(maximumForwardClearance, averageClearance);
+                totalForwardTravel += forwardStep;
+                if (averageClearance < 0.035f)
+                {
+                    nearGroundForwardTravel += forwardStep;
+                }
+            }
+
+            // Missing forward travel is a fully dragged or static foot and therefore returns the worst possible ratio.
+            return totalForwardTravel > 0.001f ? nearGroundForwardTravel / totalForwardTravel : 1f;
         }
 
         [UnityTest]

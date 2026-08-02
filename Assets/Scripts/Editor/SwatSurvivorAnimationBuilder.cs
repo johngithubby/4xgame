@@ -11,7 +11,7 @@ namespace LaneSurvivor.Editor
     {
         // Animation-only Mixamo FBXs remain separate from the licensed mesh so the character is not duplicated.
         private const string IdleAnimationPath = "Assets/Resources/Survivor3D/Animations/Mixamo_Rifle_Lowered_Idle.fbx";
-        private const string WalkAnimationPath = "Assets/Resources/Survivor3D/Animations/Mixamo_Rifle_Walk.fbx";
+        private const string RunAnimationPath = "Assets/Resources/Survivor3D/Animations/Mixamo_Rifle_Run.fbx";
 
         // Resources loading lets editor-built and runtime-bootstrapped scenes use the same controller.
         private const string ControllerPath = "Assets/Resources/Survivor3D/SWAT_Survivor_Controller.controller";
@@ -23,12 +23,12 @@ namespace LaneSurvivor.Editor
         public static void Rebuild()
         {
             // Custom loop and root-lock settings become available after each FBX's initial preprocessing pass.
-            EnsureMixamoClipLoops(IdleAnimationPath);
-            EnsureMixamoClipLoops(WalkAnimationPath);
+            EnsureMixamoClipLoops(IdleAnimationPath, true);
+            EnsureMixamoClipLoops(RunAnimationPath, false);
 
             // Each animation-only FBX contributes exactly one non-preview Humanoid motion to the controller.
             AnimationClip idleClip = LoadMixamoClip(IdleAnimationPath);
-            AnimationClip walkClip = LoadMixamoClip(WalkAnimationPath);
+            AnimationClip runClip = LoadMixamoClip(RunAnimationPath);
 
             // Rebuilding from source avoids silently retaining obsolete states, layers, masks, or transitions.
             if (AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(ControllerPath) != null)
@@ -51,26 +51,26 @@ namespace LaneSurvivor.Editor
             idleState.motion = idleClip;
             baseStateMachine.defaultState = idleState;
 
-            // The Mixamo rifle walk supplies a coherent full-body gait, including hips, knees, feet, torso, and weapon hold.
-            AnimatorState walkState = baseStateMachine.AddState("Rifle Walk");
-            walkState.motion = walkClip;
-            walkState.speed = 1.08f;
+            // The 4.2 m/s gameplay pace is a run, so this faster cycle prevents slow-walk foot dragging against the road.
+            AnimatorState runState = baseStateMachine.AddState("Rifle Run");
+            runState.motion = runClip;
+            runState.speed = 1.15f;
 
             // Short crossfades remove visible pops without making the character react sluggishly.
-            AnimatorStateTransition beginWalk = idleState.AddTransition(walkState);
-            ConfigureTransition(beginWalk, true);
+            AnimatorStateTransition beginRun = idleState.AddTransition(runState);
+            ConfigureTransition(beginRun, true);
 
-            AnimatorStateTransition stopWalk = walkState.AddTransition(idleState);
-            ConfigureTransition(stopWalk, false);
+            AnimatorStateTransition stopRun = runState.AddTransition(idleState);
+            ConfigureTransition(stopRun, false);
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log($"Rebuilt SWAT locomotion controller with Mixamo clips '{idleClip.name}' and '{walkClip.name}'.");
+            Debug.Log($"Rebuilt SWAT locomotion controller with Mixamo clips '{idleClip.name}' and '{runClip.name}'.");
         }
 
-        private static void EnsureMixamoClipLoops(string animationPath)
+        private static void EnsureMixamoClipLoops(string animationPath, bool blendLoopPose)
         {
             // Every configured path must resolve to an imported animation FBX before the controller is rebuilt.
             ModelImporter importer = AssetImporter.GetAtPath(animationPath) as ModelImporter;
@@ -88,7 +88,7 @@ namespace LaneSurvivor.Editor
             {
                 // Both downloaded actions are in-place cycles; PlayerSquad remains authoritative for world translation.
                 changed |= !clip.loopTime ||
-                           !clip.loopPose ||
+                           clip.loopPose != blendLoopPose ||
                            !clip.lockRootRotation ||
                            !clip.lockRootHeightY ||
                            !clip.lockRootPositionXZ ||
@@ -96,7 +96,8 @@ namespace LaneSurvivor.Editor
                            !clip.keepOriginalPositionY ||
                            !clip.keepOriginalOrientation;
                 clip.loopTime = true;
-                clip.loopPose = true;
+                // Mixamo's run already closes cleanly; preserving it avoids redistributing the left-foot lift across the loop.
+                clip.loopPose = blendLoopPose;
                 clip.lockRootRotation = true;
                 clip.lockRootHeightY = true;
                 clip.lockRootPositionXZ = true;

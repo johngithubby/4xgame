@@ -37,7 +37,7 @@ namespace LaneSurvivor.Rendering
         // Resources keeps the licensed FBX available to both editor-built and runtime-bootstrapped scenes.
         private const string SwatSurvivorResourcePath = "Survivor3D/SWAT_Survivor_Mobile";
 
-        // The generated controller blends the authored rifle idle and walk actions based on gameplay-root movement.
+        // The generated controller blends the authored rifle idle and run actions based on gameplay-root movement.
         private const string SwatSurvivorControllerResourcePath = "Survivor3D/SWAT_Survivor_Controller";
 
         // The imported character is 1.8 metres tall, so this scale matches the existing 1.58-metre prototype rig.
@@ -363,7 +363,7 @@ namespace LaneSurvivor.Rendering
 
         private static void ConfigureSwatLocomotion(GameObject swatModel, Transform survivorRoot)
         {
-            // The controller retargets separate Mixamo Humanoid clips onto the SWAT Avatar stored with the model.
+            // The controller retargets separate Mixamo Humanoid idle/run clips onto the SWAT Avatar stored with the model.
             RuntimeAnimatorController controller = Resources.Load<RuntimeAnimatorController>(SwatSurvivorControllerResourcePath);
             if (controller == null)
             {
