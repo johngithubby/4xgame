@@ -17,12 +17,12 @@ This repository contains a small Unity iOS-first mobile game prototype. Phase 1 
 - Lane input works with the on-screen arrow buttons, keyboard `A/D`, keyboard arrow keys, or tapping/clicking the left or right third of the screen.
 - Local mission progression unlocks additional minigame layouts with tougher lane pacing.
 - Automatic shots now show compact muzzle-attached orange flares, short-lived rifle-attached tracers, and damage text.
-- The minigame renders the leader as an optimized 59,288-triangle licensed SWAT model with explicit albedo/normal PBR materials and authored two-handed rifle idle/run clips; the two wing survivors retain the existing reference-decal rigs for a direct technical comparison.
+- The minigame renders the leader as an optimized 59,288-triangle licensed SWAT model with explicit albedo/normal PBR materials and Mixamo-retargeted lowered-rifle idle/walk clips; the two wing survivors retain the existing reference-decal rigs for a direct technical comparison.
 - Generated survivor rigs provide connected hip, knee, shin, and boot transforms plus hidden down-lane rifle anchors for tracer origins.
 - The visible chase-camera soldier decals carry compact raised rifles near eye level while the 3D survivor rigs stride through generated leg bones without vertical bobbing; the approved front decals remain available for zombie-side cameras, and the actual minigame view uses the matching rear/over-shoulder decals so the visible rifle art and hidden muzzle anchors face zombies.
 - Automatic shot tracers now draw as short muzzle-origin streaks parented to registered weapon muzzle anchors when generated weapons are present, with the old root-derived fallback kept for hand-built test scenes.
 - Zombies now render as generated humanoid bodies with faces, reaching arms, legs, feet, wounds, and extra armor pieces for armored enemies.
-- The SWAT leader uses an authored looping contact/pass run with anatomical backward knee flex and controller crossfades; generated wing rigs retain procedural strides, while zombies use a slower in-place shamble.
+- The SWAT leader crossfades between Mixamo's complete lowered-rifle idle and looping in-place `Walk With Rifle` on one fully weighted layer, keeping the displayed legs, hips, torso, and weapon hold in the same authored gait; generated wing rigs retain procedural strides, while zombies use a slower in-place shamble.
 - The minigame chase camera widens its vertical FOV on extra-tall portrait devices so side lanes stay readable across iOS aspect ratios.
 - The minigame state label is anchored upper-right so simulator captures do not hide it under iPhone Dynamic Island overlays.
 

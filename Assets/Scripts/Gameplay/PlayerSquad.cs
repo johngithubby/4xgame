@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LaneSurvivor.Data;
+using LaneSurvivor.Rendering;
 using UnityEngine;
 
 namespace LaneSurvivor.Gameplay
@@ -53,7 +54,15 @@ namespace LaneSurvivor.Gameplay
 
         public void SetMoving(bool isMoving)
         {
+            // Squad count gates both gameplay translation and every visible imported locomotion controller.
             IsMoving = isMoving && SquadCount > 0;
+
+            // Push the authoritative state immediately so Animator transitions cannot miss per-frame transform sampling.
+            SwatSurvivorLocomotionAnimator[] authoredLocomotion = GetComponentsInChildren<SwatSurvivorLocomotionAnimator>(true);
+            foreach (SwatSurvivorLocomotionAnimator locomotion in authoredLocomotion)
+            {
+                locomotion.SetGameplayMoving(IsMoving);
+            }
         }
 
         public float GetTotalDamage()

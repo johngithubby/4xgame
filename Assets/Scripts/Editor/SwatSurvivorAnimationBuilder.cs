@@ -9,68 +9,74 @@ namespace LaneSurvivor.Editor
 {
     public static class SwatSurvivorAnimationBuilder
     {
-        // The optimized FBX owns both authored Humanoid animation subassets.
-        private const string ModelPath = "Assets/Resources/Survivor3D/SWAT_Survivor_Mobile.fbx";
+        // Animation-only Mixamo FBXs remain separate from the licensed mesh so the character is not duplicated.
+        private const string IdleAnimationPath = "Assets/Resources/Survivor3D/Animations/Mixamo_Rifle_Lowered_Idle.fbx";
+        private const string WalkAnimationPath = "Assets/Resources/Survivor3D/Animations/Mixamo_Rifle_Walk.fbx";
 
         // Resources loading lets editor-built and runtime-bootstrapped scenes use the same controller.
         private const string ControllerPath = "Assets/Resources/Survivor3D/SWAT_Survivor_Controller.controller";
 
+        // Rebuilds remove the obsolete partial lower-body layer asset left by the first locomotion experiment.
+        private const string LowerBodyMaskPath = "Assets/Resources/Survivor3D/SWAT_Lower_Body.mask";
+
         [MenuItem("Lane Survivor/Rebuild SWAT Locomotion Controller")]
         public static void Rebuild()
         {
-            // Custom clip settings become available only after the FBX's initial preprocessing pass.
-            EnsureAuthoredClipsLoop();
+            // Custom loop and root-lock settings become available after each FBX's initial preprocessing pass.
+            EnsureMixamoClipLoops(IdleAnimationPath);
+            EnsureMixamoClipLoops(WalkAnimationPath);
 
-            // Imported clips include internal preview assets, so match the authored action suffix deterministically.
-            AnimationClip[] clips = AssetDatabase.LoadAllAssetsAtPath(ModelPath)
-                .OfType<AnimationClip>()
-                .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
-                .ToArray();
+            // Each animation-only FBX contributes exactly one non-preview Humanoid motion to the controller.
+            AnimationClip idleClip = LoadMixamoClip(IdleAnimationPath);
+            AnimationClip walkClip = LoadMixamoClip(WalkAnimationPath);
 
-            AnimationClip idleClip = FindAuthoredClip(clips, "SWAT_Rifle_Idle");
-            AnimationClip runClip = FindAuthoredClip(clips, "SWAT_Rifle_Run");
-
-            // Rebuilding from source avoids silently retaining obsolete states or transition parameters.
+            // Rebuilding from source avoids silently retaining obsolete states, layers, masks, or transitions.
             if (AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(ControllerPath) != null)
             {
                 AssetDatabase.DeleteAsset(ControllerPath);
             }
 
+            // The full-body rifle walk no longer needs the old leg-only mask.
+            if (AssetDatabase.LoadAssetAtPath<AvatarMask>(LowerBodyMaskPath) != null)
+            {
+                AssetDatabase.DeleteAsset(LowerBodyMaskPath);
+            }
+
             AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
             controller.AddParameter(SwatSurvivorLocomotionAnimator.MovingParameterName, AnimatorControllerParameterType.Bool);
 
-            // Idle is the ready-screen default because the gameplay root has not started moving yet.
-            AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
-            AnimatorState idleState = stateMachine.AddState("Rifle Idle");
+            // The base layer owns both complete rifle poses so the displayed mesh cannot remain pinned to idle.
+            AnimatorStateMachine baseStateMachine = controller.layers[0].stateMachine;
+            AnimatorState idleState = baseStateMachine.AddState("Rifle Idle");
             idleState.motion = idleClip;
-            stateMachine.defaultState = idleState;
+            baseStateMachine.defaultState = idleState;
 
-            // Run plays in place while PlayerSquad remains authoritative for actual lane and forward movement.
-            AnimatorState runState = stateMachine.AddState("Rifle Run");
-            runState.motion = runClip;
-            runState.speed = 1.08f;
+            // The Mixamo rifle walk supplies a coherent full-body gait, including hips, knees, feet, torso, and weapon hold.
+            AnimatorState walkState = baseStateMachine.AddState("Rifle Walk");
+            walkState.motion = walkClip;
+            walkState.speed = 1.08f;
 
             // Short crossfades remove visible pops without making the character react sluggishly.
-            AnimatorStateTransition beginRun = idleState.AddTransition(runState);
-            ConfigureTransition(beginRun, true);
+            AnimatorStateTransition beginWalk = idleState.AddTransition(walkState);
+            ConfigureTransition(beginWalk, true);
 
-            AnimatorStateTransition stopRun = runState.AddTransition(idleState);
-            ConfigureTransition(stopRun, false);
+            AnimatorStateTransition stopWalk = walkState.AddTransition(idleState);
+            ConfigureTransition(stopWalk, false);
 
             EditorUtility.SetDirty(controller);
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log($"Rebuilt SWAT locomotion controller with {idleClip.name} and {runClip.name}.");
+            Debug.Log($"Rebuilt SWAT locomotion controller with Mixamo clips '{idleClip.name}' and '{walkClip.name}'.");
         }
 
-        private static void EnsureAuthoredClipsLoop()
+        private static void EnsureMixamoClipLoops(string animationPath)
         {
-            // The model path contract guarantees a ModelImporter unless the licensed FBX was removed.
-            ModelImporter importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;
+            // Every configured path must resolve to an imported animation FBX before the controller is rebuilt.
+            ModelImporter importer = AssetImporter.GetAtPath(animationPath) as ModelImporter;
             if (importer == null)
             {
-                throw new InvalidOperationException($"Missing SWAT model importer at '{ModelPath}'.");
+                throw new InvalidOperationException($"Missing Mixamo animation importer at '{animationPath}'.");
             }
 
             // Existing custom clips preserve prior settings; otherwise Unity's generated action list is the baseline.
@@ -80,20 +86,20 @@ namespace LaneSurvivor.Editor
             bool changed = false;
             foreach (ModelImporterClipAnimation clip in clips)
             {
-                // Internal FBX takes are not locomotion loops, so only touch the two explicitly authored actions.
-                if (!clip.name.Contains("SWAT_Rifle_", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                // Both actions are in-place cycles; PlayerSquad remains authoritative for world translation.
+                // Both downloaded actions are in-place cycles; PlayerSquad remains authoritative for world translation.
                 changed |= !clip.loopTime ||
                            !clip.loopPose ||
+                           !clip.lockRootRotation ||
+                           !clip.lockRootHeightY ||
+                           !clip.lockRootPositionXZ ||
                            !clip.keepOriginalPositionXZ ||
                            !clip.keepOriginalPositionY ||
                            !clip.keepOriginalOrientation;
                 clip.loopTime = true;
                 clip.loopPose = true;
+                clip.lockRootRotation = true;
+                clip.lockRootHeightY = true;
+                clip.lockRootPositionXZ = true;
                 clip.keepOriginalPositionXZ = true;
                 clip.keepOriginalPositionY = true;
                 clip.keepOriginalOrientation = true;
@@ -109,16 +115,20 @@ namespace LaneSurvivor.Editor
             importer.SaveAndReimport();
         }
 
-        private static AnimationClip FindAuthoredClip(AnimationClip[] clips, string authoredName)
+        private static AnimationClip LoadMixamoClip(string animationPath)
         {
-            // Blender FBX action names may receive an armature prefix, so suffix matching is the stable contract.
-            AnimationClip clip = clips.FirstOrDefault(candidate => candidate.name.EndsWith(authoredName, StringComparison.Ordinal));
-            if (clip == null)
+            // Preview clips are editor-only helpers; the remaining clip is the actual downloaded Mixamo motion.
+            AnimationClip[] clips = AssetDatabase.LoadAllAssetsAtPath(animationPath)
+                .OfType<AnimationClip>()
+                .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
+                .ToArray();
+            if (clips.Length != 1)
             {
-                throw new InvalidOperationException($"Missing authored SWAT animation clip ending in '{authoredName}'.");
+                throw new InvalidOperationException(
+                    $"Expected one Mixamo animation clip at '{animationPath}', but found {clips.Length}.");
             }
 
-            return clip;
+            return clips[0];
         }
 
         private static void ConfigureTransition(AnimatorStateTransition transition, bool movingCondition)

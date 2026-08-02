@@ -2,8 +2,9 @@
 
 ## Files
 
-- `SWAT_Survivor_Mobile.fbx`: Mobile-oriented Unity FBX derived from the free Female SWAT Soldier model, with a Unity Humanoid-compatible Character Creator skeleton and authored `SWAT_Rifle_Idle` and `SWAT_Rifle_Run` actions.
-- `SWAT_Survivor_Controller.controller`: Unity Animator Controller that crossfades between the two authored in-place actions through the `Moving` parameter.
+- `SWAT_Survivor_Mobile.fbx`: Mobile-oriented Unity FBX derived from the free Female SWAT Soldier model, with a Unity Humanoid-compatible Character Creator skeleton.
+- `Animations/`: Animation-only Mixamo Unity FBXs for a lowered rifle idle and an in-place rifle walk, downloaded at 30 FPS without skin.
+- `SWAT_Survivor_Controller.controller`: Unity Animator Controller that retargets and crossfades between the two Mixamo Humanoid clips through the `Moving` parameter.
 - `Textures/`: External 1024-pixel-capped diffuse, normal, bump, opacity, and specular source channels used to construct deterministic runtime PBR materials.
 
 ## Source and licence
@@ -21,4 +22,4 @@ The source listed 344,456 triangles. Blender 3.6 removed hidden mouth/tear geome
 
 ## Unity behavior
 
-`SwatSurvivorModelImporter.cs` configures the FBX as a Unity Humanoid, imports the two in-place actions, disables blendshapes, applies medium mesh compression, limits skinning to four bone influences, and imports external textures through the correct colour/normal-map paths. `SwatSurvivorAnimationBuilder.cs` applies loop settings and rebuilds the controller. `PrototypeCharacterFactory` instantiates one shared model on the survivor leader, resolves source material-slot names to explicit lit diffuse/normal materials, and switches idle/run state from gameplay-root movement while keeping the two existing wing survivors as a direct A/B comparison.
+`SwatSurvivorModelImporter.cs` configures the character FBX as a Unity Humanoid, disables blendshapes, applies medium mesh compression, limits skinning to four bone influences, imports external textures through the correct colour/normal-map paths, and imports animation-only Mixamo FBXs as separate Humanoid sources. `SwatSurvivorAnimationBuilder.cs` locks locomotion roots, applies loop settings, and rebuilds one full-body base layer that crossfades between the downloaded rifle idle and rifle walk. `PrototypeCharacterFactory` instantiates one shared model on the survivor leader, resolves source material-slot names to explicit lit diffuse/normal materials, and switches idle/walk state from gameplay-root movement while keeping the two existing wing survivors as a direct A/B comparison.

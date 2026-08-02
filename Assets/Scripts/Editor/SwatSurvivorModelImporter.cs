@@ -11,14 +11,25 @@ namespace LaneSurvivor.Editor
         // Explicit external texture assets live here so Unity can import channels independently of FBX embedding.
         private const string SwatTextureFolder = "Assets/Resources/Survivor3D/Textures/";
 
+        // Animation-only Mixamo FBXs share one folder so their Humanoid import policy stays deterministic.
+        private const string SwatAnimationFolder = "Assets/Resources/Survivor3D/Animations/";
+
         public override uint GetVersion()
         {
             // Increment this value whenever importer policy changes so Unity invalidates the cached FBX artifact.
-            return 4;
+            return 5;
         }
 
         private void OnPreprocessModel()
         {
+            // Animation-only Mixamo downloads need a Humanoid Avatar but must not import duplicate materials.
+            if (assetPath.StartsWith(SwatAnimationFolder, System.StringComparison.Ordinal) &&
+                assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase))
+            {
+                ConfigureMixamoAnimation((ModelImporter)assetImporter);
+                return;
+            }
+
             // Other models retain their authored settings because this postprocessor is deliberately path-specific.
             if (assetPath != SwatModelAssetPath)
             {
@@ -35,7 +46,7 @@ namespace LaneSurvivor.Editor
             // Clear any stale custom map so Unity auto-detects the standard names authored into the optimized FBX.
             importer.humanDescription = new HumanDescription();
 
-            // Authored rifle idle/run actions replace the visibly stiff sine-only bone posing.
+            // Authored rifle idle/walk actions replace the visibly stiff sine-only bone posing.
             importer.importAnimation = true;
 
             // Clip-loop settings are applied after first import by SwatSurvivorAnimationBuilder, when takes are available.
@@ -64,6 +75,26 @@ namespace LaneSurvivor.Editor
 
             // Blendshapes are unnecessary behind the balaclava and were removed during mobile mesh optimization.
             importer.importBlendShapes = false;
+        }
+
+        private static void ConfigureMixamoAnimation(ModelImporter importer)
+        {
+            // Each Mixamo FBX carries its own source skeleton, which Unity retargets through the Humanoid muscle system.
+            importer.animationType = ModelImporterAnimationType.Human;
+            importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
+
+            // Animation-only downloads intentionally contain no character skin, textures, or material dependencies.
+            importer.importAnimation = true;
+            importer.materialImportMode = ModelImporterMaterialImportMode.None;
+            importer.importBlendShapes = false;
+
+            // Resampling and optimal curve compression keep the 30 FPS motion stable while reducing runtime memory.
+            importer.resampleCurves = true;
+            importer.animationCompression = ModelImporterAnimationCompression.Optimal;
+
+            // Transform exposure is unnecessary because the clip is retargeted onto the separate SWAT model Avatar.
+            importer.optimizeGameObjects = true;
+            importer.isReadable = false;
         }
 
         private void OnPreprocessTexture()

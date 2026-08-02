@@ -1,20 +1,30 @@
+using LaneSurvivor.Gameplay;
 using UnityEngine;
 
 namespace LaneSurvivor.Rendering
 {
     public sealed class SwatSurvivorLocomotionAnimator : MonoBehaviour
     {
-        // The generated controller uses one stable parameter for its idle/run transition.
+        // The generated controller uses one stable parameter for its idle/walk transition.
         public const string MovingParameterName = "Moving";
+
+        // The base layer owns the complete authored idle/walk transition shown by the gameplay camera.
+        public const int LocomotionLayerIndex = 0;
+
+        // Full weight prevents the idle pose from visually suppressing the retargeted Mixamo walk.
+        public const float LocomotionLayerWeight = 1f;
 
         // Motion below this speed is scene jitter rather than deliberate squad travel.
         private const float MovementSpeedThreshold = 0.04f;
 
-        // The Animator lives on the imported model root while movement is measured on the gameplay survivor root.
+        // The Animator lives on the imported model root while movement is measured on the gameplay squad root.
         private Animator modelAnimator;
 
-        // The survivor root inherits authoritative PlayerSquad lane and forward motion.
+        // PlayerSquad directly translates this root for lane and forward motion.
         private Transform movementRoot;
+
+        // Runtime scenes expose their authoritative movement state after the factory has constructed this component.
+        private PlayerSquad playerSquad;
 
         // Consecutive world positions provide frame-rate-independent movement-state detection.
         private Vector3 previousWorldPosition;
@@ -24,20 +34,69 @@ namespace LaneSurvivor.Rendering
 
         public bool IsMoving { get; private set; }
 
+        public void SetGameplayMoving(bool isMoving)
+        {
+            // PlayerSquad owns the authoritative run state and pushes changes without relying on component update order.
+            SetMoving(isMoving);
+        }
+
         public void Configure(Animator animator, Transform authoritativeMovementRoot)
         {
             // Store exact dependencies so the component never searches the whole scene at runtime.
             modelAnimator = animator;
             movementRoot = authoritativeMovementRoot;
 
-            // Imported locomotion is in-place; gameplay code remains the only system moving the squad.
-            if (modelAnimator != null)
-            {
-                modelAnimator.applyRootMotion = false;
-            }
+            // PlayerSquad is added immediately after factory construction, so LateUpdate retries this lookup when needed.
+            playerSquad = movementRoot != null ? movementRoot.GetComponent<PlayerSquad>() : null;
+
+            // Apply runtime-only Animator settings whenever a factory assigns or replaces its controller.
+            ConfigureAnimatorRuntimeSettings();
 
             ResetMotionSample();
             SetMoving(false);
+        }
+
+        private void Awake()
+        {
+            // Scene-built characters deserialize this component without the runtime-only references assigned by Configure.
+            modelAnimator ??= GetComponent<Animator>();
+            playerSquad ??= GetComponentInParent<PlayerSquad>();
+
+            // Prefer the component that owns movement; factory-only objects fall back to the known two-level hierarchy.
+            if (movementRoot == null)
+            {
+                movementRoot = playerSquad != null
+                    ? playerSquad.transform
+                    : transform.parent != null
+                        ? transform.parent.parent
+                        : null;
+            }
+
+            // Scene-deserialized Animators must still receive the same deterministic runtime settings as factory instances.
+            ConfigureAnimatorRuntimeSettings();
+
+            ResetMotionSample();
+            SetMoving(playerSquad != null && playerSquad.IsMoving);
+        }
+
+        private void ConfigureAnimatorRuntimeSettings()
+        {
+            if (modelAnimator == null)
+            {
+                return;
+            }
+
+            // Gameplay owns translation; both Mixamo actions remain in place.
+            modelAnimator.applyRootMotion = false;
+
+            // The gameplay camera must keep evaluating the character even if imported renderer bounds lag one stride.
+            modelAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
+            // Explicitly restore full locomotion influence for scene-built Animator instances.
+            if (modelAnimator.runtimeAnimatorController != null && modelAnimator.layerCount > LocomotionLayerIndex)
+            {
+                modelAnimator.SetLayerWeight(LocomotionLayerIndex, LocomotionLayerWeight);
+            }
         }
 
         private void OnEnable()
@@ -54,7 +113,17 @@ namespace LaneSurvivor.Rendering
                 return;
             }
 
-            // The first live frame establishes the comparison position.
+            // Prefer gameplay's explicit state; it remains stable even when camera-relative presentation keeps actors centred.
+            playerSquad ??= movementRoot.GetComponent<PlayerSquad>();
+            if (playerSquad != null)
+            {
+                SetMoving(playerSquad.IsMoving);
+                previousWorldPosition = movementRoot.position;
+                hasPreviousWorldPosition = true;
+                return;
+            }
+
+            // Factory-only tests without a PlayerSquad component fall back to transform displacement detection.
             if (!hasPreviousWorldPosition)
             {
                 ResetMotionSample();

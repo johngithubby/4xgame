@@ -1545,6 +1545,102 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator MinigameScene_MovingSwatLeaderAdvancesAuthoredWalkCycle()
+        {
+            // Load the actual minigame so the assertion covers PlayerSquad, the locomotion bridge, and the controller together.
+            SceneManager.LoadScene("Minigame");
+            yield return null;
+            yield return null;
+
+            // Resolve the exact runtime leader hierarchy used by a player rather than constructing an isolated model.
+            PlayerSquad playerSquad = GameObject.Find("Player Squad")?.GetComponent<PlayerSquad>();
+            Assert.IsNotNull(playerSquad);
+            Transform swatModel = playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SwatSurvivorModelName}");
+            Assert.IsNotNull(swatModel);
+            Animator animator = swatModel.GetComponent<Animator>();
+            SwatSurvivorLocomotionAnimator locomotion = swatModel.GetComponent<SwatSurvivorLocomotionAnimator>();
+            // Unity's Avatar mapping identifies the bone that actually deforms the imported Humanoid skin.
+            Transform leftUpperLeg = animator.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
+            Assert.IsNotNull(animator);
+            Assert.IsNotNull(locomotion);
+            Assert.IsNotNull(leftUpperLeg);
+
+            // Select the largest visible skin that actually references the mapped leg so the test follows rendered geometry.
+            SkinnedMeshRenderer animatedSkin = null;
+            foreach (SkinnedMeshRenderer candidateSkin in swatModel.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                // Empty helper renderers cannot provide a meaningful deformation sample.
+                if (candidateSkin.sharedMesh == null || Array.IndexOf(candidateSkin.bones, leftUpperLeg) < 0)
+                {
+                    continue;
+                }
+
+                // The highest-vertex matching skin gives a more reliable sample than tiny accessories such as eyes.
+                if (animatedSkin == null || candidateSkin.sharedMesh.vertexCount > animatedSkin.sharedMesh.vertexCount)
+                {
+                    animatedSkin = candidateSkin;
+                }
+            }
+
+            Assert.IsNotNull(animatedSkin, "A visible SWAT skin must be bound to the Humanoid leg being animated.");
+            Assert.IsTrue(animatedSkin.enabled);
+            Assert.IsTrue(animatedSkin.gameObject.activeInHierarchy);
+
+            // Invoke the player-facing Start action so gameplay movement begins through the production path.
+            Button startButton = GameObject.Find("Start Button")?.GetComponent<Button>();
+            Assert.IsNotNull(startButton);
+            startButton.onClick.Invoke();
+
+            // Allow the controller transition to complete before measuring authored-cycle progression.
+            yield return new WaitForSeconds(0.30f);
+            Assert.IsTrue(playerSquad.IsMoving);
+            Assert.IsTrue(locomotion.IsMoving);
+            Assert.IsTrue(animator.GetBool(SwatSurvivorLocomotionAnimator.MovingParameterName));
+            Assert.AreEqual(
+                SwatSurvivorLocomotionAnimator.LocomotionLayerWeight,
+                animator.GetLayerWeight(SwatSurvivorLocomotionAnimator.LocomotionLayerIndex),
+                0.001f);
+            Assert.IsTrue(animator.GetCurrentAnimatorStateInfo(SwatSurvivorLocomotionAnimator.LocomotionLayerIndex).IsName("Rifle Walk"));
+            float firstNormalizedTime = animator.GetCurrentAnimatorStateInfo(SwatSurvivorLocomotionAnimator.LocomotionLayerIndex).normalizedTime;
+            Quaternion firstLegRotation = leftUpperLeg.localRotation;
+
+            // Bake the first displayed pose so later checks verify skin deformation, not only internal bone motion.
+            Mesh firstPoseMesh = new Mesh { name = "SWAT First Gameplay Pose Test Mesh" };
+            animatedSkin.BakeMesh(firstPoseMesh);
+            Vector3[] firstPoseVertices = firstPoseMesh.vertices;
+
+            // Repeated samples cover enough of the gait to require a clearly visible swing rather than sub-pixel jitter.
+            float maximumLegSwing = 0f;
+            float maximumVertexDisplacement = 0f;
+            Mesh sampledPoseMesh = new Mesh { name = "SWAT Sampled Gameplay Pose Test Mesh" };
+            for (int sampleIndex = 0; sampleIndex < 6; sampleIndex++)
+            {
+                yield return new WaitForSeconds(0.10f);
+                maximumLegSwing = Mathf.Max(maximumLegSwing, Quaternion.Angle(firstLegRotation, leftUpperLeg.localRotation));
+
+                // Bake what the SkinnedMeshRenderer would submit for this frame and compare every vertex to the first pose.
+                animatedSkin.BakeMesh(sampledPoseMesh);
+                Vector3[] sampledPoseVertices = sampledPoseMesh.vertices;
+                Assert.AreEqual(firstPoseVertices.Length, sampledPoseVertices.Length);
+                for (int vertexIndex = 0; vertexIndex < firstPoseVertices.Length; vertexIndex++)
+                {
+                    maximumVertexDisplacement = Mathf.Max(
+                        maximumVertexDisplacement,
+                        Vector3.Distance(firstPoseVertices[vertexIndex], sampledPoseVertices[vertexIndex]));
+                }
+            }
+
+            float secondNormalizedTime = animator.GetCurrentAnimatorStateInfo(SwatSurvivorLocomotionAnimator.LocomotionLayerIndex).normalizedTime;
+            Assert.Greater(secondNormalizedTime, firstNormalizedTime + 0.01f);
+            Assert.Greater(maximumLegSwing, 20f, "Mapped Humanoid leg swing must remain visible at the gameplay camera distance.");
+            Assert.Greater(maximumVertexDisplacement, 0.02f, "The visible SWAT skin must deform while the authored walk cycle advances.");
+
+            // Test-only baked meshes are transient and should not survive the completed assertion.
+            UnityEngine.Object.Destroy(firstPoseMesh);
+            UnityEngine.Object.Destroy(sampledPoseMesh);
+        }
+
+        [UnityTest]
         public IEnumerator MinigameScene_RuntimeCharactersUseHumanoidParts()
         {
             // Load the minigame directly so this verifies the real runtime bootstrap, not just a factory unit test.

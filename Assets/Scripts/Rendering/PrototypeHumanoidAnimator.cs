@@ -399,6 +399,13 @@ namespace LaneSurvivor.Rendering
 
         private void ApplyRigPose(HumanoidRig rig, float phase, float weight)
         {
+            // Imported SWAT bones and their parent transform belong entirely to the authored Animator controller.
+            if (rig.usesAuthoredLocomotion)
+            {
+                // Returning here prevents the old sine-driven lean, stride, aim, and recoil from contaminating Mixamo.
+                return;
+            }
+
             // A zero weight restores the authored rest pose while preserving the same code path as animation.
             float weightedLegSwing = legSwingDegrees * weight;
 
@@ -626,9 +633,12 @@ namespace LaneSurvivor.Rendering
 
         private static HumanoidRig CaptureSwatSurvivorRig(Transform survivorRoot, Transform swatModel, float phaseOffset)
         {
-            // Authored Animator clips own imported body bones; this legacy rig only keeps formation and muzzle behavior.
+            // Authored Animator clips own the imported body and its parent pose without procedural additive motion.
             return new HumanoidRig
             {
+                // The flag makes ApplyRigPose leave the complete visible leader hierarchy to Mixamo retargeting.
+                usesAuthoredLocomotion = true,
+
                 // Keep formation motion on the existing gameplay survivor root rather than moving the imported FBX origin.
                 root = survivorRoot,
                 initialRootLocalPosition = survivorRoot.localPosition,
@@ -739,6 +749,9 @@ namespace LaneSurvivor.Rendering
 
         private sealed class HumanoidRig
         {
+            // Authored imported characters must bypass every procedural pose written by ApplyRigPose.
+            public bool usesAuthoredLocomotion;
+
             public Transform root;
 
             public Vector3 initialRootLocalPosition;

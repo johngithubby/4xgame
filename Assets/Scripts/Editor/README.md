@@ -5,8 +5,8 @@
 - `LaneSurvivor.Editor.asmdef`: Declares the editor-only assembly and references `LaneSurvivor.Runtime` for scene-building tools.
 - `IosSmokeBuild.cs`: Provides a command-line `LaneSurvivor.Editor.IosSmokeBuild.Run` method that builds enabled scenes for iOS into a disposable local folder, with optional simulator SDK selection through `LANE_SURVIVOR_IOS_SIMULATOR=1`, optional simulator architecture selection through `LANE_SURVIVOR_IOS_SIMULATOR_ARCH`, and optional verification start-scene ordering through `LANE_SURVIVOR_IOS_START_SCENE`.
 - `PhaseOneSceneBuilder.cs`: Rebuilds the Phase 1 level asset, placeholder materials, Unity scene, runtime-matched visible reference-textured woman rifle survivor squad with obsolete flat cards suppressed, optional disabled HUD-layer player marker, perspective angled chase camera, anchor-matched HUD text layout with upper-right state text, UI/end-screen reward layout, and build settings.
-- `SwatSurvivorAnimationBuilder.cs`: Applies looping/in-place settings to the authored SWAT rifle actions and rebuilds the Resources Animator Controller with short idle/run crossfades.
-- `SwatSurvivorModelImporter.cs`: Applies path-specific mobile import settings to the optimized Female SWAT Soldier FBX, validates its Character Creator skeleton as Unity Humanoid, imports authored actions, preserves accessible bones, configures external diffuse/normal channels, and omits unused blendshapes.
+- `SwatSurvivorAnimationBuilder.cs`: Applies looping and root-lock settings to the animation-only Mixamo rifle clips and rebuilds one full-body Resources Animator Controller layer with short idle/walk crossfades.
+- `SwatSurvivorModelImporter.cs`: Applies path-specific mobile import settings to the optimized Female SWAT Soldier FBX, validates its Character Creator skeleton as Unity Humanoid, configures external diffuse/normal channels, and imports separate Mixamo FBXs as material-free Humanoid animation sources.
 
 ## Compile
 

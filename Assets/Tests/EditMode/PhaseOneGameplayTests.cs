@@ -376,10 +376,10 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsTrue(detailedShotFired);
                 Assert.AreSame(expectedMuzzle, actualMuzzle);
 
-                // The same muzzle-driven shot should kick the selected visible weapon rig instead of only spawning a tracer.
+                // The hidden muzzle carrier stays stable because the imported SWAT Animator exclusively owns leader motion.
                 playerAnimator.ForceEvaluate(0.02f, true);
-                Assert.Less(leaderWeapon.localPosition.z, leaderWeaponRestPosition.z - 0.001f);
-                Assert.Greater(Quaternion.Angle(leaderWeaponRestRotation, leaderWeapon.localRotation), 0.1f);
+                Assert.Less(Vector3.Distance(leaderWeaponRestPosition, leaderWeapon.localPosition), 0.001f);
+                Assert.Less(Quaternion.Angle(leaderWeaponRestRotation, leaderWeapon.localRotation), 0.001f);
             }
             finally
             {
@@ -994,15 +994,15 @@ namespace LaneSurvivor.Tests.EditMode
                 Quaternion playerWeaponHandRestRotation = playerWeaponHand.localRotation;
                 Quaternion playerWeaponRestRotation = playerWeapon.localRotation;
 
-                // A forced moving evaluation still drives the wing rigs and gameplay formation root.
+                // A forced moving evaluation drives the procedural wing rigs without moving the authored leader parent.
                 playerAnimator.ForceEvaluate(0.4f, true);
                 Assert.IsTrue(playerAnimator.IsAnimating);
                 float playerThighSwing = Quaternion.Angle(playerLegRestRotation, playerLeg.localRotation);
                 float playerKneeBend = Quaternion.Angle(playerKneeRestRotation, playerKnee.localRotation);
                 Assert.Greater(playerKneeBend, 5f, $"Wing procedural knee should bend; thigh swing was {playerThighSwing:F2} degrees.");
                 Assert.Greater(Quaternion.Angle(playerFootRestRotation, playerFoot.localRotation), 0.1f, "Wing procedural foot should pitch during a forced run step.");
-                Assert.Greater(Vector3.Distance(playerRootRestLocalPosition, playerRoot.localPosition), 0.001f);
-                Assert.Greater(Quaternion.Angle(playerRootRestRotation, playerRoot.localRotation), 0.1f);
+                Assert.Less(Vector3.Distance(playerRootRestLocalPosition, playerRoot.localPosition), 0.001f, "Procedural locomotion must not shift the Mixamo leader parent.");
+                Assert.Less(Quaternion.Angle(playerRootRestRotation, playerRoot.localRotation), 0.001f, "Procedural locomotion must not rotate the Mixamo leader parent.");
                 Quaternion playerRootRunningRotation = playerRoot.localRotation;
 
                 // The procedural evaluator must not overwrite the imported leader bones owned by its Animator.
@@ -1013,17 +1013,17 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.Greater(Quaternion.Angle(playerWeaponHandRestRotation, playerWeaponHand.localRotation), 0.1f);
                 Assert.Less(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.001f);
 
-                // A direct shot notification turns the gameplay root while its hidden muzzle carrier recoils.
+                // A direct shot notification must also leave the authored leader parent and hidden carrier untouched.
                 Vector3 playerWeaponRunningLocalPosition = playerWeapon.localPosition;
                 Quaternion playerWeaponRunningRotation = playerWeapon.localRotation;
                 Quaternion playerRootRunningBeforeShotRotation = playerRoot.localRotation;
                 playerAnimator.PlaySurvivorShot(playerMuzzle.position, playerMuzzle.position + new Vector3(0.45f, -0.1f, 3f));
                 playerAnimator.ForceEvaluate(0.02f, true);
-                Assert.Less(playerWeapon.localPosition.z, playerWeaponRunningLocalPosition.z - 0.001f);
-                Assert.Greater(Mathf.Abs(Mathf.DeltaAngle(playerWeaponRunningRotation.eulerAngles.y, playerWeapon.localEulerAngles.y)), 0.4f);
-                Assert.Greater(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.1f);
-                Assert.Greater(Quaternion.Angle(playerRootRunningBeforeShotRotation, playerRoot.localRotation), 0.1f);
-                Assert.Greater(Mathf.Abs(Mathf.DeltaAngle(playerRootRunningRotation.eulerAngles.y, playerRoot.localEulerAngles.y)), 0.5f);
+                Assert.Less(Vector3.Distance(playerWeaponRunningLocalPosition, playerWeapon.localPosition), 0.001f);
+                Assert.Less(Quaternion.Angle(playerWeaponRunningRotation, playerWeapon.localRotation), 0.001f);
+                Assert.Less(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.001f);
+                Assert.Less(Quaternion.Angle(playerRootRunningBeforeShotRotation, playerRoot.localRotation), 0.001f);
+                Assert.Less(Quaternion.Angle(playerRootRunningRotation, playerRoot.localRotation), 0.001f);
                 Assert.Less(Quaternion.Angle(importedPlayerLegRestRotation, importedPlayerLeg.localRotation), 0.001f);
 
                 // The zombie animator should shamble even when the gameplay root is stationary.
