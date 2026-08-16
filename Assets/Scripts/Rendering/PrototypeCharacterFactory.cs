@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using LaneSurvivor.Data;
 using LaneSurvivor.Gameplay;
 using UnityEngine;
@@ -34,6 +35,21 @@ namespace LaneSurvivor.Rendering
         // The technical-trial survivor is kept under a stable child name for animation, tests, and scene audits.
         public const string SwatSurvivorModelName = "SWAT Survivor 3D Model";
 
+        // Zombies reuse the same licensed mesh under a distinct name so combat tests can resolve visible enemies exactly.
+        public const string SwatZombieModelName = "SWAT Zombie 3D Model";
+
+        // Stable attachment names let gait animation, tests, and frame diagnostics resolve the enlarged infected eyes.
+        public const string SwatZombieBloodyEyeLeftName = "Zombie Bloody Eye Left";
+        public const string SwatZombieBloodyEyeRightName = "Zombie Bloody Eye Right";
+
+        // Drool uses separate strand and drop objects so the strand can sway while the heavy drop follows the jaw.
+        public const string SwatZombieDroolStrandName = "Zombie Drool Strand";
+        public const string SwatZombieDroolDropName = "Zombie Drool Drop";
+
+        // Wound names make the two body-region infection cues independently testable.
+        public const string SwatZombieChestWoundName = "Zombie Chest Wound";
+        public const string SwatZombieHeadWoundName = "Zombie Head Wound";
+
         // The imported weapon-body bone directly skins the visible rifle meshes and therefore owns target aiming.
         public const string SwatWeaponAimPivotName = "b_Body";
 
@@ -67,11 +83,29 @@ namespace LaneSurvivor.Rendering
         // The generated controller blends the authored rifle idle and run actions based on gameplay-root movement.
         private const string SwatSurvivorControllerResourcePath = "Survivor3D/SWAT_Survivor_Controller";
 
+        // The calmer tracked Mixamo walk supplies grounded foot exchange beneath the procedural drunk stumble.
+        private const string SwatZombieWalkResourcePath = "Survivor3D/Animations/Mixamo_Rifle_Walk";
+
         // The imported character is 1.8 metres tall, so this scale matches the existing 1.58-metre prototype rig.
         private const float SwatSurvivorScale = 0.88f;
 
         // The downloaded FBX places its feet at its origin; this offset aligns them with the generated boot joints.
         private const float SwatSurvivorYOffset = -0.91f;
+
+        // Enemy roots sit below the squad root, so this compensation keeps the reused boots on the same road plane.
+        private const float SwatZombieYOffset = SwatSurvivorYOffset + GameplayVisuals.PlayerCenterY - GameplayVisuals.ZombieCenterY;
+
+        // One shared runtime override keeps every zombie on the same walk asset without duplicating controller assets.
+        private static AnimatorOverrideController swatZombieRuntimeController;
+
+        // Runtime zombie PBR materials are immutable, so sharing them preserves batching and avoids per-enemy native allocations.
+        private static readonly Dictionary<string, Material> SwatZombieSharedPbrMaterials = new();
+
+        // Small infection props likewise share one palette across every basic and armored zombie instance.
+        private static Material swatZombieSharedBloodMaterial;
+        private static Material swatZombieSharedEyeMaterial;
+        private static Material swatZombieSharedPupilMaterial;
+        private static Material swatZombieSharedDroolMaterial;
 
         // Legacy scenes may still contain this alternate weapon profile, but new squads use the shared rifle.
         public const string LeftWingShotgunName = "Left Wing Shotgun";
@@ -185,6 +219,24 @@ namespace LaneSurvivor.Rendering
 
         private static readonly Color ZombieEyeColor = new(0.04f, 0.04f, 0.035f);
 
+        // The imported zombie skin keeps authored texture detail while reading as cold, infected flesh.
+        private static readonly Color SwatZombieSkinTint = new(0.43f, 0.63f, 0.38f);
+
+        // Desaturated olive dirties the tactical uniform without erasing its readable PBR fabric texture.
+        private static readonly Color SwatZombieClothingTint = new(0.48f, 0.50f, 0.39f);
+
+        // Rust-brown equipment separates undead armor from the survivor's clean neutral hardware.
+        private static readonly Color SwatZombieGearTint = new(0.43f, 0.34f, 0.28f);
+
+        // Saturated red overlays remain legible as blood at the portrait gameplay camera distance.
+        private static readonly Color SwatZombieBloodColor = new(0.30f, 0.008f, 0.004f);
+
+        // Pale red sclera make the oversized attached eyes look bloodshot instead of glowing like robots.
+        private static readonly Color SwatZombieBloodshotEyeColor = new(0.76f, 0.39f, 0.25f);
+
+        // Sickly translucent-looking green reads as saliva even through compressed gameplay recordings.
+        private static readonly Color SwatZombieDroolColor = new(0.54f, 0.92f, 0.50f);
+
         private static readonly Color ArmorColor = new(0.33f, 0.39f, 0.43f);
 
         private static readonly Color ArmorTrimColor = new(0.12f, 0.15f, 0.17f);
@@ -285,11 +337,355 @@ namespace LaneSurvivor.Rendering
                 CreateArmoredZombiePieces(figureRoot.transform, armorMaterial, armorTrimMaterial);
             }
 
-            // Zombies shamble in place because level rules keep enemy roots stationary until contact or defeat.
+            // The generated animator remains a complete fallback when the optional licensed Resources model is absent.
             PrototypeHumanoidAnimator animator = zombieRoot.AddComponent<PrototypeHumanoidAnimator>();
             animator.Configure(enemyType == ZombieEnemyType.Armored ? PrototypeHumanoidAnimationStyle.ArmoredZombieShamble : PrototypeHumanoidAnimationStyle.ZombieShamble);
 
+            // A successful imported build replaces only rendering and gait; gameplay targeting stays on zombieRoot.
+            if (CreateSwatZombieTechnicalTrial(figureRoot.transform, enemyType))
+            {
+                // Hidden generated joints no longer need a per-frame LateUpdate once the visible Humanoid is active.
+                animator.enabled = false;
+            }
+
             return zombieRoot;
+        }
+
+        private static bool CreateSwatZombieTechnicalTrial(Transform figureRoot, ZombieEnemyType enemyType)
+        {
+            // Reuse the same optimized licensed prefab as the survivor so no second human mesh is distributed.
+            GameObject swatPrefab = Resources.Load<GameObject>(SwatSurvivorResourcePath);
+            if (swatPrefab == null)
+            {
+                // Leaving the generated renderers enabled preserves the existing recognizable zombie fallback.
+                Debug.LogWarning($"SWAT zombie model was not found at Resources/{SwatSurvivorResourcePath}.");
+                return false;
+            }
+
+            // Hide the old primitive body before adding imported children so only one visible zombie silhouette remains.
+            HideGeneratedZombieMeshRenderers(figureRoot);
+
+            // The imported child shares meshes and texture assets while retaining independent bones and materials.
+            GameObject swatModel = Object.Instantiate(swatPrefab, figureRoot, false);
+            swatModel.name = SwatZombieModelName;
+
+            // Survivors face +Z; enemies turn around to stare and stumble toward the approaching squad.
+            swatModel.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+
+            // Matching survivor scale keeps the converted enemy recognizably based on the same woman soldier.
+            swatModel.transform.localScale = Vector3.one * SwatSurvivorScale;
+
+            // Root-height compensation preserves the established road-contact plane for stationary enemies.
+            swatModel.transform.localPosition = new Vector3(0f, SwatZombieYOffset, 0f);
+
+            // Build the same explicit texture channels with an infected tint profile rather than flat green fallbacks.
+            ApplySwatPbrMaterials(swatModel, true);
+
+            // Zombies are unarmed; source firearm meshes stay disabled even though their helper bones remain retargetable.
+            DisableSwatZombieWeaponRenderers(swatModel.transform);
+
+            // The balaclava would conceal blood and drool, so every zombie exposes the underlying skinned face.
+            SetNamedSwatRendererEnabled(swatModel.transform, "Balaclava_Mask", false);
+
+            // Basic zombies lose the clean helmet, while armored enemies retain it as their gameplay durability tell.
+            SetNamedSwatRendererEnabled(
+                swatModel.transform,
+                "AUG3M_Helmet_33393_Shape",
+                enemyType == ZombieEnemyType.Armored);
+
+            // The runtime override maps every survivor-controller state to the tracked in-place zombie walk clip.
+            Animator animator = swatModel.GetComponent<Animator>() ?? swatModel.AddComponent<Animator>();
+            animator.runtimeAnimatorController = GetOrCreateSwatZombieRuntimeController();
+            animator.applyRootMotion = false;
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
+            // Rebind once so facial attachments are placed against the exact retargeted starting pose.
+            animator.Rebind();
+            animator.SetBool(SwatSurvivorLocomotionAnimator.MovingParameterName, true);
+            animator.Update(0f);
+
+            // Enlarged bloody eyes, wounds, and drool are reversible Unity geometry attached to live Humanoid bones.
+            CreateSwatZombieFaceAndWoundDetails(swatModel.transform, animator);
+
+            // Late-frame asymmetric motion turns the clean walk into a drunken, agitated near-stumble.
+            SwatZombieAnimator zombieAnimator = swatModel.AddComponent<SwatZombieAnimator>();
+            zombieAnimator.Configure(animator, figureRoot, enemyType);
+            return true;
+        }
+
+        private static AnimatorOverrideController GetOrCreateSwatZombieRuntimeController()
+        {
+            if (swatZombieRuntimeController != null)
+            {
+                return swatZombieRuntimeController;
+            }
+
+            // Reusing the tested survivor graph preserves Humanoid setup and deterministic state evaluation.
+            RuntimeAnimatorController survivorController = Resources.Load<RuntimeAnimatorController>(SwatSurvivorControllerResourcePath);
+            if (survivorController == null)
+            {
+                throw new System.InvalidOperationException($"Missing SWAT controller at Resources/{SwatSurvivorControllerResourcePath}.");
+            }
+
+            // Animation-only Resources FBXs can include preview helpers, so select the one real authored take explicitly.
+            AnimationClip[] zombieWalkClips = Resources.LoadAll<AnimationClip>(SwatZombieWalkResourcePath)
+                .Where(clip => !clip.name.StartsWith("__preview__", System.StringComparison.Ordinal))
+                .ToArray();
+            if (zombieWalkClips.Length != 1)
+            {
+                throw new System.InvalidOperationException(
+                    $"Expected one zombie walk clip at Resources/{SwatZombieWalkResourcePath}, but found {zombieWalkClips.Length}.");
+            }
+
+            // Override both idle and moving source clips so an enemy always shambles while its gameplay root is stationary.
+            AnimatorOverrideController controller = new(survivorController)
+            {
+                name = "SWAT Zombie Runtime Walk Controller",
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            List<KeyValuePair<AnimationClip, AnimationClip>> overrides = new(controller.overridesCount);
+            controller.GetOverrides(overrides);
+            for (int overrideIndex = 0; overrideIndex < overrides.Count; overrideIndex++)
+            {
+                // Keys must retain the original controller clip identity while values share the one zombie walk motion.
+                overrides[overrideIndex] = new KeyValuePair<AnimationClip, AnimationClip>(
+                    overrides[overrideIndex].Key,
+                    zombieWalkClips[0]);
+            }
+
+            controller.ApplyOverrides(overrides);
+            swatZombieRuntimeController = controller;
+            return swatZombieRuntimeController;
+        }
+
+        private static void CreateSwatZombieFaceAndWoundDetails(Transform swatModel, Animator animator)
+        {
+            // Mapped Humanoid facial bones survive optimization and provide exact moving attachment anchors.
+            Transform head = animator.GetBoneTransform(HumanBodyBones.Head);
+            Transform jaw = animator.GetBoneTransform(HumanBodyBones.Jaw);
+            Transform chest = animator.GetBoneTransform(HumanBodyBones.Chest);
+            Transform leftEye = animator.GetBoneTransform(HumanBodyBones.LeftEye);
+            Transform rightEye = animator.GetBoneTransform(HumanBodyBones.RightEye);
+            if (head == null || jaw == null || chest == null || leftEye == null || rightEye == null)
+            {
+                throw new System.InvalidOperationException("The SWAT zombie requires mapped head, jaw, chest, and eye bones.");
+            }
+
+            // Model axes already include the 180-degree enemy turn and therefore point toward the approaching player.
+            Vector3 forward = swatModel.forward;
+            Vector3 right = swatModel.right;
+            Vector3 up = swatModel.up;
+            Quaternion faceRotation = Quaternion.LookRotation(forward, up);
+
+            // A shared palette keeps all small infection cues saturated and readable without multiplying materials per eye.
+            Material bloodMaterial = GetOrCreateSharedZombieDetailMaterial(
+                ref swatZombieSharedBloodMaterial,
+                SwatZombieBloodColor,
+                "SWAT Zombie Blood Material");
+            Material eyeMaterial = GetOrCreateSharedZombieDetailMaterial(
+                ref swatZombieSharedEyeMaterial,
+                SwatZombieBloodshotEyeColor,
+                "SWAT Zombie Bloodshot Eye Material");
+            Material pupilMaterial = GetOrCreateSharedZombieDetailMaterial(
+                ref swatZombieSharedPupilMaterial,
+                new Color(0.055f, 0.012f, 0.01f),
+                "SWAT Zombie Dilated Pupil Material");
+            Material droolMaterial = GetOrCreateSharedZombieDetailMaterial(
+                ref swatZombieSharedDroolMaterial,
+                SwatZombieDroolColor,
+                "SWAT Zombie Drool Material");
+
+            // Flattened socket patches frame the enlarged sclera with an unmistakably bloody rim.
+            CreateAttachedWorldSphere(
+                head,
+                "Zombie Bloody Socket Left",
+                leftEye.position + forward * 0.008f,
+                new Vector3(0.034f, 0.028f, 0.008f),
+                faceRotation,
+                bloodMaterial);
+            CreateAttachedWorldSphere(
+                head,
+                "Zombie Bloody Socket Right",
+                rightEye.position + forward * 0.008f,
+                new Vector3(0.034f, 0.028f, 0.008f),
+                faceRotation,
+                bloodMaterial);
+
+            // Oversized bloodshot eyeballs protrude beyond the source corneas and pulse asynchronously at runtime.
+            CreateAttachedWorldSphere(
+                leftEye,
+                SwatZombieBloodyEyeLeftName,
+                leftEye.position + forward * 0.016f,
+                new Vector3(0.034f, 0.029f, 0.022f),
+                faceRotation,
+                eyeMaterial);
+            CreateAttachedWorldSphere(
+                rightEye,
+                SwatZombieBloodyEyeRightName,
+                rightEye.position + forward * 0.016f,
+                new Vector3(0.034f, 0.029f, 0.022f),
+                faceRotation,
+                eyeMaterial);
+
+            // Dark dilated pupils make the red eyes look organic and preserve a clear gaze toward the player.
+            CreateAttachedWorldSphere(
+                leftEye,
+                "Zombie Pupil Left",
+                leftEye.position + forward * 0.028f,
+                new Vector3(0.010f, 0.011f, 0.007f),
+                faceRotation,
+                pupilMaterial);
+            CreateAttachedWorldSphere(
+                rightEye,
+                "Zombie Pupil Right",
+                rightEye.position + forward * 0.028f,
+                new Vector3(0.010f, 0.011f, 0.007f),
+                faceRotation,
+                pupilMaterial);
+
+            // Thin downward streaks keep the eye infection readable when the pupils are only a few screen pixels wide.
+            CreateAttachedWorldSphere(
+                head,
+                "Zombie Eye Blood Trail Left",
+                leftEye.position + forward * 0.014f - up * 0.029f,
+                new Vector3(0.006f, 0.038f, 0.006f),
+                faceRotation,
+                bloodMaterial);
+            CreateAttachedWorldSphere(
+                head,
+                "Zombie Eye Blood Trail Right",
+                rightEye.position + forward * 0.014f - up * 0.026f,
+                new Vector3(0.006f, 0.034f, 0.006f),
+                faceRotation,
+                bloodMaterial);
+
+            // Eye midpoint provides a stable mouth estimate even though the optimized source has no facial blendshapes.
+            Vector3 eyeMidpoint = (leftEye.position + rightEye.position) * 0.5f;
+            Vector3 mouthPosition = eyeMidpoint - up * 0.112f + forward * 0.026f;
+
+            // A narrow strand and heavier terminal drop visibly hang from the open, animated jaw.
+            CreateAttachedWorldCylinder(
+                jaw,
+                SwatZombieDroolStrandName,
+                mouthPosition - up * 0.052f,
+                new Vector3(0.013f, 0.105f, 0.013f),
+                Quaternion.identity,
+                droolMaterial);
+            CreateAttachedWorldSphere(
+                jaw,
+                SwatZombieDroolDropName,
+                mouthPosition - up * 0.115f,
+                new Vector3(0.028f, 0.037f, 0.025f),
+                Quaternion.identity,
+                droolMaterial);
+
+            // Flattened blood patches follow animated chest and head bones instead of floating in world space.
+            CreateAttachedWorldSphere(
+                chest,
+                SwatZombieChestWoundName,
+                chest.position + forward * 0.145f - right * 0.055f,
+                new Vector3(0.052f, 0.125f, 0.014f),
+                faceRotation,
+                bloodMaterial);
+            CreateAttachedWorldSphere(
+                chest,
+                "Zombie Chest Wound Smear",
+                chest.position + forward * 0.147f - right * 0.020f + up * 0.018f,
+                new Vector3(0.082f, 0.028f, 0.012f),
+                faceRotation,
+                bloodMaterial);
+            CreateAttachedWorldSphere(
+                head,
+                SwatZombieHeadWoundName,
+                head.position + forward * 0.103f + right * 0.075f + up * 0.042f,
+                new Vector3(0.035f, 0.054f, 0.012f),
+                faceRotation,
+                bloodMaterial);
+        }
+
+        private static GameObject CreateAttachedWorldSphere(
+            Transform parent,
+            string name,
+            Vector3 worldPosition,
+            Vector3 worldScale,
+            Quaternion worldRotation,
+            Material material)
+        {
+            // Authoring in world units keeps facial proportions independent of Character Creator's centimetre bones.
+            GameObject detail = PrototypeGeometryFactory.CreateSphere(name, worldPosition, worldScale, material);
+            detail.transform.rotation = worldRotation;
+
+            // World-position preservation converts the attachment into the exact parent-local transform automatically.
+            detail.transform.SetParent(parent, true);
+            return detail;
+        }
+
+        private static Material GetOrCreateSharedZombieDetailMaterial(
+            ref Material cachedMaterial,
+            Color color,
+            string materialName)
+        {
+            if (cachedMaterial != null)
+            {
+                return cachedMaterial;
+            }
+
+            // Unity's fake-null check above also recreates a cache entry after editor play-mode teardown destroys it.
+            cachedMaterial = CreateMaterial(color);
+            cachedMaterial.name = materialName;
+            return cachedMaterial;
+        }
+
+        private static GameObject CreateAttachedWorldCylinder(
+            Transform parent,
+            string name,
+            Vector3 worldPosition,
+            Vector3 worldScale,
+            Quaternion worldRotation,
+            Material material)
+        {
+            // Cylinder geometry gives drool a continuous strand instead of a chain of disconnected spheres.
+            GameObject detail = PrototypeGeometryFactory.CreateCylinder(name, worldPosition, worldScale, material);
+            detail.transform.rotation = worldRotation;
+
+            // Keeping the initial world pose places the strand exactly under the jaw before animation begins.
+            detail.transform.SetParent(parent, true);
+            return detail;
+        }
+
+        private static void HideGeneratedZombieMeshRenderers(Transform figureRoot)
+        {
+            // This runs before importing the licensed child, so every current mesh renderer belongs to the fallback body.
+            foreach (MeshRenderer renderer in figureRoot.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                renderer.enabled = false;
+            }
+        }
+
+        private static void DisableSwatZombieWeaponRenderers(Transform swatModel)
+        {
+            foreach (Renderer renderer in swatModel.GetComponentsInChildren<Renderer>(true))
+            {
+                // Renderer prefixes are stable across both original skinned weapons and any future mesh export variants.
+                bool isWeapon = renderer.gameObject.name.StartsWith("SKM_WP_", System.StringComparison.Ordinal) ||
+                                renderer.gameObject.name.StartsWith("SM_WP_", System.StringComparison.Ordinal);
+                if (isWeapon)
+                {
+                    renderer.enabled = false;
+                }
+            }
+        }
+
+        private static void SetNamedSwatRendererEnabled(Transform swatModel, string rendererName, bool isEnabled)
+        {
+            foreach (Renderer renderer in swatModel.GetComponentsInChildren<Renderer>(true))
+            {
+                // Multiple imported branches can expose the same stable renderer name, so configure every exact match.
+                if (renderer.gameObject.name == rendererName)
+                {
+                    renderer.enabled = isEnabled;
+                }
+            }
         }
 
         private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material skinMaterial, Material faceDetailMaterial, Material hairMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial, Material weaponMaterial, Material referenceModelMaterial, Material referenceRearMaterial, bool useSwatTechnicalTrial)
@@ -370,7 +766,7 @@ namespace LaneSurvivor.Rendering
             swatModel.transform.localPosition = new Vector3(0f, SwatSurvivorYOffset, 0f);
 
             // Build explicit lit materials from external diffuse/normal channels instead of unreliable FBX embedding.
-            ApplySwatPbrMaterials(swatModel);
+            ApplySwatPbrMaterials(swatModel, false);
 
             // The imported weapon skin does not visually follow its helper-bone rotations, so render it rigidly under the aim pivot.
             BakeVisibleSwatWeaponUnderAimPivot(swatModel.transform);
@@ -591,10 +987,12 @@ namespace LaneSurvivor.Rendering
             }
         }
 
-        private static void ApplySwatPbrMaterials(GameObject swatModel)
+        private static void ApplySwatPbrMaterials(GameObject swatModel, bool useZombiePalette)
         {
-            // Reuse one generated material per authored source slot so repeated submeshes can still batch.
-            Dictionary<string, Material> resolvedMaterials = new();
+            // Zombie instances share immutable materials globally; the one survivor keeps its isolated neutral palette.
+            Dictionary<string, Material> resolvedMaterials = useZombiePalette
+                ? SwatZombieSharedPbrMaterials
+                : new Dictionary<string, Material>();
 
             foreach (Renderer renderer in swatModel.GetComponentsInChildren<Renderer>(true))
             {
@@ -605,10 +1003,14 @@ namespace LaneSurvivor.Rendering
                 {
                     // Imported material names match the packed texture prefixes listed in the source Blender file.
                     string sourceMaterialName = NormalizeImportedMaterialName(sourceMaterials[slotIndex]?.name);
-                    if (!resolvedMaterials.TryGetValue(sourceMaterialName, out Material pbrMaterial))
+                    // Renderer identity is part of the key because the same source slot can be metal on one mesh only.
+                    string materialCacheKey = useZombiePalette
+                        ? $"{sourceMaterialName}|{renderer.gameObject.name}"
+                        : sourceMaterialName;
+                    if (!resolvedMaterials.TryGetValue(materialCacheKey, out Material pbrMaterial) || pbrMaterial == null)
                     {
-                        pbrMaterial = CreateSwatPbrMaterial(sourceMaterialName, renderer.gameObject.name);
-                        resolvedMaterials.Add(sourceMaterialName, pbrMaterial);
+                        pbrMaterial = CreateSwatPbrMaterial(sourceMaterialName, renderer.gameObject.name, useZombiePalette);
+                        resolvedMaterials[materialCacheKey] = pbrMaterial;
                     }
 
                     pbrMaterials[slotIndex] = pbrMaterial;
@@ -630,7 +1032,7 @@ namespace LaneSurvivor.Rendering
             return string.IsNullOrEmpty(materialName) ? "default" : materialName;
         }
 
-        private static Material CreateSwatPbrMaterial(string sourceMaterialName, string rendererName)
+        private static Material CreateSwatPbrMaterial(string sourceMaterialName, string rendererName, bool useZombiePalette)
         {
             // Resolve external channels before shader selection because available specular maps use Standard's spec workflow.
             Texture2D diffuseTexture = Resources.Load<Texture2D>($"Survivor3D/Textures/{sourceMaterialName}_Diffuse");
@@ -650,7 +1052,9 @@ namespace LaneSurvivor.Rendering
 
             Material material = new(shader)
             {
-                name = $"SWAT {sourceMaterialName} Runtime PBR"
+                name = useZombiePalette
+                    ? $"SWAT Zombie {sourceMaterialName} Runtime PBR"
+                    : $"SWAT {sourceMaterialName} Runtime PBR"
             };
 
             // External Resources textures are deterministic and survive scene serialization and player builds.
@@ -678,8 +1082,10 @@ namespace LaneSurvivor.Rendering
                 material.EnableKeyword("_SPECGLOSSMAP");
             }
 
-            // White tint preserves the authored albedo instead of multiplying it by the earlier dark fallback colours.
-            SetSwatMaterialColor(material, Color.white);
+            // Survivors preserve neutral albedo, while zombies multiply the same texture detail by an infected palette.
+            SetSwatMaterialColor(
+                material,
+                useZombiePalette ? ResolveSwatZombieMaterialTint(sourceMaterialName) : Color.white);
 
             // Weapons and metal hardware receive a modest metallic response; fabric and skin remain dielectric.
             bool isMetal = sourceMaterialName.StartsWith("M_WP_", System.StringComparison.Ordinal) ||
@@ -703,6 +1109,33 @@ namespace LaneSurvivor.Rendering
             }
 
             return material;
+        }
+
+        private static Color ResolveSwatZombieMaterialTint(string sourceMaterialName)
+        {
+            // Skin, nails, and face channels share the same cold flesh tint across exposed body regions.
+            if (sourceMaterialName.Contains("Skin", System.StringComparison.OrdinalIgnoreCase) ||
+                sourceMaterialName.Contains("Nails", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return SwatZombieSkinTint;
+            }
+
+            // Source eye and cornea textures remain blood-red even behind the larger attached sclera geometry.
+            if (sourceMaterialName.Contains("Eye", System.StringComparison.OrdinalIgnoreCase) ||
+                sourceMaterialName.Contains("Cornea", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return SwatZombieBloodshotEyeColor;
+            }
+
+            // Fabric uses a dirty olive cast that preserves seams and folds from the authored diffuse/normal maps.
+            if (sourceMaterialName.Contains("Outfit", System.StringComparison.OrdinalIgnoreCase) ||
+                sourceMaterialName.Contains("Suit", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return SwatZombieClothingTint;
+            }
+
+            // Boots, gloves, belts, armor, and helmet hardware share a worn brown-gray equipment tint.
+            return SwatZombieGearTint;
         }
 
         private static void SetSwatMaterialColor(Material material, Color color)

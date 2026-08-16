@@ -949,6 +949,159 @@ namespace LaneSurvivor.Tests.EditMode
         }
 
         [Test]
+        public void PrototypeCharacterFactory_BuildsImportedFemaleSoldierZombiesWithInfectedDetailsAndStumble()
+        {
+            // Construct both enemy types so the trial covers the exposed basic face and the armored visual tell.
+            Material zombieMaterial = PrototypeMaterialFactory.Create(Color.green);
+            GameObject basicZombie = PrototypeCharacterFactory.CreateZombie(
+                "Imported Basic Zombie Under Test",
+                new Vector3(0f, GameplayVisuals.ZombieCenterY, 13f),
+                zombieMaterial,
+                ZombieEnemyType.Basic);
+            GameObject armoredZombie = PrototypeCharacterFactory.CreateZombie(
+                "Imported Armored Zombie Under Test",
+                new Vector3(2f, GameplayVisuals.ZombieCenterY, 19f),
+                zombieMaterial,
+                ZombieEnemyType.Armored);
+
+            try
+            {
+                // The visible enemy must be the licensed female SWAT mesh rather than the retained primitive fallback.
+                Transform basicFigure = basicZombie.transform.Find("Zombie Figure");
+                Transform basicModel = basicFigure?.Find(PrototypeCharacterFactory.SwatZombieModelName);
+                Transform armoredModel = armoredZombie.transform.Find($"Zombie Figure/{PrototypeCharacterFactory.SwatZombieModelName}");
+                Assert.IsNotNull(basicFigure);
+                Assert.IsNotNull(basicModel);
+                Assert.IsNotNull(armoredModel);
+
+                // A Humanoid Animator drives the authored Mixamo step before the dedicated component adds instability.
+                Animator basicAnimator = basicModel.GetComponent<Animator>();
+                Animator armoredAnimator = armoredModel.GetComponent<Animator>();
+                SwatZombieAnimator basicStumble = basicModel.GetComponent<SwatZombieAnimator>();
+                SwatZombieAnimator armoredStumble = armoredModel.GetComponent<SwatZombieAnimator>();
+                Assert.IsNotNull(basicAnimator);
+                Assert.IsNotNull(armoredAnimator);
+                Assert.IsInstanceOf<AnimatorOverrideController>(basicAnimator.runtimeAnimatorController);
+                Assert.IsFalse(basicAnimator.applyRootMotion);
+                Assert.AreEqual(AnimatorCullingMode.AlwaysAnimate, basicAnimator.cullingMode);
+                Assert.AreEqual(SwatZombieAnimator.BasicAnimatorSpeed, basicAnimator.speed, 0.001f);
+                Assert.AreEqual(SwatZombieAnimator.ArmoredAnimatorSpeed, armoredAnimator.speed, 0.001f);
+                Assert.IsNotNull(basicStumble);
+                Assert.IsNotNull(armoredStumble);
+                Assert.IsTrue(basicStumble.HasCompleteHumanoidRig);
+                Assert.AreEqual(ZombieEnemyType.Basic, basicStumble.EnemyType);
+                Assert.AreEqual(ZombieEnemyType.Armored, armoredStumble.EnemyType);
+
+                // Exaggerated bloodshot eyes, running blood, open-jaw drool, and body wounds must all follow live bones.
+                Transform leftEye = FindNamedDescendant(basicModel, PrototypeCharacterFactory.SwatZombieBloodyEyeLeftName);
+                Transform rightEye = FindNamedDescendant(basicModel, PrototypeCharacterFactory.SwatZombieBloodyEyeRightName);
+                Transform droolStrand = FindNamedDescendant(basicModel, PrototypeCharacterFactory.SwatZombieDroolStrandName);
+                Transform droolDrop = FindNamedDescendant(basicModel, PrototypeCharacterFactory.SwatZombieDroolDropName);
+                Assert.IsNotNull(leftEye);
+                Assert.IsNotNull(rightEye);
+                Assert.IsNotNull(FindNamedDescendant(basicModel, "Zombie Bloody Socket Left"));
+                Assert.IsNotNull(FindNamedDescendant(basicModel, "Zombie Bloody Socket Right"));
+                Assert.IsNotNull(FindNamedDescendant(basicModel, "Zombie Eye Blood Trail Left"));
+                Assert.IsNotNull(FindNamedDescendant(basicModel, "Zombie Eye Blood Trail Right"));
+                Assert.IsNotNull(FindNamedDescendant(basicModel, "Zombie Pupil Left"));
+                Assert.IsNotNull(FindNamedDescendant(basicModel, "Zombie Pupil Right"));
+                Assert.IsNotNull(droolStrand);
+                Assert.IsNotNull(droolDrop);
+                Assert.IsNotNull(FindNamedDescendant(basicModel, PrototypeCharacterFactory.SwatZombieChestWoundName));
+                Assert.IsNotNull(FindNamedDescendant(basicModel, PrototypeCharacterFactory.SwatZombieHeadWoundName));
+                Assert.GreaterOrEqual(leftEye.lossyScale.x, 0.032f);
+                Assert.GreaterOrEqual(rightEye.lossyScale.x, 0.032f);
+                Assert.Greater(droolStrand.lossyScale.y, droolStrand.lossyScale.x * 5f);
+
+                // The zombie palette must retain the source fabric texture and normal detail beneath its sickly tint.
+                Renderer basicSuitRenderer = FindNamedDescendant(basicModel, "Suit")?.GetComponent<Renderer>();
+                Assert.IsNotNull(basicSuitRenderer);
+                Assert.That(basicSuitRenderer.sharedMaterial.name, Does.StartWith("SWAT Zombie"));
+                Assert.IsNotNull(basicSuitRenderer.sharedMaterial.mainTexture);
+                Assert.AreEqual("Outfit_Burglar2_Diffuse", basicSuitRenderer.sharedMaterial.mainTexture.name);
+                Assert.IsNotNull(basicSuitRenderer.sharedMaterial.GetTexture("_BumpMap"));
+
+                // Repeated zombie instances must reuse immutable runtime materials instead of leaking one set per enemy.
+                Renderer armoredSuitRenderer = FindNamedDescendant(armoredModel, "Suit")?.GetComponent<Renderer>();
+                Assert.IsNotNull(armoredSuitRenderer);
+                Assert.AreSame(basicSuitRenderer.sharedMaterial, armoredSuitRenderer.sharedMaterial);
+
+                // All source firearms stay hidden, the face remains exposed, and only armored enemies retain a helmet.
+                foreach (Renderer renderer in basicModel.GetComponentsInChildren<Renderer>(true))
+                {
+                    bool isSourceWeapon = renderer.gameObject.name.StartsWith("SKM_WP_", System.StringComparison.Ordinal) ||
+                                          renderer.gameObject.name.StartsWith("SM_WP_", System.StringComparison.Ordinal);
+                    if (isSourceWeapon)
+                    {
+                        Assert.IsFalse(renderer.enabled, $"{renderer.name} should stay hidden on an unarmed zombie.");
+                    }
+                }
+
+                Renderer basicMask = FindNamedDescendant(basicModel, "Balaclava_Mask")?.GetComponent<Renderer>();
+                Renderer basicHelmet = FindNamedDescendant(basicModel, "AUG3M_Helmet_33393_Shape")?.GetComponent<Renderer>();
+                Renderer armoredHelmet = FindNamedDescendant(armoredModel, "AUG3M_Helmet_33393_Shape")?.GetComponent<Renderer>();
+                Assert.IsNotNull(basicMask);
+                Assert.IsNotNull(basicHelmet);
+                Assert.IsNotNull(armoredHelmet);
+                Assert.IsFalse(basicMask.enabled);
+                Assert.IsFalse(basicHelmet.enabled);
+                Assert.IsTrue(armoredHelmet.enabled);
+
+                // Primitive fallback geometry remains structurally available but contributes no doubled visible silhouette.
+                MeshRenderer generatedHeadRenderer = basicZombie.transform.Find("Zombie Figure/Zombie Head")?.GetComponent<MeshRenderer>();
+                Assert.IsNotNull(generatedHeadRenderer);
+                Assert.IsFalse(generatedHeadRenderer.enabled);
+
+                // Explicit evaluation must leave gameplay targeting fixed while changing root balance and both arms unequally.
+                Vector3 gameplayRootPosition = basicZombie.transform.position;
+                Vector3 figurePositionBefore = basicFigure.localPosition;
+                Quaternion figureRotationBefore = basicFigure.localRotation;
+                Transform leftUpperArm = basicAnimator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+                Transform rightUpperArm = basicAnimator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+                Quaternion leftArmBefore = leftUpperArm.rotation;
+                Quaternion rightArmBefore = rightUpperArm.rotation;
+                Transform leftFoot = basicAnimator.GetBoneTransform(HumanBodyBones.LeftFoot);
+                Transform rightFoot = basicAnimator.GetBoneTransform(HumanBodyBones.RightFoot);
+                float expectedGroundHeight = Mathf.Min(
+                    basicZombie.transform.InverseTransformPoint(leftFoot.position).y,
+                    basicZombie.transform.InverseTransformPoint(rightFoot.position).y);
+                basicStumble.ForceEvaluate(0.37f);
+                Assert.IsTrue(basicStumble.IsAnimating);
+                Assert.Greater(basicStumble.AnimationPhase, 0f);
+                Assert.AreEqual(gameplayRootPosition, basicZombie.transform.position);
+                Assert.Greater(Vector3.Distance(figurePositionBefore, basicFigure.localPosition), 0.001f);
+                Assert.Greater(Quaternion.Angle(figureRotationBefore, basicFigure.localRotation), 1f);
+                Assert.Greater(Quaternion.Angle(leftArmBefore, leftUpperArm.rotation), 2f);
+                Assert.Greater(Quaternion.Angle(rightArmBefore, rightUpperArm.rotation), 2f);
+                Assert.Greater(
+                    Mathf.Abs(basicStumble.CurrentLeftArmAgitationDegrees - basicStumble.CurrentRightArmAgitationDegrees),
+                    0.5f);
+
+                // Sample a complete unstable cycle and require its current lower support boot to stay on the road plane.
+                for (int sampleIndex = 0; sampleIndex < 120; sampleIndex++)
+                {
+                    basicStumble.ForceEvaluate(1f / 30f);
+                    float sampledGroundHeight = Mathf.Min(
+                        basicZombie.transform.InverseTransformPoint(leftFoot.position).y,
+                        basicZombie.transform.InverseTransformPoint(rightFoot.position).y);
+                    Assert.AreEqual(expectedGroundHeight, sampledGroundHeight, 0.002f);
+                    Assert.AreEqual(0f, basicStumble.CurrentSupportFootGroundError, 0.002f);
+                }
+
+                // Imported and generated render-only visual layers must remain free of accidental physics colliders.
+                AssertNoColliderComponents(basicZombie);
+                AssertNoColliderComponents(armoredZombie);
+            }
+            finally
+            {
+                // Destroy every generated object and the caller-owned fallback material to isolate later EditMode tests.
+                UnityEngine.Object.DestroyImmediate(basicZombie);
+                UnityEngine.Object.DestroyImmediate(armoredZombie);
+                UnityEngine.Object.DestroyImmediate(zombieMaterial);
+            }
+        }
+
+        [Test]
         public void PrototypeHumanoidAnimator_MovesSurvivorAndZombieLimbs()
         {
             // The procedural walk cycle should visibly rotate generated limbs without imported animation clips.

@@ -1948,6 +1948,72 @@ namespace LaneSurvivor.Tests.PlayMode
         }
 
         [UnityTest]
+        public IEnumerator MinigameScene_UsesFemaleSwatZombieWithInfectedFaceAndAsymmetricStumble()
+        {
+            // Load the production minigame so the test observes the same factory path used by an actual run.
+            SceneManager.LoadScene("Minigame");
+            yield return null;
+            yield return null;
+
+            // The first enemy remains alive during the pre-run countdown, allowing a stable visual-animation sample.
+            GameObject zombie = GameObject.Find("Zombie");
+            Assert.IsNotNull(zombie);
+            Transform figure = zombie.transform.Find("Zombie Figure");
+            Transform model = figure?.Find(PrototypeCharacterFactory.SwatZombieModelName);
+            Assert.IsNotNull(figure);
+            Assert.IsNotNull(model);
+
+            // Runtime enemies must use the imported Humanoid walk plus the dedicated late-frame zombie overlay.
+            Animator animator = model.GetComponent<Animator>();
+            SwatZombieAnimator stumble = model.GetComponent<SwatZombieAnimator>();
+            Assert.IsNotNull(animator);
+            Assert.IsNotNull(animator.runtimeAnimatorController);
+            Assert.IsNotNull(stumble);
+            Assert.IsTrue(stumble.HasCompleteHumanoidRig);
+            Assert.IsTrue(stumble.isActiveAndEnabled);
+
+            // The infected facial treatment must survive scene construction and remain attached to animated bones.
+            Assert.IsNotNull(FindNamedDescendant(model, PrototypeCharacterFactory.SwatZombieBloodyEyeLeftName));
+            Assert.IsNotNull(FindNamedDescendant(model, PrototypeCharacterFactory.SwatZombieBloodyEyeRightName));
+            Assert.IsNotNull(FindNamedDescendant(model, "Zombie Eye Blood Trail Left"));
+            Assert.IsNotNull(FindNamedDescendant(model, "Zombie Eye Blood Trail Right"));
+            Assert.IsNotNull(FindNamedDescendant(model, PrototypeCharacterFactory.SwatZombieDroolStrandName));
+            Assert.IsNotNull(FindNamedDescendant(model, PrototypeCharacterFactory.SwatZombieDroolDropName));
+            Assert.IsNotNull(FindNamedDescendant(model, PrototypeCharacterFactory.SwatZombieChestWoundName));
+
+            // No source rifle renderer may remain visible after repurposing the soldier as an unarmed enemy.
+            foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>(true))
+            {
+                bool isSourceWeapon = renderer.gameObject.name.StartsWith("SKM_WP_", StringComparison.Ordinal) ||
+                                      renderer.gameObject.name.StartsWith("SM_WP_", StringComparison.Ordinal);
+                if (isSourceWeapon)
+                {
+                    Assert.IsFalse(renderer.enabled, $"{renderer.name} should stay hidden on a runtime zombie.");
+                }
+            }
+
+            // Sample the visible root and both arms across live frames while the gameplay root remains stationary.
+            Vector3 gameplayRootPosition = zombie.transform.position;
+            Vector3 figurePositionBefore = figure.localPosition;
+            Quaternion figureRotationBefore = figure.localRotation;
+            Transform leftUpperArm = animator.GetBoneTransform(HumanBodyBones.LeftUpperArm);
+            Transform rightUpperArm = animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
+            Quaternion leftArmBefore = leftUpperArm.rotation;
+            Quaternion rightArmBefore = rightUpperArm.rotation;
+            yield return new WaitForSeconds(0.18f);
+
+            // The authored enemy target stays fixed while the visual model lurches and its arms agitate independently.
+            Assert.AreEqual(gameplayRootPosition, zombie.transform.position);
+            Assert.Greater(Vector3.Distance(figurePositionBefore, figure.localPosition), 0.001f);
+            Assert.Greater(Quaternion.Angle(figureRotationBefore, figure.localRotation), 0.5f);
+            Assert.Greater(Quaternion.Angle(leftArmBefore, leftUpperArm.rotation), 1f);
+            Assert.Greater(Quaternion.Angle(rightArmBefore, rightUpperArm.rotation), 1f);
+            Assert.Greater(
+                Mathf.Abs(stumble.CurrentLeftArmAgitationDegrees - stumble.CurrentRightArmAgitationDegrees),
+                0.5f);
+        }
+
+        [UnityTest]
         public IEnumerator MinigameScene_SwatShotAimsVisibleRifleAndAttachesEffectsToBarrel()
         {
             // Load the production minigame so this covers the imported weapon hierarchy and runtime effect path together.
