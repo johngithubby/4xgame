@@ -77,17 +77,32 @@ namespace LaneSurvivor.Gameplay
                 // Target points stay centered on the visible zombie body so tracers aim where damage text appears.
                 Vector3 targetPoint = target.transform.position + Vector3.up * 0.5f;
 
-                // Prefer a generated survivor muzzle transform so the visual layer can keep effects attached.
+                // Prefer a registered visible or generated muzzle transform so effects begin on the firing barrel.
                 bool shotStartedAtWeaponMuzzle = playerSquad.TryGetNextWeaponMuzzle(out Transform shotMuzzle);
-                Vector3 shotOrigin = shotStartedAtWeaponMuzzle && shotMuzzle != null ? shotMuzzle.position : default;
-                if (!shotStartedAtWeaponMuzzle)
+                Vector3 shotOrigin;
+                if (shotStartedAtWeaponMuzzle && shotMuzzle != null)
+                {
+                    // Imported leaders rotate their real MPX weapon hierarchy before this frame's origin is sampled.
+                    SwatSurvivorLocomotionAnimator swatShooter = shotMuzzle.GetComponentInParent<SwatSurvivorLocomotionAnimator>();
+                    bool importedWeaponAimed = swatShooter != null && swatShooter.PlayWeaponShot(shotMuzzle, targetPoint);
+
+                    if (!importedWeaponAimed)
+                    {
+                        // Generated wing rigs retain their existing target-aware arm, weapon, and recoil animation.
+                        survivorAnimator?.PlaySurvivorShot(shotMuzzle.position, targetPoint);
+                    }
+
+                    // Aiming can move a barrel around its hand pivot, so read the exact final muzzle position afterward.
+                    shotOrigin = shotMuzzle.position;
+                }
+                else
                 {
                     // Old or test-only squads without generated weapons keep the existing root-derived fallback origin.
                     shotOrigin = playerSquad.transform.position + Vector3.up * 0.5f;
-                }
 
-                // The survivor rig uses the same target point as the tracer so the skinned soldier aims at the zombie.
-                survivorAnimator?.PlaySurvivorShot(shotOrigin, targetPoint);
+                    // Fallback rigs still receive recoil and aim even though no exact muzzle transform exists.
+                    survivorAnimator?.PlaySurvivorShot(shotOrigin, targetPoint);
+                }
 
                 ShotFired?.Invoke(shotOrigin, targetPoint, appliedDamage, shotStartedAtWeaponMuzzle);
                 ShotFiredDetailed?.Invoke(shotOrigin, targetPoint, appliedDamage, shotStartedAtWeaponMuzzle, shotMuzzle);

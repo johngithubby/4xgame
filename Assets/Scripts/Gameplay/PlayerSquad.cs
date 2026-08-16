@@ -31,8 +31,11 @@ namespace LaneSurvivor.Gameplay
 
         private float laneChangeSpeed = 8f;
 
-        // Registered muzzle transforms are rotated by AutoShooter so every survivor can visibly take turns firing.
+        // Registered muzzle transforms are rotated by AutoShooter so only characters with authoritative visible weapons fire.
         private readonly List<Transform> weaponMuzzles = new();
+
+        // Exact-name candidates are gathered before selection so an imported hero can supersede hidden prototype weapons.
+        private readonly List<Transform> weaponMuzzleCandidates = new();
 
         // This index advances after each shot and wraps to the start of the generated squad weapon list.
         private int nextWeaponMuzzleIndex;
@@ -80,11 +83,30 @@ namespace LaneSurvivor.Gameplay
             // Clear stale scene or test transforms before scanning the current generated children.
             weaponMuzzles.Clear();
 
+            // Candidate storage is reused to avoid allocating a traversal list every time scene art is rebuilt.
+            weaponMuzzleCandidates.Clear();
+
             // Reset rotation order so a rebuilt squad begins with the leader again.
             nextWeaponMuzzleIndex = 0;
 
             // Recursively scan from the gameplay root because weapons live under survivor hand chains.
-            RegisterWeaponMuzzlesInChildren(transform);
+            CollectWeaponMuzzleCandidates(transform);
+
+            // A licensed-model muzzle is authoritative whenever the technical-trial leader is present.
+            foreach (Transform candidate in weaponMuzzleCandidates)
+            {
+                // Generated wing anchors belong to hidden placeholder soldiers and would create detached orange traces.
+                if (candidate.GetComponentInParent<SwatSurvivorLocomotionAnimator>() != null)
+                {
+                    weaponMuzzles.Add(candidate);
+                }
+            }
+
+            // Generated-only scenes and isolated tests retain their original round-robin firing behavior.
+            if (weaponMuzzles.Count == 0)
+            {
+                weaponMuzzles.AddRange(weaponMuzzleCandidates);
+            }
         }
 
         public bool TryGetNextWeaponMuzzlePosition(out Vector3 muzzlePosition)
@@ -120,7 +142,7 @@ namespace LaneSurvivor.Gameplay
             // Select the current muzzle before advancing so callers receive the transform used for this shot.
             muzzle = weaponMuzzles[nextWeaponMuzzleIndex];
 
-            // Advance for the next shot, rotating through leader, left wing, and right wing anchors.
+            // Advance for the next shot, rotating only through the authoritative visible weapon list.
             nextWeaponMuzzleIndex = (nextWeaponMuzzleIndex + 1) % weaponMuzzles.Count;
             return true;
         }
@@ -186,18 +208,18 @@ namespace LaneSurvivor.Gameplay
             transform.position = nextPosition;
         }
 
-        private void RegisterWeaponMuzzlesInChildren(Transform root)
+        private void CollectWeaponMuzzleCandidates(Transform root)
         {
             foreach (Transform child in root)
             {
                 // Exact names avoid accidentally registering unrelated VFX or future attachment points.
                 if (child.name == WeaponMuzzleAnchorName)
                 {
-                    weaponMuzzles.Add(child);
+                    weaponMuzzleCandidates.Add(child);
                 }
 
                 // Depth-first order follows the generated hierarchy order: leader, left wing, then right wing.
-                RegisterWeaponMuzzlesInChildren(child);
+                CollectWeaponMuzzleCandidates(child);
             }
         }
 

@@ -158,13 +158,13 @@ namespace LaneSurvivor.Gameplay
         public static readonly Vector3 FeedbackTextShadowOffset = new(0.045f, -0.045f, 0.015f);
 
         // Shot tracers are camera-facing strips, narrow enough to read as beams instead of obstacle bars.
-        public const float ShotTracerWidth = 0.11f;
+        public const float ShotTracerWidth = 0.16f;
 
-        // Tracers last across a couple of 12fps capture frames without drifting away from the moving squad.
-        public const float ShotTracerLifetimeSeconds = 0.16f;
+        // Tracers remain readable through most of the 0.35-second firing interval while their muzzle parent prevents drift.
+        public const float ShotTracerLifetimeSeconds = 0.34f;
 
-        // Weapon-origin tracers are very short so captures read the streak as leaving the raised rifle.
-        public const float ShotTracerWeaponForwardLength = 0.22f;
+        // Weapon-origin tracers are long enough to show aim direction while remaining inside the survivor footprint.
+        public const float ShotTracerWeaponForwardLength = 0.64f;
 
         // Muzzle flashes are compact flares at the rifle tip, not gameplay-sized pickup markers.
         public const float MuzzleFlashSize = 0.22f;

@@ -1789,8 +1789,9 @@ namespace LaneSurvivor.Tests.PlayMode
 
             // Runtime weapon pose checks use the same hidden 3D rig anchors that shot tracers use.
             Transform leaderHead = playerSquad.transform.Find("Survivor Leader/Human Head");
+            Transform leaderSwatModel = playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SwatSurvivorModelName}");
             Transform leaderWeapon = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
-            Transform leaderMuzzle = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            Transform leaderMuzzle = FindNamedDescendant(leaderSwatModel, PlayerSquad.WeaponMuzzleAnchorName);
             Transform leaderWeaponBody = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Body");
             Transform leaderRifleMagazine = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Magazine");
             Transform leaderRifleSidePlate = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Side Plate");
@@ -1808,8 +1809,11 @@ namespace LaneSurvivor.Tests.PlayMode
             Transform leftRoot = playerSquad.transform.Find("Survivor Left Wing");
             Transform rightRoot = playerSquad.transform.Find("Survivor Right Wing");
             Assert.IsNotNull(leaderHead);
+            Assert.IsNotNull(leaderSwatModel);
             Assert.IsNotNull(leaderWeapon);
             Assert.IsNotNull(leaderMuzzle);
+            Assert.IsNotNull(leaderWeapon.Find(PrototypeCharacterFactory.HiddenGeneratedWeaponMuzzleName));
+            Assert.AreEqual(PrototypeCharacterFactory.SwatWeaponAimPivotName, leaderMuzzle.parent.name);
             Assert.IsNotNull(leaderWeaponBody);
             Assert.IsNotNull(leaderRifleMagazine);
             Assert.IsNotNull(leaderRifleSidePlate);
@@ -1832,16 +1836,22 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.Greater(Vector3.Dot(leaderRoot.forward.normalized, Vector3.forward), 0.90f);
             Assert.Greater(Vector3.Dot(leftRoot.forward.normalized, Vector3.forward), 0.90f);
             Assert.Greater(Vector3.Dot(rightRoot.forward.normalized, Vector3.forward), 0.90f);
-            // Runtime muzzles must point toward larger Z values, which is where zombies spawn.
-            Assert.Greater(Vector3.Dot(leaderMuzzle.forward.normalized, Vector3.forward), 0.90f);
+            // The imported rest muzzle follows its visible barrel; live shot tests below verify target-facing correction.
+            Transform leaderWeaponAimPivot = FindNamedDescendant(leaderSwatModel, PrototypeCharacterFactory.SwatWeaponAimPivotName);
+            Assert.IsNotNull(leaderWeaponAimPivot);
+            Assert.Greater(Vector3.Dot(leaderMuzzle.forward.normalized, (leaderMuzzle.position - leaderWeaponAimPivot.position).normalized), 0.99f);
+
+            // Generated wing muzzles remain authored directly along the down-lane +Z firing axis.
             Assert.Greater(Vector3.Dot(leftMuzzle.forward.normalized, Vector3.forward), 0.90f);
             Assert.Greater(Vector3.Dot(rightMuzzle.forward.normalized, Vector3.forward), 0.90f);
             // Runtime muzzle starts should stay attached to the visible soldier footprint instead of floating down-lane.
             Assert.Less(leaderMuzzle.position.z, leaderRoot.position.z + GameplayVisuals.PlayerFootprint);
             Assert.Less(leftMuzzle.position.z, leftRoot.position.z + GameplayVisuals.PlayerFootprint);
             Assert.Less(rightMuzzle.position.z, rightRoot.position.z + GameplayVisuals.PlayerFootprint);
-            // All muzzle anchors should stay near each survivor head in the real Minigame scene.
-            Assert.GreaterOrEqual(leaderMuzzle.position.y, leaderHead.position.y - 0.08f);
+            // The imported rifle may cross the chest during its authored pose, but its muzzle must remain in the raised actor band.
+            Assert.GreaterOrEqual(leaderMuzzle.position.y, GameplayVisuals.ShotTracerMinimumY);
+
+            // Generated wing anchors retain their authored near-head placement even though they are excluded from live firing.
             Assert.GreaterOrEqual(leftMuzzle.position.y, leftHead.position.y - 0.08f);
             Assert.GreaterOrEqual(rightMuzzle.position.y, rightHead.position.y - 0.08f);
             Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 90);
@@ -1872,8 +1882,6 @@ namespace LaneSurvivor.Tests.PlayMode
             ReferenceModelFacingVisibility leaderFacingVisibility = leaderReferenceRenderer.GetComponent<ReferenceModelFacingVisibility>();
             Assert.IsNotNull(leaderFacingVisibility);
             Assert.IsFalse(leaderFacingVisibility.enabled);
-            Transform leaderSwatModel = playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SwatSurvivorModelName}");
-            Assert.IsNotNull(leaderSwatModel);
             Assert.Greater(leaderSwatModel.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length, 10);
             Animator leaderSwatAnimator = leaderSwatModel.GetComponent<Animator>();
             SwatSurvivorLocomotionAnimator leaderSwatLocomotion = leaderSwatModel.GetComponent<SwatSurvivorLocomotionAnimator>();
@@ -1913,7 +1921,8 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.Greater(rightBounds.size.x, 0.30f);
             PlayerSquad playerSquadComponent = playerSquad.GetComponent<PlayerSquad>();
             Assert.IsNotNull(playerSquadComponent);
-            Assert.AreEqual(3, playerSquadComponent.WeaponMuzzleCount);
+            // Only the rendered imported leader may fire; hidden generated wing anchors must never emit detached effects.
+            Assert.AreEqual(1, playerSquadComponent.WeaponMuzzleCount);
             PrototypeHumanoidAnimator playerAnimator = playerSquad.GetComponent<PrototypeHumanoidAnimator>();
             Assert.IsNotNull(playerAnimator);
             Assert.AreEqual(PrototypeHumanoidAnimationStyle.SurvivorSquad, playerAnimator.AnimationStyle);
@@ -1936,6 +1945,140 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(zombieAnimator);
             Assert.AreEqual(PrototypeHumanoidAnimationStyle.ZombieShamble, zombieAnimator.AnimationStyle);
             Assert.AreEqual(1, zombieAnimator.AnimatedRigCount);
+        }
+
+        [UnityTest]
+        public IEnumerator MinigameScene_SwatShotAimsVisibleRifleAndAttachesEffectsToBarrel()
+        {
+            // Load the production minigame so this covers the imported weapon hierarchy and runtime effect path together.
+            SceneManager.LoadScene("Minigame");
+            yield return null;
+            yield return null;
+
+            // Resolve the licensed model's exact barrel anchor instead of the obsolete generated leader carrier.
+            Transform playerSquad = GameObject.Find("Player Squad")?.transform;
+            Assert.IsNotNull(playerSquad);
+            Transform swatModel = playerSquad.Find($"Survivor Leader/{PrototypeCharacterFactory.SwatSurvivorModelName}");
+            Assert.IsNotNull(swatModel);
+            Transform visibleMuzzle = FindNamedDescendant(swatModel, PlayerSquad.WeaponMuzzleAnchorName);
+            Assert.IsNotNull(visibleMuzzle);
+            SkinnedMeshRenderer visibleMuzzleRenderer = FindNamedDescendant(
+                swatModel,
+                PrototypeCharacterFactory.SwatWeaponMuzzleRendererName)?.GetComponent<SkinnedMeshRenderer>();
+            SkinnedMeshRenderer visibleStockRenderer = FindNamedDescendant(
+                swatModel,
+                PrototypeCharacterFactory.SwatWeaponStockRendererName)?.GetComponent<SkinnedMeshRenderer>();
+            Assert.IsNotNull(visibleMuzzleRenderer);
+            Assert.IsNotNull(visibleStockRenderer);
+            Assert.IsFalse(visibleMuzzleRenderer.enabled);
+            Assert.IsFalse(visibleStockRenderer.enabled);
+
+            // The displayed rifle must come from pivot-local rigid meshes rather than the frozen FBX weapon skins.
+            Transform weaponAimPivot = FindNamedDescendant(swatModel, PrototypeCharacterFactory.SwatWeaponAimPivotName);
+            Assert.IsNotNull(weaponAimPivot);
+            int rigidWeaponRendererCount = 0;
+            foreach (MeshRenderer weaponRenderer in weaponAimPivot.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                if (weaponRenderer.gameObject.name.EndsWith(PrototypeCharacterFactory.SwatWeaponRigidRendererSuffix, StringComparison.Ordinal))
+                {
+                    Assert.IsTrue(weaponRenderer.enabled);
+                    rigidWeaponRendererCount++;
+                }
+            }
+
+            Assert.Greater(rigidWeaponRendererCount, 0);
+
+            // The effect anchor must coincide with the visible rigid muzzle's foremost plane, not its helper-bone origin.
+            Transform rigidMuzzle = FindNamedDescendant(
+                weaponAimPivot,
+                PrototypeCharacterFactory.SwatWeaponMuzzleRendererName + PrototypeCharacterFactory.SwatWeaponRigidRendererSuffix);
+            Mesh rigidMuzzleMesh = rigidMuzzle?.GetComponent<MeshFilter>()?.sharedMesh;
+            Assert.IsNotNull(rigidMuzzleMesh);
+            float furthestMuzzleVertexAhead = float.NegativeInfinity;
+            foreach (Vector3 muzzleVertex in rigidMuzzleMesh.vertices)
+            {
+                // A positive value means rendered muzzle geometry still extends visibly beyond the tracer origin.
+                Vector3 worldVertex = rigidMuzzle.TransformPoint(muzzleVertex);
+                furthestMuzzleVertexAhead = Mathf.Max(
+                    furthestMuzzleVertexAhead,
+                    Vector3.Dot(worldVertex - visibleMuzzle.position, visibleMuzzle.forward));
+            }
+
+            Assert.LessOrEqual(
+                Mathf.Abs(furthestMuzzleVertexAhead),
+                PrototypeCharacterFactory.SwatWeaponBarrelTipPlaneTolerance + 0.001f,
+                "The tracer origin must sit on the visible muzzle's foremost rendered plane.");
+            SwatSurvivorLocomotionAnimator swatLocomotion = swatModel.GetComponent<SwatSurvivorLocomotionAnimator>();
+            Assert.IsNotNull(swatLocomotion);
+
+            // A slight lateral target proves aiming follows the zombie point rather than merely forcing world +Z.
+            Vector3 targetPoint = visibleMuzzle.position + new Vector3(1.2f, 0.08f, 4f);
+            Assert.IsTrue(swatLocomotion.PlayWeaponShot(visibleMuzzle, targetPoint));
+            Assert.LessOrEqual(swatLocomotion.WeaponAimErrorDegrees, SwatSurvivorLocomotionAnimator.MaximumWeaponAimErrorDegrees);
+
+            // Let Unity update the skinned renderer bounds after the imported MPX bone has rotated.
+            yield return null;
+            Transform visibleStockBone = FindNamedDescendant(swatModel, PrototypeCharacterFactory.SwatWeaponStockBoneName);
+            Assert.IsNotNull(visibleStockBone);
+            Assert.LessOrEqual(
+                Vector3.Angle(visibleMuzzle.position - visibleStockBone.position, targetPoint - visibleMuzzle.position),
+                SwatSurvivorLocomotionAnimator.MaximumWeaponAimErrorDegrees,
+                "The live imported stock-to-muzzle axis must point at the target.");
+
+            // Invoke the same transform-aware feedback callback used by AutoShooter after it has aimed the weapon.
+            LevelManager levelManager = GameObject.Find("Level Manager")?.GetComponent<LevelManager>();
+            Assert.IsNotNull(levelManager);
+            MethodInfo detailedShotMethod = typeof(LevelManager).GetMethod("HandleShotFiredDetailed", BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(detailedShotMethod);
+            detailedShotMethod.Invoke(levelManager, new object[]
+            {
+                visibleMuzzle.position,
+                targetPoint,
+                1f,
+                true,
+                visibleMuzzle
+            });
+
+            // The orange tracer must be a child of the visible barrel so running cannot leave it beside the soldier.
+            GameObject shotTracer = GameObject.Find("Shot Tracer");
+            Assert.IsNotNull(shotTracer);
+            Assert.AreSame(visibleMuzzle, shotTracer.transform.parent);
+            Mesh tracerMesh = shotTracer.GetComponent<MeshFilter>()?.sharedMesh;
+            Assert.IsNotNull(tracerMesh);
+
+            // Transform local strip vertices back to world space and verify both its exact start and target direction.
+            Vector3[] tracerVertices = tracerMesh.vertices;
+            Vector3 tracerStart = shotTracer.transform.TransformPoint((tracerVertices[0] + tracerVertices[1]) * 0.5f);
+            Vector3 tracerEnd = shotTracer.transform.TransformPoint((tracerVertices[2] + tracerVertices[3]) * 0.5f);
+            Assert.Less(Vector3.Distance(visibleMuzzle.position, tracerStart), 0.002f);
+            Assert.AreEqual(
+                GameplayVisuals.ShotTracerWeaponForwardLength,
+                Vector3.Distance(tracerStart, tracerEnd),
+                0.01f,
+                "The imported weapon hierarchy scale must not shrink the visible tracer.");
+            Assert.LessOrEqual(
+                Vector3.Angle(tracerEnd - tracerStart, targetPoint - tracerStart),
+                SwatSurvivorLocomotionAnimator.MaximumWeaponAimErrorDegrees);
+
+            // The muzzle flash shares the same visible-barrel parent instead of appearing below or beside the character.
+            GameObject muzzleFlash = GameObject.Find("Muzzle Flash");
+            Assert.IsNotNull(muzzleFlash);
+            Assert.AreSame(visibleMuzzle, muzzleFlash.transform.parent);
+
+            // Sample late in the tracer lifetime, when the old implementation had already pulled the rifle left.
+            yield return new WaitForSeconds(GameplayVisuals.ShotTracerLifetimeSeconds * 0.75f);
+            Assert.IsTrue(shotTracer != null, "The tracer should still be visible at this sample.");
+            Assert.LessOrEqual(
+                Vector3.Angle(visibleMuzzle.position - visibleStockBone.position, targetPoint - visibleMuzzle.position),
+                SwatSurvivorLocomotionAnimator.MaximumWeaponAimErrorDegrees,
+                "The rifle must remain target-facing for the complete visible tracer lifetime.");
+
+            // The trace must be gone before the aim hold ends and the rifle is allowed to recover leftward.
+            yield return new WaitForSeconds(
+                GameplayVisuals.ShotTracerLifetimeSeconds * 0.25f +
+                SwatSurvivorLocomotionAnimator.WeaponAimTracerSafetySeconds +
+                0.05f);
+            Assert.IsTrue(shotTracer == null, "The tracer must stop before the rifle leaves its target-facing pose.");
         }
 
         [UnityTest]

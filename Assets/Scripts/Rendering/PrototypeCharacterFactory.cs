@@ -34,6 +34,33 @@ namespace LaneSurvivor.Rendering
         // The technical-trial survivor is kept under a stable child name for animation, tests, and scene audits.
         public const string SwatSurvivorModelName = "SWAT Survivor 3D Model";
 
+        // The imported weapon-body bone directly skins the visible rifle meshes and therefore owns target aiming.
+        public const string SwatWeaponAimPivotName = "b_Body";
+
+        // This imported barrel-end bone provides the exact visible location for muzzle flashes and tracers.
+        public const string SwatWeaponSourceMuzzleName = "SM_WP_Muzzle_011_01";
+
+        // This imported barrel joint sits behind the muzzle and defines the visible bore independently of the MPX pivot.
+        public const string SwatWeaponBarrelBaseName = "s_Barrel";
+
+        // This imported stock joint is the visible rear endpoint used with the muzzle to define the complete rifle axis.
+        public const string SwatWeaponStockBoneName = "s_Stock";
+
+        // This skinned mesh is the visible front of the MPX and provides the rendered rifle-axis endpoint.
+        public const string SwatWeaponMuzzleRendererName = "SM_WP_Muzzle_011_01_2";
+
+        // Vertices within one millimetre of the furthest muzzle plane define the visible barrel opening centre.
+        public const float SwatWeaponBarrelTipPlaneTolerance = 0.001f;
+
+        // This skinned mesh is the visible rear of the MPX and provides the rendered rifle-axis origin.
+        public const string SwatWeaponStockRendererName = "SKM_WP_Stock_027_01";
+
+        // Runtime-baked weapon renderers use this suffix so tests can distinguish them from hidden FBX skins.
+        public const string SwatWeaponRigidRendererSuffix = " Rigid Aim Proxy";
+
+        // The obsolete generated leader marker stays available for hierarchy tests but is excluded from shot rotation.
+        public const string HiddenGeneratedWeaponMuzzleName = "Hidden Generated Weapon Muzzle";
+
         // Resources keeps the licensed FBX available to both editor-built and runtime-bootstrapped scenes.
         private const string SwatSurvivorResourcePath = "Survivor3D/SWAT_Survivor_Mobile";
 
@@ -345,6 +372,12 @@ namespace LaneSurvivor.Rendering
             // Build explicit lit materials from external diffuse/normal channels instead of unreliable FBX embedding.
             ApplySwatPbrMaterials(swatModel);
 
+            // The imported weapon skin does not visually follow its helper-bone rotations, so render it rigidly under the aim pivot.
+            BakeVisibleSwatWeaponUnderAimPivot(swatModel.transform);
+
+            // Replace the invisible prototype origin with an anchor calculated from the rendered rifle's frontmost muzzle plane.
+            ReplaceLeaderMuzzleWithVisibleSwatMuzzle(survivorRoot, swatModel.transform);
+
             // Configure the imported Animator before the procedural squad animator caches any survivor transforms.
             ConfigureSwatLocomotion(swatModel, survivorRoot);
 
@@ -379,6 +412,183 @@ namespace LaneSurvivor.Rendering
             // Measure the Player Squad root itself; the leader child can be rewritten by animation evaluation.
             SwatSurvivorLocomotionAnimator locomotion = swatModel.AddComponent<SwatSurvivorLocomotionAnimator>();
             locomotion.Configure(animator, survivorRoot.parent);
+        }
+
+        private static void ReplaceLeaderMuzzleWithVisibleSwatMuzzle(Transform survivorRoot, Transform swatModel)
+        {
+            // The generated marker is behind invisible prototype geometry and must not remain eligible for live shots.
+            Transform generatedMuzzle = RequireDescendant(
+                survivorRoot,
+                PlayerSquad.WeaponMuzzleAnchorName,
+                "generated leader weapon muzzle");
+            generatedMuzzle.name = HiddenGeneratedWeaponMuzzleName;
+
+            // The MPX joint rigidly owns the imported weapon hierarchy and gives target aiming one stable pivot.
+            Transform weaponAimPivot = RequireDescendant(
+                swatModel,
+                SwatWeaponAimPivotName,
+                "imported SWAT weapon aim pivot");
+
+            // The exact barrel-end bone moves with the visible rifle and is the only truthful effect origin.
+            Transform sourceMuzzle = RequireDescendant(
+                weaponAimPivot,
+                SwatWeaponSourceMuzzleName,
+                "imported SWAT visible muzzle");
+
+            // The barrel-base joint sits on the visible bore; the MPX pivot is offset and must not define firing direction.
+            Transform barrelBase = RequireDescendant(
+                weaponAimPivot,
+                SwatWeaponBarrelBaseName,
+                "imported SWAT barrel base");
+
+            // The barrel-base-to-muzzle line follows the rendered rifle independently of FBX-local axis conventions.
+            Vector3 barrelDirection = sourceMuzzle.position - barrelBase.position;
+            if (barrelDirection.sqrMagnitude <= 0.0001f)
+            {
+                throw new System.InvalidOperationException("Imported SWAT barrel base and muzzle cannot occupy the same point.");
+            }
+
+            // The imported muzzle bone may sit behind the mesh opening, so derive the true tip from rendered geometry.
+            Vector3 renderedBarrelTip = FindRenderedSwatBarrelTip(weaponAimPivot, barrelDirection);
+
+            // A named child lets PlayerSquad keep its existing exact-name registry while using the visible barrel.
+            GameObject visibleMuzzle = new(PlayerSquad.WeaponMuzzleAnchorName);
+
+            // Parent to the same rigid aim pivot as the rendered weapon so Animator helper-bone motion cannot cause drift.
+            visibleMuzzle.transform.SetParent(weaponAimPivot, false);
+
+            // Position the effect origin at the centre of the frontmost rendered muzzle plane, not at the helper bone.
+            visibleMuzzle.transform.position = renderedBarrelTip;
+
+            // World rotation makes local +Z follow the actual barrel; parenting preserves that alignment during animation.
+            visibleMuzzle.transform.rotation = Quaternion.LookRotation(barrelDirection.normalized, swatModel.up);
+            visibleMuzzle.transform.localScale = Vector3.one;
+        }
+
+        private static Vector3 FindRenderedSwatBarrelTip(Transform weaponAimPivot, Vector3 barrelDirection)
+        {
+            // The rigid proxy is the exact weapon geometry players see after the original skinned muzzle is disabled.
+            Transform rigidMuzzle = RequireDescendant(
+                weaponAimPivot,
+                SwatWeaponMuzzleRendererName + SwatWeaponRigidRendererSuffix,
+                "rendered SWAT rigid muzzle proxy");
+            MeshFilter rigidMuzzleFilter = rigidMuzzle.GetComponent<MeshFilter>();
+            Mesh rigidMuzzleMesh = rigidMuzzleFilter != null ? rigidMuzzleFilter.sharedMesh : null;
+            if (rigidMuzzleMesh == null || rigidMuzzleMesh.vertexCount == 0)
+            {
+                throw new System.InvalidOperationException("Rendered SWAT muzzle proxy must contain mesh vertices.");
+            }
+
+            // Projection along the authored bore finds the frontmost geometric plane regardless of FBX helper axes.
+            Vector3 normalizedBarrelDirection = barrelDirection.normalized;
+            Vector3[] muzzleVertices = rigidMuzzleMesh.vertices;
+            float furthestProjection = float.NegativeInfinity;
+            foreach (Vector3 muzzleVertex in muzzleVertices)
+            {
+                // Rigid proxy vertices are pivot-local, so transform each one to the current world-space weapon pose.
+                Vector3 worldVertex = rigidMuzzle.TransformPoint(muzzleVertex);
+                furthestProjection = Mathf.Max(furthestProjection, Vector3.Dot(worldVertex, normalizedBarrelDirection));
+            }
+
+            // Averaging the foremost ring yields the bore centre instead of selecting one arbitrary rim vertex.
+            Vector3 frontPlaneSum = Vector3.zero;
+            int frontPlaneVertexCount = 0;
+            foreach (Vector3 muzzleVertex in muzzleVertices)
+            {
+                // Include bevel-adjacent duplicates within a tiny world-space tolerance for stable imported topology.
+                Vector3 worldVertex = rigidMuzzle.TransformPoint(muzzleVertex);
+                float distanceBehindFrontPlane = furthestProjection - Vector3.Dot(worldVertex, normalizedBarrelDirection);
+                if (distanceBehindFrontPlane <= SwatWeaponBarrelTipPlaneTolerance)
+                {
+                    frontPlaneSum += worldVertex;
+                    frontPlaneVertexCount++;
+                }
+            }
+
+            if (frontPlaneVertexCount == 0)
+            {
+                throw new System.InvalidOperationException("Rendered SWAT muzzle has no vertices on its front plane.");
+            }
+
+            // The averaged front-plane point is the precise world-space origin for both flash and tracer geometry.
+            return frontPlaneSum / frontPlaneVertexCount;
+        }
+
+        private static void BakeVisibleSwatWeaponUnderAimPivot(Transform swatModel)
+        {
+            // The shared weapon-body bone is the stable transform used by target-facing runtime aim.
+            Transform weaponAimPivot = RequireDescendant(
+                swatModel,
+                SwatWeaponAimPivotName,
+                "imported SWAT weapon aim pivot");
+
+            foreach (SkinnedMeshRenderer sourceRenderer in swatModel.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                // Weapon renderer names are stable even when FBX import duplicates helper-bone Transform instances.
+                bool hasWeaponRendererName = sourceRenderer.gameObject.name.StartsWith("SKM_WP_", System.StringComparison.Ordinal) ||
+                                             sourceRenderer.gameObject.name.StartsWith("SM_WP_", System.StringComparison.Ordinal);
+
+                // Human body skins may also contain generically named body bones, so names are the safe weapon boundary.
+                if (!hasWeaponRendererName)
+                {
+                    continue;
+                }
+
+                // Bake the authored rest skin once so every visible rifle vertex becomes rigid relative to the aim pivot.
+                Mesh bakedSourceMesh = new Mesh
+                {
+                    name = sourceRenderer.gameObject.name + " Baked Weapon Source",
+                };
+                sourceRenderer.BakeMesh(bakedSourceMesh, true);
+
+                // Transform baked renderer-local vertices into the aim pivot's local coordinate system.
+                CombineInstance weaponPart = new CombineInstance
+                {
+                    mesh = bakedSourceMesh,
+                    transform = weaponAimPivot.worldToLocalMatrix * sourceRenderer.transform.localToWorldMatrix,
+                };
+
+                // Keeping submeshes separate preserves every authored material slot on the imported weapon.
+                Mesh rigidWeaponMesh = new Mesh
+                {
+                    name = sourceRenderer.gameObject.name + SwatWeaponRigidRendererSuffix,
+                };
+                rigidWeaponMesh.CombineMeshes(new[] { weaponPart }, false, true, false);
+                rigidWeaponMesh.RecalculateBounds();
+
+                // A pivot-local proxy follows target aim as one solid firearm without any unreliable skin weights.
+                GameObject rigidWeaponObject = new(sourceRenderer.gameObject.name + SwatWeaponRigidRendererSuffix);
+                rigidWeaponObject.transform.SetParent(weaponAimPivot, false);
+                rigidWeaponObject.transform.localPosition = Vector3.zero;
+                rigidWeaponObject.transform.localRotation = Quaternion.identity;
+                rigidWeaponObject.transform.localScale = Vector3.one;
+
+                // MeshFilter owns the runtime-baked geometry while MeshRenderer keeps the source PBR material slots.
+                MeshFilter meshFilter = rigidWeaponObject.AddComponent<MeshFilter>();
+                meshFilter.sharedMesh = rigidWeaponMesh;
+
+                MeshRenderer meshRenderer = rigidWeaponObject.AddComponent<MeshRenderer>();
+                meshRenderer.sharedMaterials = sourceRenderer.sharedMaterials;
+                meshRenderer.shadowCastingMode = sourceRenderer.shadowCastingMode;
+                meshRenderer.receiveShadows = sourceRenderer.receiveShadows;
+                meshRenderer.lightProbeUsage = sourceRenderer.lightProbeUsage;
+                meshRenderer.reflectionProbeUsage = sourceRenderer.reflectionProbeUsage;
+                meshRenderer.sortingLayerID = sourceRenderer.sortingLayerID;
+                meshRenderer.sortingOrder = sourceRenderer.sortingOrder;
+
+                // Disable only the original weapon skin so it cannot remain visibly frozen in the authored diagonal pose.
+                sourceRenderer.enabled = false;
+
+                // CombineMeshes copied all geometry, so the intermediate bake can be released safely in either test mode.
+                if (Application.isPlaying)
+                {
+                    Object.Destroy(bakedSourceMesh);
+                }
+                else
+                {
+                    Object.DestroyImmediate(bakedSourceMesh);
+                }
+            }
         }
 
         private static void ApplySwatPbrMaterials(GameObject swatModel)
@@ -539,6 +749,12 @@ namespace LaneSurvivor.Rendering
 
             foreach (MeshRenderer generatedRenderer in generatedRenderers)
             {
+                // Runtime-baked rifle meshes are licensed-model visuals, not procedural placeholders.
+                if (generatedRenderer.gameObject.name.EndsWith(SwatWeaponRigidRendererSuffix, System.StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 // Disabled renderers prevent primitive body and weapon anchors from floating over the model cutouts.
                 generatedRenderer.enabled = false;
             }
@@ -885,8 +1101,8 @@ namespace LaneSurvivor.Rendering
             // A glowing sight lens gives shots a clear forward aiming cue.
             CreateCubePart(weaponRoot, "Leader Rifle Sight Glow", new Vector3(0f, 0.155f, 0.130f), new Vector3(0.055f, 0.018f, 0.040f), glowMaterial, Quaternion.identity);
 
-            // The effect anchor sits inside the rear-decal rifle art, not the hidden primitive barrel tip.
-            CreateWeaponMuzzleAnchor(weaponRoot, -0.20f);
+            // This generated marker is replaced by the imported leader's real visible muzzle during SWAT construction.
+            CreateWeaponMuzzleAnchor(weaponRoot, 0.32f);
         }
 
         private static void CreateLeftWingShotgun(Transform weaponRoot, Material weaponMaterial, Material glowMaterial)

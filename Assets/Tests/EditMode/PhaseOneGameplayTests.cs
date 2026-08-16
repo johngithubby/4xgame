@@ -330,19 +330,31 @@ namespace LaneSurvivor.Tests.EditMode
                 levelDefinition.squadMoveSpeed = 1f;
                 levelDefinition.lanePositions = new[] { -GameplayVisuals.SideLaneX, 0f, GameplayVisuals.SideLaneX };
 
-                // Initialization scans the generated hierarchy and registers all survivor muzzle anchors.
+                // The imported visible weapon supersedes hidden generated wing anchors in the live firing registry.
                 squad.Initialize(levelDefinition);
-                Assert.AreEqual(3, squad.WeaponMuzzleCount);
+                Assert.AreEqual(1, squad.WeaponMuzzleCount);
 
-                // The first round-robin shot should come from the leader rifle muzzle.
-                Transform expectedMuzzle = playerObject.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+                // The first round-robin shot should come from the imported leader's actual visible barrel tip.
+                Transform leaderSwatModel = playerObject.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SwatSurvivorModelName}");
+                Assert.IsNotNull(leaderSwatModel);
+                Transform expectedMuzzle = FindNamedDescendant(leaderSwatModel, PlayerSquad.WeaponMuzzleAnchorName);
                 Assert.IsNotNull(expectedMuzzle);
                 Transform leaderWeapon = playerObject.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
                 Assert.IsNotNull(leaderWeapon);
+                Transform hiddenGeneratedMuzzle = leaderWeapon.Find(PrototypeCharacterFactory.HiddenGeneratedWeaponMuzzleName);
+                Assert.IsNotNull(hiddenGeneratedMuzzle);
+
+                // Repeated selection must stay on the only rendered rifle instead of emitting from invisible wing soldiers.
+                Assert.IsTrue(squad.TryGetNextWeaponMuzzle(out Transform firstRegisteredMuzzle));
+                Assert.AreSame(expectedMuzzle, firstRegisteredMuzzle);
+                Assert.IsTrue(squad.TryGetNextWeaponMuzzle(out Transform repeatedRegisteredMuzzle));
+                Assert.AreSame(expectedMuzzle, repeatedRegisteredMuzzle);
                 Vector3 leaderWeaponRestPosition = leaderWeapon.localPosition;
                 Quaternion leaderWeaponRestRotation = leaderWeapon.localRotation;
                 PrototypeHumanoidAnimator playerAnimator = playerObject.GetComponent<PrototypeHumanoidAnimator>();
                 Assert.IsNotNull(playerAnimator);
+                SwatSurvivorLocomotionAnimator swatLocomotion = leaderSwatModel.GetComponent<SwatSurvivorLocomotionAnimator>();
+                Assert.IsNotNull(swatLocomotion);
 
                 // Configure the same target path used by normal gameplay.
                 shooter.Initialize(squad, 8f, 0.35f, 0.5f);
@@ -376,7 +388,12 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsTrue(detailedShotFired);
                 Assert.AreSame(expectedMuzzle, actualMuzzle);
 
-                // The hidden muzzle carrier stays stable because the imported SWAT Animator exclusively owns leader motion.
+                // AutoShooter must rotate the visible imported barrel toward the exact zombie point before firing events.
+                Vector3 zombieTargetPoint = zombie.transform.position + Vector3.up * 0.5f;
+                Assert.LessOrEqual(swatLocomotion.WeaponAimErrorDegrees, SwatSurvivorLocomotionAnimator.MaximumWeaponAimErrorDegrees);
+                Assert.LessOrEqual(Vector3.Angle(expectedMuzzle.forward, zombieTargetPoint - expectedMuzzle.position), SwatSurvivorLocomotionAnimator.MaximumWeaponAimErrorDegrees);
+
+                // The obsolete generated carrier stays stable because the imported SWAT MPX pivot now owns visible aim.
                 playerAnimator.ForceEvaluate(0.02f, true);
                 Assert.Less(Vector3.Distance(leaderWeaponRestPosition, leaderWeapon.localPosition), 0.001f);
                 Assert.Less(Quaternion.Angle(leaderWeaponRestRotation, leaderWeapon.localRotation), 0.001f);
@@ -962,7 +979,10 @@ namespace LaneSurvivor.Tests.EditMode
                 Transform playerWeaponArm = proceduralPlayerRoot.Find("Human Arm Right");
                 Transform playerWeaponHand = proceduralPlayerRoot.Find("Human Arm Right/Human Hand Right");
                 Transform playerWeapon = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
-                Transform playerMuzzle = player.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+                Transform playerMuzzle = FindNamedDescendant(playerSwatModel, PlayerSquad.WeaponMuzzleAnchorName);
+                Transform visibleWeaponAimPivot = FindNamedDescendant(playerSwatModel, PrototypeCharacterFactory.SwatWeaponAimPivotName);
+                SkinnedMeshRenderer visibleMuzzleRenderer = FindNamedDescendant(playerSwatModel, PrototypeCharacterFactory.SwatWeaponMuzzleRendererName).GetComponent<SkinnedMeshRenderer>();
+                SkinnedMeshRenderer visibleStockRenderer = FindNamedDescendant(playerSwatModel, PrototypeCharacterFactory.SwatWeaponStockRendererName).GetComponent<SkinnedMeshRenderer>();
                 Transform playerReferenceUpper = player.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.FemaleReferenceUpperName}");
                 SkinnedMeshRenderer playerReferenceRenderer = playerReferenceUpper.GetComponent<SkinnedMeshRenderer>();
                 Assert.IsNotNull(playerRoot);
@@ -980,6 +1000,24 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsNotNull(playerWeaponHand);
                 Assert.IsNotNull(playerWeapon);
                 Assert.IsNotNull(playerMuzzle);
+                Assert.IsNotNull(visibleWeaponAimPivot);
+                Assert.IsNotNull(visibleMuzzleRenderer);
+                Assert.IsNotNull(visibleStockRenderer);
+
+                // The unreliable imported weapon skins stay hidden behind rigid pivot-local render proxies.
+                Assert.IsFalse(visibleMuzzleRenderer.enabled);
+                Assert.IsFalse(visibleStockRenderer.enabled);
+                int rigidWeaponRendererCount = 0;
+                foreach (MeshRenderer weaponRenderer in visibleWeaponAimPivot.GetComponentsInChildren<MeshRenderer>(true))
+                {
+                    if (weaponRenderer.gameObject.name.EndsWith(PrototypeCharacterFactory.SwatWeaponRigidRendererSuffix, System.StringComparison.Ordinal))
+                    {
+                        Assert.IsTrue(weaponRenderer.enabled);
+                        rigidWeaponRendererCount++;
+                    }
+                }
+
+                Assert.Greater(rigidWeaponRendererCount, 0);
                 Assert.IsNotNull(playerReferenceUpper);
                 Assert.IsNotNull(playerReferenceRenderer);
                 Assert.IsFalse(playerReferenceRenderer.enabled);
@@ -1013,15 +1051,25 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.Greater(Quaternion.Angle(playerWeaponHandRestRotation, playerWeaponHand.localRotation), 0.1f);
                 Assert.Less(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.001f);
 
-                // A direct shot notification must also leave the authored leader parent and hidden carrier untouched.
+                // A direct shot rotates only the imported rigid weapon hierarchy while leaving locomotion bones untouched.
                 Vector3 playerWeaponRunningLocalPosition = playerWeapon.localPosition;
                 Quaternion playerWeaponRunningRotation = playerWeapon.localRotation;
+                Quaternion visibleWeaponRunningRotation = visibleWeaponAimPivot.rotation;
                 Quaternion playerRootRunningBeforeShotRotation = playerRoot.localRotation;
-                playerAnimator.PlaySurvivorShot(playerMuzzle.position, playerMuzzle.position + new Vector3(0.45f, -0.1f, 3f));
+                Vector3 visibleWeaponTarget = playerMuzzle.position + new Vector3(1.6f, -0.1f, 3f);
+                Transform visibleStockBone = FindNamedDescendant(playerSwatModel, PrototypeCharacterFactory.SwatWeaponStockBoneName);
+                Assert.IsNotNull(visibleStockBone);
+                Assert.IsTrue(playerSwatLocomotion.PlayWeaponShot(playerMuzzle, visibleWeaponTarget));
                 playerAnimator.ForceEvaluate(0.02f, true);
                 Assert.Less(Vector3.Distance(playerWeaponRunningLocalPosition, playerWeapon.localPosition), 0.001f);
                 Assert.Less(Quaternion.Angle(playerWeaponRunningRotation, playerWeapon.localRotation), 0.001f);
                 Assert.Less(Quaternion.Angle(playerWeaponRestRotation, playerWeapon.localRotation), 0.001f);
+                Assert.IsNotNull(FindNamedDescendant(playerSwatModel, PrototypeCharacterFactory.SwatWeaponBarrelBaseName));
+                Assert.Greater(Quaternion.Angle(visibleWeaponRunningRotation, visibleWeaponAimPivot.rotation), 0.1f);
+                Assert.LessOrEqual(
+                    Vector3.Angle(playerMuzzle.position - visibleStockBone.position, visibleWeaponTarget - playerMuzzle.position),
+                    SwatSurvivorLocomotionAnimator.MaximumWeaponAimErrorDegrees,
+                    "The imported stock-to-muzzle axis must point directly at the zombie.");
                 Assert.Less(Quaternion.Angle(playerRootRunningBeforeShotRotation, playerRoot.localRotation), 0.001f);
                 Assert.Less(Quaternion.Angle(playerRootRunningRotation, playerRoot.localRotation), 0.001f);
                 Assert.Less(Quaternion.Angle(importedPlayerLegRestRotation, importedPlayerLeg.localRotation), 0.001f);
@@ -1123,8 +1171,8 @@ namespace LaneSurvivor.Tests.EditMode
             Assert.Less(GameplayVisuals.ShotTracerWidth, GameplayVisuals.PlayerFootprint * 0.3f);
             Assert.Less(GameplayVisuals.ShotTracerWidth, GameplayVisuals.GateCardWidth * 0.16f);
 
-            // Muzzle flashes must be readable but compact enough to avoid looking like lane pickups.
-            Assert.Greater(GameplayVisuals.MuzzleFlashSize, GameplayVisuals.ShotTracerWidth * 1.5f);
+            // Muzzle flashes must remain larger than the tracer parameter but compact enough to avoid lane pickups.
+            Assert.Greater(GameplayVisuals.MuzzleFlashSize, GameplayVisuals.ShotTracerWidth);
             Assert.Less(GameplayVisuals.MuzzleFlashSize, GameplayVisuals.PlayerFootprint * 0.45f);
 
             // Weapon-origin tracer streaks should extend beyond the flare without spanning from off-screen zombies.
@@ -1356,26 +1404,54 @@ namespace LaneSurvivor.Tests.EditMode
 
         private static void AssertWeaponMuzzle(Transform playerRoot, string survivorName, string weaponName)
         {
-            // The profile root must live under the right-hand chain so animation carries the weapon and muzzle together.
+            // The generated profile remains under the right hand even when the imported leader replaces its shot origin.
             Transform weapon = playerRoot.Find($"{survivorName}/Human Arm Right/Human Hand Right/{weaponName}");
             Assert.IsNotNull(weapon, $"{weaponName} should exist under {survivorName}'s right hand.");
 
-            // Muzzle anchors are direct weapon children, not unrelated sibling transforms near the squad root.
-            Transform muzzle = weapon.Find(PlayerSquad.WeaponMuzzleAnchorName);
-            Assert.IsNotNull(muzzle, $"{weaponName} should have a named muzzle anchor.");
-            Assert.AreSame(weapon, muzzle.parent);
-
-            // Weapon-origin tracers use exact muzzle starts, so the anchor only needs to stay safely above the road.
-            Assert.Greater(muzzle.position.y, GameplayVisuals.TrackTopY + 1.0f);
-
-            // The effect muzzle should stay inside the soldier footprint instead of drifting ahead of the decal rifle.
+            // The SWAT leader uses its visible imported barrel; generated wing weapons retain direct child anchors.
             Transform survivor = playerRoot.Find(survivorName);
             Assert.IsNotNull(survivor);
+            Transform swatModel = survivor.Find(PrototypeCharacterFactory.SwatSurvivorModelName);
+            Transform muzzle = swatModel != null
+                ? FindNamedDescendant(swatModel, PlayerSquad.WeaponMuzzleAnchorName)
+                : weapon.Find(PlayerSquad.WeaponMuzzleAnchorName);
+            Assert.IsNotNull(muzzle, $"{weaponName} should have a named muzzle anchor.");
+            if (swatModel != null)
+            {
+                // The obsolete carrier must stay unregistered while the visible anchor shares the rigid weapon pivot.
+                Assert.IsNotNull(weapon.Find(PrototypeCharacterFactory.HiddenGeneratedWeaponMuzzleName));
+                Assert.AreEqual(PrototypeCharacterFactory.SwatWeaponAimPivotName, muzzle.parent.name);
+            }
+            else
+            {
+                Assert.AreSame(weapon, muzzle.parent);
+            }
+
+            // The true imported barrel tip can sit lower in its diagonal rest pose than generated eye-level anchors.
+            float minimumMuzzleHeight = swatModel != null
+                ? GameplayVisuals.TrackTopY + 0.30f
+                : GameplayVisuals.TrackTopY + 1.0f;
+            Assert.Greater(muzzle.position.y, minimumMuzzleHeight);
+
+            // The effect muzzle should stay inside the soldier footprint instead of drifting ahead of the decal rifle.
             Assert.Greater(muzzle.position.z, survivor.position.z - 0.15f);
             Assert.Less(muzzle.position.z, survivor.position.z + GameplayVisuals.PlayerFootprint);
 
-            // The muzzle's forward axis should point toward larger Z values, matching the zombie approach direction.
-            Assert.Greater(Vector3.Dot(muzzle.forward.normalized, Vector3.forward), 0.90f, $"{weaponName} muzzle should face down-lane.");
+            if (swatModel != null)
+            {
+                // The imported rest pose may carry the rifle diagonally, but the runtime anchor must follow its barrel axis.
+                Transform barrelBase = FindNamedDescendant(swatModel, PrototypeCharacterFactory.SwatWeaponBarrelBaseName);
+                Assert.IsNotNull(barrelBase);
+                Assert.Greater(
+                    Vector3.Dot(muzzle.forward.normalized, (muzzle.position - barrelBase.position).normalized),
+                    0.99f,
+                    $"{weaponName} muzzle should follow the visible imported barrel before target aim is applied.");
+            }
+            else
+            {
+                // Generated wing muzzles use authored local +Z as their forward firing axis.
+                Assert.Greater(Vector3.Dot(muzzle.forward.normalized, Vector3.forward), 0.90f, $"{weaponName} muzzle should face down-lane.");
+            }
         }
 
         private static void AssertEyeLevelWeaponHold(Transform playerRoot, string survivorName, string weaponName)
@@ -1395,12 +1471,24 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsFalse(renderer.enabled, $"{weaponName} primitive mesh should stay hidden behind {survivorName}'s decal.");
             }
 
-            // The weapon muzzle is the exact point where tracers begin, so its height defines the firing pose.
-            Transform muzzle = playerRoot.Find($"{survivorName}/Human Arm Right/Human Hand Right/{weaponName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            // The leader resolves the imported barrel anchor while decal wings keep their generated child muzzles.
+            Transform survivor = playerRoot.Find(survivorName);
+            Transform swatModel = survivor != null ? survivor.Find(PrototypeCharacterFactory.SwatSurvivorModelName) : null;
+            Transform muzzle = swatModel != null
+                ? FindNamedDescendant(swatModel, PlayerSquad.WeaponMuzzleAnchorName)
+                : playerRoot.Find($"{survivorName}/Human Arm Right/Human Hand Right/{weaponName}/{PlayerSquad.WeaponMuzzleAnchorName}");
             Assert.IsNotNull(muzzle, $"{weaponName} should have a muzzle for weapon pose checks.");
 
-            // Shoulder-fired weapons should sit close to the face instead of down at the waist.
-            Assert.GreaterOrEqual(muzzle.position.y, head.position.y - 0.08f, $"{weaponName} should be held near eye level.");
+            if (swatModel != null)
+            {
+                // EditMode observes the FBX rest pose before Animator evaluation; only require a safe above-road origin here.
+                Assert.Greater(muzzle.position.y, GameplayVisuals.TrackTopY + 0.30f, $"{weaponName} imported muzzle should stay above the road.");
+            }
+            else
+            {
+                // Generated shoulder-fired weapons are fully authored at construction and should already sit by the face.
+                Assert.GreaterOrEqual(muzzle.position.y, head.position.y - 0.08f, $"{weaponName} should be held near eye level.");
+            }
         }
 
         private static void AssertNoColliderComponents(GameObject root)

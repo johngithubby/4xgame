@@ -749,44 +749,48 @@ namespace LaneSurvivor.Gameplay
 
         private static Mesh CreateAttachedShotEffectMesh(Transform originTransform, Vector3 worldDirection, float halfWidth, float length, string meshName)
         {
-            // Convert the shot direction into muzzle-local space so vertex zero stays glued to the weapon tip.
-            Vector3 localDirection = originTransform.InverseTransformDirection(worldDirection);
-            if (localDirection.sqrMagnitude <= 0.0001f)
+            // Normalize in world space because imported FBX weapon branches commonly carry a 0.01 hierarchy scale.
+            Vector3 normalizedWorldDirection = worldDirection;
+            if (normalizedWorldDirection.sqrMagnitude <= 0.0001f)
             {
-                // A degenerate target should still produce a tiny forward marker instead of invalid geometry.
-                localDirection = Vector3.forward;
+                // A degenerate target should still produce a tiny marker along the muzzle's rendered forward axis.
+                normalizedWorldDirection = originTransform.forward;
             }
             else
             {
-                // Normalized local direction lets the caller own the exact effect length.
-                localDirection.Normalize();
+                // Normalization lets the caller specify the exact visible world-space effect length.
+                normalizedWorldDirection.Normalize();
             }
 
-            // Match the world-space tracer's camera-facing width, then convert that side vector into muzzle space.
-            Vector3 localSide = originTransform.InverseTransformDirection(CalculateTracerSideVector(worldDirection));
-            if (localSide.sqrMagnitude <= 0.0001f)
+            // Calculate a camera-facing side vector in world space before compensating for the imported parent scale.
+            Vector3 normalizedWorldSide = CalculateTracerSideVector(normalizedWorldDirection);
+            if (normalizedWorldSide.sqrMagnitude <= 0.0001f)
             {
-                // A right-vector fallback keeps the quad visible if the shot and camera vectors align.
-                localSide = Vector3.right;
+                // A rendered-right fallback keeps the quad visible if the shot and camera vectors align.
+                normalizedWorldSide = originTransform.right;
             }
             else
             {
-                // Normalized side vectors make the width independent from parent transform scale.
-                localSide.Normalize();
+                // A normalized world side keeps the requested width stable at every camera angle.
+                normalizedWorldSide.Normalize();
             }
 
             // Clamp defensive values so bad inputs cannot invert or erase the attached effect.
             float safeHalfWidth = Mathf.Max(halfWidth, 0.001f);
             float safeLength = Mathf.Max(length, 0.001f);
 
-            // The start edge is centered on local origin, which is the weapon muzzle transform.
-            Vector3 startLeft = -localSide * safeHalfWidth;
-            Vector3 startRight = localSide * safeHalfWidth;
+            // Convert complete world-space offsets with InverseTransformVector so FBX scale cannot shrink the effect.
+            Vector3 localSideOffset = originTransform.InverseTransformVector(normalizedWorldSide * safeHalfWidth);
+            Vector3 localEndOffset = originTransform.InverseTransformVector(normalizedWorldDirection * safeLength);
 
-            // The end edge advances only a short distance along the captured target direction.
-            Vector3 endCenter = localDirection * safeLength;
-            Vector3 endRight = endCenter + localSide * safeHalfWidth;
-            Vector3 endLeft = endCenter - localSide * safeHalfWidth;
+            // The start edge is centered on local origin, which is the exact weapon muzzle transform.
+            Vector3 startLeft = -localSideOffset;
+            Vector3 startRight = localSideOffset;
+
+            // The end edge advances by the requested world distance even beneath a scaled imported hierarchy.
+            Vector3 endCenter = localEndOffset;
+            Vector3 endRight = endCenter + localSideOffset;
+            Vector3 endLeft = endCenter - localSideOffset;
 
             // Local-space vertices let the parent muzzle carry the beam through running and recoil animation.
             Vector3[] vertices =

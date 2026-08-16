@@ -23,6 +23,15 @@ namespace LaneSurvivor.Rendering
         // Motion below this speed is scene jitter rather than deliberate squad travel.
         private const float MovementSpeedThreshold = 0.04f;
 
+        // Automatic shots arrive every 0.35 seconds, so this decay keeps the rifle aimed throughout a volley.
+        private const float WeaponAimRecoverySpeed = 2.4f;
+
+        // Keep the weapon locked for one extra rendered frame after Unity schedules the tracer for destruction.
+        public const float WeaponAimTracerSafetySeconds = 0.05f;
+
+        // Tests and runtime diagnostics share one strict tolerance for visible barrel-to-target alignment.
+        public const float MaximumWeaponAimErrorDegrees = 1.5f;
+
         // The Animator lives on the imported model root while movement is measured on the gameplay squad root.
         private Animator modelAnimator;
 
@@ -51,6 +60,30 @@ namespace LaneSurvivor.Rendering
         // Gait correction remains disabled when an incomplete test Avatar does not expose the required foot chain.
         private bool hasGaitCorrectionBaseline;
 
+        // The imported weapon-body bone directly deforms the visible gun without disturbing Humanoid locomotion bones.
+        private Transform weaponAimPivot;
+
+        // This runtime anchor is parented to the imported barrel-end bone and is the real tracer origin.
+        private Transform visibleWeaponMuzzle;
+
+        // The imported stock joint and source-muzzle position define the complete physical rifle direction.
+        private Transform visibleWeaponStock;
+
+        // The FBX-local weapon rotation is restored smoothly after the current automatic-fire volley ends.
+        private Quaternion weaponAimPivotRestLocalRotation;
+
+        // A valid imported pivot/muzzle pair is required before target-facing correction can run.
+        private bool hasWeaponAimBaseline;
+
+        // The last selected zombie point remains stable between automatic shots.
+        private Vector3 weaponAimTarget;
+
+        // Aim weight holds at one while firing, then blends the visible rifle back to its authored run pose.
+        private float weaponAimWeight;
+
+        // This timer prevents the visible rifle from beginning its recovery while an orange tracer still exists.
+        private float weaponAimHoldRemaining;
+
         // Consecutive world positions provide frame-rate-independent movement-state detection.
         private Vector3 previousWorldPosition;
 
@@ -64,6 +97,9 @@ namespace LaneSurvivor.Rendering
         public float RightFootYawFromTravelDirection { get; private set; }
         public float LeftFootCentrelineCrossing { get; private set; }
         public float RightFootCentrelineCrossing { get; private set; }
+
+        // The final error is measured from the visible muzzle forward axis to the current zombie point.
+        public float WeaponAimErrorDegrees { get; private set; }
 
         public void SetGameplayMoving(bool isMoving)
         {
@@ -85,6 +121,9 @@ namespace LaneSurvivor.Rendering
 
             // Cache the imported rest geometry before live animation starts rewriting Humanoid bone transforms.
             CacheGaitCorrectionBaseline();
+
+            // Cache the actual imported rifle pivot and visible barrel anchor used by combat feedback.
+            CacheWeaponAimBaseline();
 
             ResetMotionSample();
             SetMoving(false);
@@ -111,6 +150,9 @@ namespace LaneSurvivor.Rendering
 
             // Cache the imported rest geometry before the first rendered locomotion cycle.
             CacheGaitCorrectionBaseline();
+
+            // Scene-deserialized characters must rediscover the imported rifle hierarchy as well.
+            CacheWeaponAimBaseline();
 
             ResetMotionSample();
             SetMoving(playerSquad != null && playerSquad.IsMoving);
@@ -142,6 +184,32 @@ namespace LaneSurvivor.Rendering
             ResetMotionSample();
         }
 
+        public bool PlayWeaponShot(Transform firingMuzzle, Vector3 targetPoint)
+        {
+            // Only the anchor created on this imported rifle may steer its visible MPX weapon hierarchy.
+            if (!hasWeaponAimBaseline || firingMuzzle == null || firingMuzzle != visibleWeaponMuzzle)
+            {
+                return false;
+            }
+
+            // A zero-length shot cannot define a stable look direction and should keep the authored weapon pose.
+            if ((targetPoint - visibleWeaponMuzzle.position).sqrMagnitude <= 0.0001f)
+            {
+                return false;
+            }
+
+            // Store the same target point used by damage and tracer feedback so every visual agrees.
+            weaponAimTarget = targetPoint;
+            weaponAimWeight = 1f;
+
+            // Refresh the hold on every automatic shot so the gun stays aligned throughout a continuous volley.
+            weaponAimHoldRemaining = GameplayVisuals.ShotTracerLifetimeSeconds + WeaponAimTracerSafetySeconds;
+
+            // Apply immediately because AutoShooter reads the muzzle position and spawns effects in this same frame.
+            ApplyVisibleWeaponAim();
+            return true;
+        }
+
         private void LateUpdate()
         {
             // A missing Animator/controller or movement root leaves no safe state to evaluate.
@@ -160,6 +228,9 @@ namespace LaneSurvivor.Rendering
 
                 // Animator evaluation has completed before LateUpdate, so correct the exact pose that will be rendered.
                 StabilizeRetargetedGait();
+
+                // Re-apply target aim after every Animator evaluation so the run clip cannot pull the gun off target.
+                UpdateVisibleWeaponAim();
                 return;
             }
 
@@ -181,6 +252,167 @@ namespace LaneSurvivor.Rendering
 
             // Factory-only previews receive the same rendered-pose correction as the production scene.
             StabilizeRetargetedGait();
+
+            // Isolated previews retain the same imported-weapon aiming and recovery behavior as gameplay.
+            UpdateVisibleWeaponAim();
+        }
+
+        private void CacheWeaponAimBaseline()
+        {
+            // Exact imported names are stable asset contracts documented by the factory and covered by tests.
+            weaponAimPivot = FindDescendant(transform, PrototypeCharacterFactory.SwatWeaponAimPivotName);
+            visibleWeaponMuzzle = FindDescendant(transform, PlayerSquad.WeaponMuzzleAnchorName);
+            visibleWeaponStock = FindDescendant(transform, PrototypeCharacterFactory.SwatWeaponStockBoneName);
+            hasWeaponAimBaseline = weaponAimPivot != null &&
+                                    visibleWeaponMuzzle != null &&
+                                    visibleWeaponMuzzle.IsChildOf(weaponAimPivot) &&
+                                    visibleWeaponStock != null &&
+                                    visibleWeaponStock.IsChildOf(weaponAimPivot);
+            if (!hasWeaponAimBaseline)
+            {
+                WeaponAimErrorDegrees = 0f;
+                return;
+            }
+
+            // Mixamo clips do not animate the weapon-specific body bone, so its imported local rotation is authoritative.
+            weaponAimPivotRestLocalRotation = weaponAimPivot.localRotation;
+
+            weaponAimWeight = 0f;
+            weaponAimHoldRemaining = 0f;
+            WeaponAimErrorDegrees = 0f;
+        }
+
+        private void UpdateVisibleWeaponAim()
+        {
+            if (!hasWeaponAimBaseline)
+            {
+                return;
+            }
+
+            if (weaponAimHoldRemaining > 0f)
+            {
+                // A live tracer must never outlast the target-facing pose that visually launched it.
+                weaponAimWeight = 1f;
+                ApplyVisibleWeaponAim();
+
+                // Count down only after the fully aimed pose has been applied for this rendered frame.
+                weaponAimHoldRemaining = Mathf.Max(
+                    0f,
+                    weaponAimHoldRemaining - Mathf.Max(Time.deltaTime, 0f));
+                return;
+            }
+
+            if (weaponAimWeight > 0.0001f)
+            {
+                // Continuous correction follows the same fixed zombie point while the player advances during the flash.
+                ApplyVisibleWeaponAim();
+                weaponAimWeight = Mathf.MoveTowards(
+                    weaponAimWeight,
+                    0f,
+                    WeaponAimRecoverySpeed * Mathf.Max(Time.deltaTime, 0f));
+                return;
+            }
+
+            // Restore the imported weapon-body pose after firing so idle/run authoring remains unchanged between encounters.
+            weaponAimPivot.localRotation = weaponAimPivotRestLocalRotation;
+            WeaponAimErrorDegrees = 0f;
+        }
+
+        private void ApplyVisibleWeaponAim()
+        {
+            // Start from the current target line after the animated hand has positioned the complete weapon hierarchy.
+            Vector3 targetDirection = weaponAimTarget - visibleWeaponMuzzle.position;
+            if (targetDirection.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            // Aim from the rendered muzzle-to-stock axis, because imported helper-bone axes do not match the visible MPX.
+            Vector3 renderedWeaponDirection = GetVisibleWeaponDirection();
+            if (renderedWeaponDirection.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            // Rotating the skinned weapon-body bone moves every visible gun part while leaving the running body untouched.
+            Quaternion exactWorldAim = Quaternion.FromToRotation(
+                renderedWeaponDirection.normalized,
+                targetDirection.normalized) * weaponAimPivot.rotation;
+
+            // Convert to the animated hand's current local frame before blending from the imported rest rotation.
+            Quaternion exactLocalAim = weaponAimPivot.parent != null
+                ? Quaternion.Inverse(weaponAimPivot.parent.rotation) * exactWorldAim
+                : exactWorldAim;
+            weaponAimPivot.localRotation = Quaternion.Slerp(
+                weaponAimPivotRestLocalRotation,
+                exactLocalAim,
+                weaponAimWeight);
+
+            // The true barrel tip sits farther from the hand pivot, so converge after each rotation moves that origin.
+            if (weaponAimWeight > 0.999f)
+            {
+                for (int refinementIndex = 0; refinementIndex < 3; refinementIndex++)
+                {
+                    // Recalculate both vectors because rotating around the hand changes the barrel tip's world position.
+                    Vector3 refinedDirection = weaponAimTarget - visibleWeaponMuzzle.position;
+                    Vector3 refinedRenderedWeaponDirection = GetVisibleWeaponDirection();
+                    if (refinedDirection.sqrMagnitude <= 0.0001f || refinedRenderedWeaponDirection.sqrMagnitude <= 0.0001f)
+                    {
+                        break;
+                    }
+
+                    // Each correction removes the remaining angular error introduced by the previous origin movement.
+                    weaponAimPivot.rotation = Quaternion.FromToRotation(
+                        refinedRenderedWeaponDirection.normalized,
+                        refinedDirection.normalized) * weaponAimPivot.rotation;
+                }
+            }
+
+            // Keep the effect anchor's +Z aligned with the same target after the visible mesh has finished rotating.
+            Vector3 finalDirection = weaponAimTarget - visibleWeaponMuzzle.position;
+            if (finalDirection.sqrMagnitude > 0.0001f)
+            {
+                visibleWeaponMuzzle.rotation = Quaternion.LookRotation(finalDirection.normalized, transform.up);
+            }
+
+            // Measure the exact rendered rifle after correction so invisible helper axes cannot hide visual regressions.
+            Vector3 finalRenderedWeaponDirection = GetVisibleWeaponDirection();
+            WeaponAimErrorDegrees = finalDirection.sqrMagnitude > 0.0001f
+                ? Vector3.Angle(finalRenderedWeaponDirection, finalDirection.normalized)
+                : 0f;
+        }
+
+        private Vector3 GetVisibleWeaponDirection()
+        {
+            // The live imported joint positions match the visible stock and muzzle bounds while remaining allocation-free.
+            return visibleWeaponMuzzle.position - visibleWeaponStock.position;
+        }
+
+        private static Transform FindDescendant(Transform root, string descendantName)
+        {
+            // A missing branch cannot contain the requested imported weapon joint.
+            if (root == null)
+            {
+                return null;
+            }
+
+            // Check the current node so callers can search from either the model or a nested imported branch.
+            if (root.name == descendantName)
+            {
+                return root;
+            }
+
+            foreach (Transform child in root)
+            {
+                // Depth-first search follows deterministic FBX hierarchy order and stops at the first exact name.
+                Transform match = FindDescendant(child, descendantName);
+                if (match != null)
+                {
+                    return match;
+                }
+            }
+
+            return null;
         }
 
         private void CacheGaitCorrectionBaseline()
