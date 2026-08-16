@@ -358,11 +358,26 @@ namespace LaneSurvivor.Gameplay
 
         private void BuildZombies()
         {
-            foreach (ZombieSpawnDefinition zombieDefinition in levelDefinition.zombies)
+            for (int zombieIndex = 0; zombieIndex < levelDefinition.zombies.Length; zombieIndex++)
             {
+                // Spawn order is authored data and therefore supplies a stable distinction even for equal enemy types.
+                ZombieSpawnDefinition zombieDefinition = levelDefinition.zombies[zombieIndex];
+
                 // Zombies use generated humanoid bodies while keeping the root at the authored lane/distance point.
                 Vector3 zombiePosition = GameplayVisuals.WithVisualY(zombieDefinition.position, GameplayVisuals.ZombieCenterY);
-                GameObject zombieObject = PrototypeCharacterFactory.CreateZombie(GetZombieObjectName(zombieDefinition.enemyType), zombiePosition, zombieMaterial, zombieDefinition.enemyType);
+
+                // Level, spawn index, lane, distance, and type combine into repeatable visual randomness across platforms.
+                int appearanceSeed = PrototypeCharacterFactory.CreateZombieAppearanceSeed(
+                    levelDefinition.levelNumber,
+                    zombieIndex,
+                    zombiePosition,
+                    zombieDefinition.enemyType);
+                GameObject zombieObject = PrototypeCharacterFactory.CreateZombie(
+                    GetZombieObjectName(zombieDefinition.enemyType),
+                    zombiePosition,
+                    zombieMaterial,
+                    zombieDefinition.enemyType,
+                    appearanceSeed);
                 CreateZombieTypeLabel(zombieObject.transform, zombieDefinition.enemyType);
 
                 Zombie zombie = zombieObject.AddComponent<Zombie>();

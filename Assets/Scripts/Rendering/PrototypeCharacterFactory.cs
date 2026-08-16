@@ -86,6 +86,9 @@ namespace LaneSurvivor.Rendering
         // The calmer tracked Mixamo walk supplies grounded foot exchange beneath the procedural drunk stumble.
         private const string SwatZombieWalkResourcePath = "Survivor3D/Animations/Mixamo_Rifle_Walk";
 
+        // Resources loading prevents the runtime-only tattered suit shader from being stripped from iOS player builds.
+        private const string SwatZombieTatteredClothingShaderResourcePath = "Survivor3D/SWAT_Zombie_Tattered_Clothing";
+
         // The imported character is 1.8 metres tall, so this scale matches the existing 1.58-metre prototype rig.
         private const float SwatSurvivorScale = 0.88f;
 
@@ -284,6 +287,18 @@ namespace LaneSurvivor.Rendering
 
         public static GameObject CreateZombie(string name, Vector3 position, Material zombieMaterial, ZombieEnemyType enemyType)
         {
+            // Standalone factory callers still receive deterministic variety from position and enemy type alone.
+            int appearanceSeed = CreateZombieAppearanceSeed(0, 0, position, enemyType);
+            return CreateZombie(name, position, zombieMaterial, enemyType, appearanceSeed);
+        }
+
+        public static GameObject CreateZombie(
+            string name,
+            Vector3 position,
+            Material zombieMaterial,
+            ZombieEnemyType enemyType,
+            int appearanceSeed)
+        {
             // The zombie root remains the gameplay object that AutoShooter and breach rules target.
             GameObject zombieRoot = new(name);
             zombieRoot.transform.position = position;
@@ -342,7 +357,7 @@ namespace LaneSurvivor.Rendering
             animator.Configure(enemyType == ZombieEnemyType.Armored ? PrototypeHumanoidAnimationStyle.ArmoredZombieShamble : PrototypeHumanoidAnimationStyle.ZombieShamble);
 
             // A successful imported build replaces only rendering and gait; gameplay targeting stays on zombieRoot.
-            if (CreateSwatZombieTechnicalTrial(figureRoot.transform, enemyType))
+            if (CreateSwatZombieTechnicalTrial(figureRoot.transform, enemyType, appearanceSeed))
             {
                 // Hidden generated joints no longer need a per-frame LateUpdate once the visible Humanoid is active.
                 animator.enabled = false;
@@ -351,7 +366,44 @@ namespace LaneSurvivor.Rendering
             return zombieRoot;
         }
 
-        private static bool CreateSwatZombieTechnicalTrial(Transform figureRoot, ZombieEnemyType enemyType)
+        public static int CreateZombieAppearanceSeed(
+            int levelNumber,
+            int spawnIndex,
+            Vector3 position,
+            ZombieEnemyType enemyType)
+        {
+            unchecked
+            {
+                // FNV-style mixing is stable across platforms and does not consume UnityEngine.Random gameplay state.
+                uint hash = 2166136261u;
+                MixZombieAppearanceSeed(ref hash, levelNumber);
+                MixZombieAppearanceSeed(ref hash, spawnIndex);
+                MixZombieAppearanceSeed(ref hash, Mathf.RoundToInt(position.x * 100f));
+                MixZombieAppearanceSeed(ref hash, Mathf.RoundToInt(position.z * 100f));
+                MixZombieAppearanceSeed(ref hash, (int)enemyType);
+
+                // Reserve the low nibble for spawn order so the first palette cycle cannot repeat a dominant colour.
+                uint paletteVariant = (uint)spawnIndex & SwatZombieAppearance.DominantPaletteVariantMask;
+                uint variantMask = SwatZombieAppearance.DominantPaletteVariantMask;
+                uint encodedHash = (hash & ~variantMask) | paletteVariant;
+
+                // System.Random accepts positive seeds; sixteen preserves variant zero for the otherwise all-zero result.
+                int seed = (int)(encodedHash & 0x7fffffffu);
+                return seed == 0 ? SwatZombieAppearance.DominantPaletteVariantMask + 1 : seed;
+            }
+        }
+
+        private static void MixZombieAppearanceSeed(ref uint hash, int value)
+        {
+            // Mixing complete quantized values gives nearby lane/distance spawns unrelated-looking sequences.
+            hash ^= (uint)value;
+            hash *= 16777619u;
+        }
+
+        private static bool CreateSwatZombieTechnicalTrial(
+            Transform figureRoot,
+            ZombieEnemyType enemyType,
+            int appearanceSeed)
         {
             // Reuse the same optimized licensed prefab as the survivor so no second human mesh is distributed.
             GameObject swatPrefab = Resources.Load<GameObject>(SwatSurvivorResourcePath);
@@ -406,6 +458,10 @@ namespace LaneSurvivor.Rendering
 
             // Enlarged bloody eyes, wounds, and drool are reversible Unity geometry attached to live Humanoid bones.
             CreateSwatZombieFaceAndWoundDetails(swatModel.transform, animator);
+
+            // Per-instance property blocks cut real suit holes, apply vivid palettes, and remove different tactical pieces.
+            SwatZombieAppearance appearance = swatModel.AddComponent<SwatZombieAppearance>();
+            appearance.Configure(enemyType, appearanceSeed);
 
             // Late-frame asymmetric motion turns the clean walk into a drunken, agitated near-stumble.
             SwatZombieAnimator zombieAnimator = swatModel.AddComponent<SwatZombieAnimator>();
@@ -1040,8 +1096,24 @@ namespace LaneSurvivor.Rendering
                                       Resources.Load<Texture2D>($"Survivor3D/Textures/{sourceMaterialName}_Bump");
             Texture2D specularTexture = Resources.Load<Texture2D>($"Survivor3D/Textures/{sourceMaterialName}_Specular");
 
+            // Only the zombie Suit needs real alpha-tested gaps; survivors and rigid equipment retain normal Standard PBR.
+            bool usesTatteredClothingShader = useZombiePalette &&
+                                               rendererName == "Suit" &&
+                                               sourceMaterialName.Contains("Outfit", System.StringComparison.OrdinalIgnoreCase);
+
+            // A Resources reference guarantees inclusion even though no serialized scene material points at this shader.
+            Shader tatteredClothingShader = usesTatteredClothingShader
+                ? Resources.Load<Shader>(SwatZombieTatteredClothingShaderResourcePath)
+                : null;
+            if (usesTatteredClothingShader && tatteredClothingShader == null)
+            {
+                throw new System.InvalidOperationException(
+                    $"Missing zombie clothing shader at Resources/{SwatZombieTatteredClothingShaderResourcePath}.");
+            }
+
             // Built-in Standard variants are the active PBR path; fallbacks keep the method safe after pipeline changes.
-            Shader shader = (specularTexture != null ? Shader.Find("Standard (Specular setup)") : null) ??
+            Shader shader = tatteredClothingShader ??
+                            (specularTexture != null ? Shader.Find("Standard (Specular setup)") : null) ??
                             Shader.Find("Standard") ??
                             Shader.Find("Universal Render Pipeline/Lit") ??
                             Shader.Find("Mobile/Diffuse");
@@ -1056,6 +1128,9 @@ namespace LaneSurvivor.Rendering
                     ? $"SWAT Zombie {sourceMaterialName} Runtime PBR"
                     : $"SWAT {sourceMaterialName} Runtime PBR"
             };
+
+            // Shared suit materials can still batch because every random colour and tear lives in a property block.
+            material.enableInstancing = usesTatteredClothingShader;
 
             // External Resources textures are deterministic and survive scene serialization and player builds.
             if (diffuseTexture != null)
@@ -1100,7 +1175,8 @@ namespace LaneSurvivor.Rendering
             // Moderate smoothness keeps readable highlights without recreating the overly plastic source suit.
             if (material.HasProperty("_Glossiness"))
             {
-                material.SetFloat("_Glossiness", isMetal ? 0.52f : 0.28f);
+                // Torn cloth remains rougher than intact equipment so bright palettes do not look like glossy plastic.
+                material.SetFloat("_Glossiness", usesTatteredClothingShader ? 0.18f : isMetal ? 0.52f : 0.28f);
             }
 
             if (material.HasProperty("_GlossMapScale"))

@@ -5,6 +5,7 @@ using LaneSurvivor.Rendering;
 using LaneSurvivor.Save;
 using LaneSurvivor.UI;
 using NUnit.Framework;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -979,6 +980,8 @@ namespace LaneSurvivor.Tests.EditMode
                 Animator armoredAnimator = armoredModel.GetComponent<Animator>();
                 SwatZombieAnimator basicStumble = basicModel.GetComponent<SwatZombieAnimator>();
                 SwatZombieAnimator armoredStumble = armoredModel.GetComponent<SwatZombieAnimator>();
+                SwatZombieAppearance basicAppearance = basicModel.GetComponent<SwatZombieAppearance>();
+                SwatZombieAppearance armoredAppearance = armoredModel.GetComponent<SwatZombieAppearance>();
                 Assert.IsNotNull(basicAnimator);
                 Assert.IsNotNull(armoredAnimator);
                 Assert.IsInstanceOf<AnimatorOverrideController>(basicAnimator.runtimeAnimatorController);
@@ -988,9 +991,14 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.AreEqual(SwatZombieAnimator.ArmoredAnimatorSpeed, armoredAnimator.speed, 0.001f);
                 Assert.IsNotNull(basicStumble);
                 Assert.IsNotNull(armoredStumble);
+                Assert.IsNotNull(basicAppearance);
+                Assert.IsNotNull(armoredAppearance);
                 Assert.IsTrue(basicStumble.HasCompleteHumanoidRig);
                 Assert.AreEqual(ZombieEnemyType.Basic, basicStumble.EnemyType);
                 Assert.AreEqual(ZombieEnemyType.Armored, armoredStumble.EnemyType);
+                Assert.IsTrue(basicAppearance.IsConfigured);
+                Assert.IsTrue(armoredAppearance.IsConfigured);
+                Assert.AreNotEqual(basicAppearance.AppearanceSignature, armoredAppearance.AppearanceSignature);
 
                 // Exaggerated bloodshot eyes, running blood, open-jaw drool, and body wounds must all follow live bones.
                 Transform leftEye = FindNamedDescendant(basicModel, PrototypeCharacterFactory.SwatZombieBloodyEyeLeftName);
@@ -1020,11 +1028,45 @@ namespace LaneSurvivor.Tests.EditMode
                 Assert.IsNotNull(basicSuitRenderer.sharedMaterial.mainTexture);
                 Assert.AreEqual("Outfit_Burglar2_Diffuse", basicSuitRenderer.sharedMaterial.mainTexture.name);
                 Assert.IsNotNull(basicSuitRenderer.sharedMaterial.GetTexture("_BumpMap"));
+                Assert.AreEqual(
+                    SwatZombieAppearance.TatteredClothingShaderName,
+                    basicSuitRenderer.sharedMaterial.shader.name);
+
+                // Property blocks must contain several bright colours plus five large holes without cloning the base material.
+                AssertStridentColor(basicAppearance.UpperClothingColor);
+                AssertStridentColor(basicAppearance.LowerClothingColor);
+                AssertStridentColor(basicAppearance.AccentClothingColor);
+                Assert.Greater(ColorDistance(basicAppearance.UpperClothingColor, basicAppearance.LowerClothingColor), 0.25f);
+                Assert.GreaterOrEqual(basicAppearance.TorsoHole.z, 0.09f);
+                Assert.GreaterOrEqual(basicAppearance.TorsoHole.w, 0.09f);
+                Assert.GreaterOrEqual(basicAppearance.LeftLegHole.w, 0.11f);
+                Assert.GreaterOrEqual(basicAppearance.RightLegHole.w, 0.11f);
+                for (int holeIndex = 0; holeIndex < SwatZombieAppearance.TatterHoleCount; holeIndex++)
+                {
+                    Vector4 hole = basicAppearance.GetTatterHole(holeIndex);
+                    Assert.Greater(hole.z, 0.04f);
+                    Assert.Greater(hole.w, 0.07f);
+                }
+
+                MaterialPropertyBlock basicSuitProperties = new();
+                basicSuitRenderer.GetPropertyBlock(basicSuitProperties);
+                Assert.AreEqual(
+                    basicAppearance.UpperClothingColor,
+                    basicSuitProperties.GetColor(Shader.PropertyToID(SwatZombieAppearance.UpperColorPropertyName)));
+                Assert.AreEqual(
+                    basicAppearance.LowerClothingColor,
+                    basicSuitProperties.GetColor(Shader.PropertyToID(SwatZombieAppearance.LowerColorPropertyName)));
+                Assert.AreEqual(
+                    basicAppearance.TorsoHole,
+                    basicSuitProperties.GetVector(Shader.PropertyToID("_Hole0")));
 
                 // Repeated zombie instances must reuse immutable runtime materials instead of leaking one set per enemy.
                 Renderer armoredSuitRenderer = FindNamedDescendant(armoredModel, "Suit")?.GetComponent<Renderer>();
                 Assert.IsNotNull(armoredSuitRenderer);
                 Assert.AreSame(basicSuitRenderer.sharedMaterial, armoredSuitRenderer.sharedMaterial);
+                Assert.AreSame(
+                    basicSuitRenderer.GetComponent<SkinnedMeshRenderer>().sharedMesh,
+                    armoredSuitRenderer.GetComponent<SkinnedMeshRenderer>().sharedMesh);
 
                 // All source firearms stay hidden, the face remains exposed, and only armored enemies retain a helmet.
                 foreach (Renderer renderer in basicModel.GetComponentsInChildren<Renderer>(true))
@@ -1040,12 +1082,25 @@ namespace LaneSurvivor.Tests.EditMode
                 Renderer basicMask = FindNamedDescendant(basicModel, "Balaclava_Mask")?.GetComponent<Renderer>();
                 Renderer basicHelmet = FindNamedDescendant(basicModel, "AUG3M_Helmet_33393_Shape")?.GetComponent<Renderer>();
                 Renderer armoredHelmet = FindNamedDescendant(armoredModel, "AUG3M_Helmet_33393_Shape")?.GetComponent<Renderer>();
+                Renderer basicArmor = FindNamedDescendant(basicModel, "armor")?.GetComponent<Renderer>();
+                Renderer basicProtect = FindNamedDescendant(basicModel, "Protect")?.GetComponent<Renderer>();
+                Renderer armoredArmor = FindNamedDescendant(armoredModel, "armor")?.GetComponent<Renderer>();
+                Renderer basicBody = FindNamedDescendant(basicModel, "CC_Base_Body")?.GetComponent<Renderer>();
                 Assert.IsNotNull(basicMask);
                 Assert.IsNotNull(basicHelmet);
                 Assert.IsNotNull(armoredHelmet);
+                Assert.IsNotNull(basicArmor);
+                Assert.IsNotNull(basicProtect);
+                Assert.IsNotNull(armoredArmor);
+                Assert.IsNotNull(basicBody);
                 Assert.IsFalse(basicMask.enabled);
                 Assert.IsFalse(basicHelmet.enabled);
                 Assert.IsTrue(armoredHelmet.enabled);
+                Assert.IsFalse(basicArmor.enabled);
+                Assert.IsFalse(basicProtect.enabled);
+                Assert.IsTrue(armoredArmor.enabled);
+                Assert.IsTrue(basicBody.enabled);
+                Assert.GreaterOrEqual(basicAppearance.HiddenTacticalGearCount, 2);
 
                 // Primitive fallback geometry remains structurally available but contributes no doubled visible silhouette.
                 MeshRenderer generatedHeadRenderer = basicZombie.transform.Find("Zombie Figure/Zombie Head")?.GetComponent<MeshRenderer>();
@@ -1097,6 +1152,136 @@ namespace LaneSurvivor.Tests.EditMode
                 // Destroy every generated object and the caller-owned fallback material to isolate later EditMode tests.
                 UnityEngine.Object.DestroyImmediate(basicZombie);
                 UnityEngine.Object.DestroyImmediate(armoredZombie);
+                UnityEngine.Object.DestroyImmediate(zombieMaterial);
+            }
+        }
+
+        [Test]
+        public void PrototypeCharacterFactory_ZombieAppearancesAreDeterministicHighlyVariedAndRandomStateSafe()
+        {
+            // Sixteen production-style seeds cover one complete nine-colour cycle plus repeated-index random variations.
+            const int sampleCount = 16;
+            Material zombieMaterial = PrototypeMaterialFactory.Create(Color.green);
+            List<GameObject> zombies = new();
+            HashSet<int> appearanceSignatures = new();
+            HashSet<int> upperColors = new();
+            HashSet<int> lowerColors = new();
+            HashSet<int> dominantPaletteIndices = new();
+            HashSet<int> visibleGearMasks = new();
+            UnityEngine.Random.State originalRandomState = UnityEngine.Random.state;
+
+            try
+            {
+                // A saved checkpoint proves appearance construction never consumes the gameplay-wide Unity random stream.
+                UnityEngine.Random.InitState(91357);
+                UnityEngine.Random.State randomCheckpoint = UnityEngine.Random.state;
+                Material sharedSuitMaterial = null;
+                Mesh sharedSuitMesh = null;
+                int firstSeed = 0;
+                SwatZombieAppearance firstAppearance = null;
+
+                for (int zombieIndex = 0; zombieIndex < sampleCount; zombieIndex++)
+                {
+                    // Lane and distance changes mirror authored mission spawns while the explicit index prevents collisions.
+                    Vector3 position = new(
+                        (zombieIndex % 3 - 1) * GameplayVisuals.SideLaneX,
+                        GameplayVisuals.ZombieCenterY,
+                        12f + zombieIndex * 9f);
+                    ZombieEnemyType enemyType = zombieIndex % 3 == 1
+                        ? ZombieEnemyType.Armored
+                        : ZombieEnemyType.Basic;
+                    int appearanceSeed = PrototypeCharacterFactory.CreateZombieAppearanceSeed(
+                        3,
+                        zombieIndex,
+                        position,
+                        enemyType);
+                    GameObject zombie = PrototypeCharacterFactory.CreateZombie(
+                        $"Varied Zombie {zombieIndex}",
+                        position,
+                        zombieMaterial,
+                        enemyType,
+                        appearanceSeed);
+                    zombies.Add(zombie);
+
+                    Transform model = zombie.transform.Find($"Zombie Figure/{PrototypeCharacterFactory.SwatZombieModelName}");
+                    SwatZombieAppearance appearance = model?.GetComponent<SwatZombieAppearance>();
+                    SkinnedMeshRenderer suit = FindNamedDescendant(model, "Suit")?.GetComponent<SkinnedMeshRenderer>();
+                    Renderer body = FindNamedDescendant(model, "CC_Base_Body")?.GetComponent<Renderer>();
+                    Assert.IsNotNull(appearance);
+                    Assert.IsNotNull(suit);
+                    Assert.IsNotNull(body);
+                    Assert.IsTrue(body.enabled);
+                    Assert.AreEqual(appearanceSeed, appearance.VisualSeed);
+                    Assert.AreEqual(SwatZombieAppearance.TatteredClothingShaderName, suit.sharedMaterial.shader.name);
+                    AssertStridentColor(appearance.UpperClothingColor);
+                    AssertStridentColor(appearance.LowerClothingColor);
+                    AssertStridentColor(appearance.AccentClothingColor);
+                    Assert.Greater(ColorDistance(appearance.UpperClothingColor, appearance.LowerClothingColor), 0.20f);
+                    Assert.Greater(ColorDistance(appearance.UpperClothingColor, appearance.AccentClothingColor), 0.20f);
+                    Assert.Greater(ColorDistance(appearance.LowerClothingColor, appearance.AccentClothingColor), 0.20f);
+
+                    // Shared renderer resources prove variety comes from property blocks instead of native allocation growth.
+                    sharedSuitMaterial ??= suit.sharedMaterial;
+                    sharedSuitMesh ??= suit.sharedMesh;
+                    Assert.AreSame(sharedSuitMaterial, suit.sharedMaterial);
+                    Assert.AreSame(sharedSuitMesh, suit.sharedMesh);
+
+                    appearanceSignatures.Add(appearance.AppearanceSignature);
+                    upperColors.Add(PackColor(appearance.UpperClothingColor));
+                    lowerColors.Add(PackColor(appearance.LowerClothingColor));
+                    dominantPaletteIndices.Add(appearance.DominantPaletteIndex);
+                    visibleGearMasks.Add(appearance.VisibleGearMask);
+                    if (zombieIndex == 0)
+                    {
+                        firstSeed = appearanceSeed;
+                        firstAppearance = appearance;
+                    }
+                }
+
+                // The selected level seeds must not collapse into a handful of replica outfits.
+                Assert.AreEqual(sampleCount, appearanceSignatures.Count);
+                Assert.GreaterOrEqual(upperColors.Count, 4);
+                Assert.GreaterOrEqual(lowerColors.Count, 4);
+                Assert.AreEqual(9, dominantPaletteIndices.Count);
+                Assert.GreaterOrEqual(visibleGearMasks.Count, 2);
+
+                // Reusing one seed must reproduce every diagnostic value exactly, independent of GameObject identity.
+                GameObject duplicateZombie = PrototypeCharacterFactory.CreateZombie(
+                    "Deterministic Duplicate Zombie",
+                    new Vector3(-GameplayVisuals.SideLaneX, GameplayVisuals.ZombieCenterY, 12f),
+                    zombieMaterial,
+                    ZombieEnemyType.Basic,
+                    firstSeed);
+                zombies.Add(duplicateZombie);
+                SwatZombieAppearance duplicateAppearance = duplicateZombie.transform
+                    .Find($"Zombie Figure/{PrototypeCharacterFactory.SwatZombieModelName}")
+                    ?.GetComponent<SwatZombieAppearance>();
+                Assert.IsNotNull(firstAppearance);
+                Assert.IsNotNull(duplicateAppearance);
+                Assert.AreEqual(firstAppearance.AppearanceSignature, duplicateAppearance.AppearanceSignature);
+                Assert.AreEqual(firstAppearance.UpperClothingColor, duplicateAppearance.UpperClothingColor);
+                Assert.AreEqual(firstAppearance.LowerClothingColor, duplicateAppearance.LowerClothingColor);
+                Assert.AreEqual(firstAppearance.VisibleGearMask, duplicateAppearance.VisibleGearMask);
+                for (int holeIndex = 0; holeIndex < SwatZombieAppearance.TatterHoleCount; holeIndex++)
+                {
+                    Assert.AreEqual(firstAppearance.GetTatterHole(holeIndex), duplicateAppearance.GetTatterHole(holeIndex));
+                }
+
+                // Compare the next random sample against the saved checkpoint after all appearance work has finished.
+                float actualNextRandomValue = UnityEngine.Random.value;
+                UnityEngine.Random.state = randomCheckpoint;
+                float expectedNextRandomValue = UnityEngine.Random.value;
+                Assert.AreEqual(expectedNextRandomValue, actualNextRandomValue);
+            }
+            finally
+            {
+                // Restore global random state and release every generated test hierarchy even when an assertion fails.
+                UnityEngine.Random.state = originalRandomState;
+                foreach (GameObject zombie in zombies)
+                {
+                    UnityEngine.Object.DestroyImmediate(zombie);
+                }
+
                 UnityEngine.Object.DestroyImmediate(zombieMaterial);
             }
         }
@@ -1538,6 +1723,30 @@ namespace LaneSurvivor.Tests.EditMode
             Gate gate = gateObject.AddComponent<Gate>();
             gate.Configure(gateDefinition, null, null);
             return gate;
+        }
+
+        private static void AssertStridentColor(Color color)
+        {
+            // Saturation and value thresholds encode the requested vivid palette independently of any named hue.
+            Color.RGBToHSV(color, out _, out float saturation, out float value);
+            Assert.GreaterOrEqual(saturation, 0.80f);
+            Assert.GreaterOrEqual(value, 0.78f);
+        }
+
+        private static float ColorDistance(Color first, Color second)
+        {
+            // Euclidean RGB distance gives a simple lower bound against visually duplicate clothing colours.
+            return Mathf.Sqrt(
+                Mathf.Pow(first.r - second.r, 2f) +
+                Mathf.Pow(first.g - second.g, 2f) +
+                Mathf.Pow(first.b - second.b, 2f));
+        }
+
+        private static int PackColor(Color color)
+        {
+            // Byte packing provides deterministic set membership without relying on Unity Color hash behavior.
+            Color32 bytes = color;
+            return bytes.r | bytes.g << 8 | bytes.b << 16;
         }
 
         private static void AssertMaterialColor(Color expectedColor, Material material)

@@ -1966,11 +1966,46 @@ namespace LaneSurvivor.Tests.PlayMode
             // Runtime enemies must use the imported Humanoid walk plus the dedicated late-frame zombie overlay.
             Animator animator = model.GetComponent<Animator>();
             SwatZombieAnimator stumble = model.GetComponent<SwatZombieAnimator>();
+            SwatZombieAppearance appearance = model.GetComponent<SwatZombieAppearance>();
             Assert.IsNotNull(animator);
             Assert.IsNotNull(animator.runtimeAnimatorController);
             Assert.IsNotNull(stumble);
+            Assert.IsNotNull(appearance);
             Assert.IsTrue(stumble.HasCompleteHumanoidRig);
             Assert.IsTrue(stumble.isActiveAndEnabled);
+            Assert.IsTrue(appearance.IsConfigured);
+
+            // The first visible enemy must use the alpha-tested suit while leaving infected skin enabled beneath its gaps.
+            Renderer suitRenderer = FindNamedDescendant(model, "Suit")?.GetComponent<Renderer>();
+            Renderer bodyRenderer = FindNamedDescendant(model, "CC_Base_Body")?.GetComponent<Renderer>();
+            Assert.IsNotNull(suitRenderer);
+            Assert.IsNotNull(bodyRenderer);
+            Assert.IsTrue(bodyRenderer.enabled);
+            Assert.AreEqual(SwatZombieAppearance.TatteredClothingShaderName, suitRenderer.sharedMaterial.shader.name);
+            Assert.GreaterOrEqual(appearance.TorsoHole.z, 0.09f);
+            Assert.GreaterOrEqual(appearance.LeftLegHole.w, 0.11f);
+
+            // Production level construction should already contain several unrelated deterministic wardrobe signatures.
+            SwatZombieAppearance[] spawnedAppearances = UnityEngine.Object.FindObjectsByType<SwatZombieAppearance>(FindObjectsSortMode.None);
+            HashSet<int> spawnedSignatures = new();
+            HashSet<int> spawnedUpperColors = new();
+            HashSet<int> spawnedDominantPaletteIndices = new();
+            HashSet<int> spawnedTearCenters = new();
+            foreach (SwatZombieAppearance spawnedAppearance in spawnedAppearances)
+            {
+                spawnedSignatures.Add(spawnedAppearance.AppearanceSignature);
+                spawnedUpperColors.Add(PackColor(spawnedAppearance.UpperClothingColor));
+                spawnedDominantPaletteIndices.Add(spawnedAppearance.DominantPaletteIndex);
+                spawnedTearCenters.Add(
+                    Mathf.RoundToInt(spawnedAppearance.TorsoHole.x * 10000f) * 397 ^
+                    Mathf.RoundToInt(spawnedAppearance.TorsoHole.y * 10000f));
+            }
+
+            Assert.GreaterOrEqual(spawnedAppearances.Length, 3);
+            Assert.GreaterOrEqual(spawnedSignatures.Count, 3);
+            Assert.GreaterOrEqual(spawnedUpperColors.Count, 2);
+            Assert.GreaterOrEqual(spawnedDominantPaletteIndices.Count, 3);
+            Assert.GreaterOrEqual(spawnedTearCenters.Count, 3);
 
             // The infected facial treatment must survive scene construction and remain attached to animated bones.
             Assert.IsNotNull(FindNamedDescendant(model, PrototypeCharacterFactory.SwatZombieBloodyEyeLeftName));
@@ -2546,6 +2581,13 @@ namespace LaneSurvivor.Tests.PlayMode
             }
 
             return activeChildren;
+        }
+
+        private static int PackColor(Color color)
+        {
+            // Byte packing lets scene tests count visibly distinct palettes without relying on float hash behavior.
+            Color32 bytes = color;
+            return bytes.r | bytes.g << 8 | bytes.b << 16;
         }
 
         private static Color GetMaterialColor(Material material)
