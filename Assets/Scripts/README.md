@@ -10,7 +10,7 @@
 - `Gameplay/`: Contains minigame controllers, player squad behavior, weapon muzzle registration, gates, zombies, shooting, muzzle-flash and tracer feedback, and runtime bootstrap code.
 - `Heroes/`: Contains local hero definitions, inventory helpers, and gameplay reward rules.
 - `Progression/`: Contains HQ upgrade, bio-lab upgrade, timer, mission selection, and mission unlock rules that connect base progress to minigame runs.
-- `Rendering/`: Contains shared placeholder and textured-cutout material helpers, collider-free geometry/prism/card helpers, explicit PBR material binding and authored Animator switching for the licensed SWAT leader, generated wing-survivor animation rigs and camera-facing decals, hidden survivor weapon anchors, and generated zombie character construction for runtime-generated scenes.
+- `Rendering/`: Contains shared placeholder/material helpers, collider-free geometry, explicit PBR binding, distinct commander/scout/heavy wardrobe presets, one-third-cycle authored gait staggering for all three licensed SWAT survivors, hidden fallback cards/weapon anchors, and imported zombie character construction.
 - `Retention/`: Contains local daily objective rules that count minigame wins and pay claimable coin rewards.
 - `Save/`: Contains local JSON save data and persistence helpers.
 - `UI/`: Contains HUD and end-screen controllers.
@@ -21,4 +21,4 @@ Unity compiles runtime scripts through the `LaneSurvivor.Runtime` assembly. Edit
 
 ## Behavior
 
-The runtime assembly owns the local Phase 1 minigame prototype, including the PBR-textured authored-Animator SWAT leader, generated wing survivors, hidden weapon/muzzle anchors, generated zombie rigs, muzzle-attached flash/tracer feedback, Phase 2 base-building slice with V6 Base readability/zoom/drag visuals and the V6-1 reference-textured bio-lab upgrade, first Phase 3 hero slice, local v2 mission progression, and local daily objective retention slice. Editor tooling references it only to rebuild or configure development scenes.
+The runtime assembly owns the local Phase 1 minigame prototype, including the three PBR-textured authored-Animator SWAT survivors, their distinct dark wardrobe/equipment presets and visible barrel anchors, imported zombie rigs, muzzle-attached feedback, the Phase 2 base-building slice, first Phase 3 hero slice, local v2 mission progression, and local daily objective retention slice. Editor tooling references it only to rebuild or configure development scenes.

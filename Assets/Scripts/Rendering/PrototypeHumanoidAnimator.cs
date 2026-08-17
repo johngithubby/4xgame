@@ -597,7 +597,7 @@ namespace LaneSurvivor.Rendering
             // Phase offsets break up the three-person formation without random runtime state.
             float phaseOffset = survivorIndex * 1.35f;
 
-            // The leader technical trial uses the downloaded Character Creator bone hierarchy instead of generated joints.
+            // Every imported survivor uses the downloaded Character Creator bone hierarchy instead of generated joints.
             Transform swatModel = FindDescendant(survivorRoot, PrototypeCharacterFactory.SwatSurvivorModelName);
             if (swatModel != null)
             {
@@ -636,7 +636,7 @@ namespace LaneSurvivor.Rendering
             // Authored Animator clips own the imported body and its parent pose without procedural additive motion.
             return new HumanoidRig
             {
-                // The flag makes ApplyRigPose leave the complete visible leader hierarchy to Mixamo retargeting.
+                // The flag makes ApplyRigPose leave the complete visible imported hierarchy to Mixamo retargeting.
                 usesAuthoredLocomotion = true,
 
                 // Keep formation motion on the existing gameplay survivor root rather than moving the imported FBX origin.

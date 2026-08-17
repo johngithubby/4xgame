@@ -1790,6 +1790,8 @@ namespace LaneSurvivor.Tests.PlayMode
             // Runtime weapon pose checks use the same hidden 3D rig anchors that shot tracers use.
             Transform leaderHead = playerSquad.transform.Find("Survivor Leader/Human Head");
             Transform leaderSwatModel = playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.SwatSurvivorModelName}");
+            Transform leftSwatModel = playerSquad.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.SwatSurvivorModelName}");
+            Transform rightSwatModel = playerSquad.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.SwatSurvivorModelName}");
             Transform leaderWeapon = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
             Transform leaderMuzzle = FindNamedDescendant(leaderSwatModel, PlayerSquad.WeaponMuzzleAnchorName);
             Transform leaderWeaponBody = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Body");
@@ -1799,17 +1801,19 @@ namespace LaneSurvivor.Tests.PlayMode
             Transform leaderRifleTopGlow = playerSquad.transform.Find($"Survivor Leader/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Top Glow");
             Transform leftHead = playerSquad.transform.Find("Survivor Left Wing/Human Head");
             Transform leftWeapon = playerSquad.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
-            Transform leftMuzzle = playerSquad.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            Transform leftMuzzle = FindNamedDescendant(leftSwatModel, PlayerSquad.WeaponMuzzleAnchorName);
             Transform leftWeaponBody = playerSquad.transform.Find($"Survivor Left Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Body");
             Transform rightHead = playerSquad.transform.Find("Survivor Right Wing/Human Head");
             Transform rightWeapon = playerSquad.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}");
-            Transform rightMuzzle = playerSquad.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/{PlayerSquad.WeaponMuzzleAnchorName}");
+            Transform rightMuzzle = FindNamedDescendant(rightSwatModel, PlayerSquad.WeaponMuzzleAnchorName);
             Transform rightWeaponBody = playerSquad.transform.Find($"Survivor Right Wing/Human Arm Right/Human Hand Right/{PrototypeCharacterFactory.LeaderRifleName}/Leader Rifle Body");
             Transform leaderRoot = playerSquad.transform.Find("Survivor Leader");
             Transform leftRoot = playerSquad.transform.Find("Survivor Left Wing");
             Transform rightRoot = playerSquad.transform.Find("Survivor Right Wing");
             Assert.IsNotNull(leaderHead);
             Assert.IsNotNull(leaderSwatModel);
+            Assert.IsNotNull(leftSwatModel);
+            Assert.IsNotNull(rightSwatModel);
             Assert.IsNotNull(leaderWeapon);
             Assert.IsNotNull(leaderMuzzle);
             Assert.IsNotNull(leaderWeapon.Find(PrototypeCharacterFactory.HiddenGeneratedWeaponMuzzleName));
@@ -1822,10 +1826,12 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(leftHead);
             Assert.IsNotNull(leftWeapon);
             Assert.IsNotNull(leftMuzzle);
+            Assert.IsNotNull(leftWeapon.Find(PrototypeCharacterFactory.HiddenGeneratedWeaponMuzzleName));
             Assert.IsNotNull(leftWeaponBody);
             Assert.IsNotNull(rightHead);
             Assert.IsNotNull(rightWeapon);
             Assert.IsNotNull(rightMuzzle);
+            Assert.IsNotNull(rightWeapon.Find(PrototypeCharacterFactory.HiddenGeneratedWeaponMuzzleName));
             Assert.IsNotNull(rightWeaponBody);
             Assert.IsNotNull(leaderRoot);
             Assert.IsNotNull(leftRoot);
@@ -1838,22 +1844,23 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.Greater(Vector3.Dot(rightRoot.forward.normalized, Vector3.forward), 0.90f);
             // The imported rest muzzle follows its visible barrel; live shot tests below verify target-facing correction.
             Transform leaderWeaponAimPivot = FindNamedDescendant(leaderSwatModel, PrototypeCharacterFactory.SwatWeaponAimPivotName);
+            Transform leftWeaponAimPivot = FindNamedDescendant(leftSwatModel, PrototypeCharacterFactory.SwatWeaponAimPivotName);
+            Transform rightWeaponAimPivot = FindNamedDescendant(rightSwatModel, PrototypeCharacterFactory.SwatWeaponAimPivotName);
             Assert.IsNotNull(leaderWeaponAimPivot);
+            Assert.IsNotNull(leftWeaponAimPivot);
+            Assert.IsNotNull(rightWeaponAimPivot);
             Assert.Greater(Vector3.Dot(leaderMuzzle.forward.normalized, (leaderMuzzle.position - leaderWeaponAimPivot.position).normalized), 0.99f);
-
-            // Generated wing muzzles remain authored directly along the down-lane +Z firing axis.
-            Assert.Greater(Vector3.Dot(leftMuzzle.forward.normalized, Vector3.forward), 0.90f);
-            Assert.Greater(Vector3.Dot(rightMuzzle.forward.normalized, Vector3.forward), 0.90f);
+            Assert.Greater(Vector3.Dot(leftMuzzle.forward.normalized, (leftMuzzle.position - leftWeaponAimPivot.position).normalized), 0.99f);
+            Assert.Greater(Vector3.Dot(rightMuzzle.forward.normalized, (rightMuzzle.position - rightWeaponAimPivot.position).normalized), 0.99f);
             // Runtime muzzle starts should stay attached to the visible soldier footprint instead of floating down-lane.
             Assert.Less(leaderMuzzle.position.z, leaderRoot.position.z + GameplayVisuals.PlayerFootprint);
             Assert.Less(leftMuzzle.position.z, leftRoot.position.z + GameplayVisuals.PlayerFootprint);
             Assert.Less(rightMuzzle.position.z, rightRoot.position.z + GameplayVisuals.PlayerFootprint);
-            // The imported rifle may cross the chest during its authored pose, but its muzzle must remain in the raised actor band.
-            Assert.GreaterOrEqual(leaderMuzzle.position.y, GameplayVisuals.ShotTracerMinimumY);
-
-            // Generated wing anchors retain their authored near-head placement even though they are excluded from live firing.
-            Assert.GreaterOrEqual(leftMuzzle.position.y, leftHead.position.y - 0.08f);
-            Assert.GreaterOrEqual(rightMuzzle.position.y, rightHead.position.y - 0.08f);
+            // Imported idle motion may lower a barrel by a few centimetres, but all three stay in the raised actor band.
+            float minimumImportedMuzzleY = GameplayVisuals.ShotTracerMinimumY - 0.04f;
+            Assert.GreaterOrEqual(leaderMuzzle.position.y, minimumImportedMuzzleY);
+            Assert.GreaterOrEqual(leftMuzzle.position.y, minimumImportedMuzzleY);
+            Assert.GreaterOrEqual(rightMuzzle.position.y, minimumImportedMuzzleY);
             Assert.GreaterOrEqual(playerSquad.GetComponentsInChildren<MeshRenderer>(true).Length, 90);
             MeshRenderer leaderHeadRenderer = leaderHead.GetComponent<MeshRenderer>();
             MeshRenderer leaderWeaponRenderer = leaderWeaponBody.GetComponent<MeshRenderer>();
@@ -1863,6 +1870,8 @@ namespace LaneSurvivor.Tests.PlayMode
             MeshRenderer leaderChestArmorRenderer = playerSquad.transform.Find("Survivor Leader/Human Chest Armor").GetComponent<MeshRenderer>();
             SkinnedMeshRenderer leaderReferenceRenderer = playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.FemaleReferenceUpperName}").GetComponent<SkinnedMeshRenderer>();
             SkinnedMeshRenderer leaderRearReferenceRenderer = playerSquad.transform.Find($"Survivor Leader/{PrototypeCharacterFactory.FemaleReferenceUpperName}/{PrototypeCharacterFactory.FemaleReferenceRearName}").GetComponent<SkinnedMeshRenderer>();
+            SkinnedMeshRenderer leftReferenceRenderer = playerSquad.transform.Find($"Survivor Left Wing/{PrototypeCharacterFactory.FemaleReferenceUpperName}").GetComponent<SkinnedMeshRenderer>();
+            SkinnedMeshRenderer rightReferenceRenderer = playerSquad.transform.Find($"Survivor Right Wing/{PrototypeCharacterFactory.FemaleReferenceUpperName}").GetComponent<SkinnedMeshRenderer>();
             Assert.IsNotNull(leaderHeadRenderer);
             Assert.IsNotNull(leaderWeaponRenderer);
             Assert.IsNotNull(leftWeaponRenderer);
@@ -1871,6 +1880,8 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsNotNull(leaderChestArmorRenderer);
             Assert.IsNotNull(leaderReferenceRenderer);
             Assert.IsNotNull(leaderRearReferenceRenderer);
+            Assert.IsNotNull(leftReferenceRenderer);
+            Assert.IsNotNull(rightReferenceRenderer);
             Assert.IsFalse(leaderHeadRenderer.enabled);
             Assert.IsFalse(leaderWeaponRenderer.enabled);
             Assert.IsFalse(leftWeaponRenderer.enabled);
@@ -1879,21 +1890,56 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.IsFalse(leaderChestArmorRenderer.enabled);
             Assert.IsFalse(leaderReferenceRenderer.enabled);
             Assert.IsFalse(leaderRearReferenceRenderer.enabled);
+            Assert.IsFalse(leftReferenceRenderer.enabled);
+            Assert.IsFalse(rightReferenceRenderer.enabled);
             ReferenceModelFacingVisibility leaderFacingVisibility = leaderReferenceRenderer.GetComponent<ReferenceModelFacingVisibility>();
             Assert.IsNotNull(leaderFacingVisibility);
             Assert.IsFalse(leaderFacingVisibility.enabled);
             Assert.Greater(leaderSwatModel.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length, 10);
             Animator leaderSwatAnimator = leaderSwatModel.GetComponent<Animator>();
+            Animator leftSwatAnimator = leftSwatModel.GetComponent<Animator>();
+            Animator rightSwatAnimator = rightSwatModel.GetComponent<Animator>();
             SwatSurvivorLocomotionAnimator leaderSwatLocomotion = leaderSwatModel.GetComponent<SwatSurvivorLocomotionAnimator>();
+            SwatSurvivorLocomotionAnimator leftSwatLocomotion = leftSwatModel.GetComponent<SwatSurvivorLocomotionAnimator>();
+            SwatSurvivorLocomotionAnimator rightSwatLocomotion = rightSwatModel.GetComponent<SwatSurvivorLocomotionAnimator>();
             Renderer leaderSwatSuitRenderer = FindNamedDescendant(leaderSwatModel, "Suit").GetComponent<Renderer>();
+            Renderer leftSwatSuitRenderer = FindNamedDescendant(leftSwatModel, "Suit").GetComponent<Renderer>();
+            Renderer rightSwatSuitRenderer = FindNamedDescendant(rightSwatModel, "Suit").GetComponent<Renderer>();
+            SwatSurvivorAppearance leaderAppearance = leaderSwatModel.GetComponent<SwatSurvivorAppearance>();
+            SwatSurvivorAppearance leftAppearance = leftSwatModel.GetComponent<SwatSurvivorAppearance>();
+            SwatSurvivorAppearance rightAppearance = rightSwatModel.GetComponent<SwatSurvivorAppearance>();
             Assert.IsNotNull(leaderSwatAnimator);
+            Assert.IsNotNull(leftSwatAnimator);
+            Assert.IsNotNull(rightSwatAnimator);
             Assert.IsNotNull(leaderSwatAnimator.runtimeAnimatorController);
+            Assert.IsNotNull(leftSwatAnimator.runtimeAnimatorController);
+            Assert.IsNotNull(rightSwatAnimator.runtimeAnimatorController);
             Assert.IsFalse(leaderSwatAnimator.applyRootMotion);
+            Assert.IsFalse(leftSwatAnimator.applyRootMotion);
+            Assert.IsFalse(rightSwatAnimator.applyRootMotion);
             Assert.IsNotNull(leaderSwatLocomotion);
+            Assert.IsNotNull(leftSwatLocomotion);
+            Assert.IsNotNull(rightSwatLocomotion);
+            Assert.AreEqual(0f, leaderSwatLocomotion.LocomotionPhaseOffset, 0.001f);
+            Assert.AreEqual(1f / 3f, leftSwatLocomotion.LocomotionPhaseOffset, 0.001f);
+            Assert.AreEqual(2f / 3f, rightSwatLocomotion.LocomotionPhaseOffset, 0.001f);
             Assert.IsNotNull(leaderSwatSuitRenderer);
+            Assert.IsNotNull(leftSwatSuitRenderer);
+            Assert.IsNotNull(rightSwatSuitRenderer);
+            Assert.IsNotNull(leaderAppearance);
+            Assert.IsNotNull(leftAppearance);
+            Assert.IsNotNull(rightAppearance);
             Assert.IsNotNull(leaderSwatSuitRenderer.sharedMaterial.mainTexture);
             Assert.AreEqual("Outfit_Burglar2_Diffuse", leaderSwatSuitRenderer.sharedMaterial.mainTexture.name);
             Assert.IsNotNull(leaderSwatSuitRenderer.sharedMaterial.GetTexture("_BumpMap"));
+            Assert.AreSame(leaderSwatSuitRenderer.sharedMaterial, leftSwatSuitRenderer.sharedMaterial);
+            Assert.AreSame(leaderSwatSuitRenderer.sharedMaterial, rightSwatSuitRenderer.sharedMaterial);
+            Assert.AreNotEqual(leaderAppearance.AppearanceSignature, leftAppearance.AppearanceSignature);
+            Assert.AreNotEqual(leaderAppearance.AppearanceSignature, rightAppearance.AppearanceSignature);
+            Assert.AreNotEqual(leftAppearance.AppearanceSignature, rightAppearance.AppearanceSignature);
+            Assert.AreNotEqual(leaderAppearance.VisibleGearMask, leftAppearance.VisibleGearMask);
+            Assert.AreNotEqual(leaderAppearance.VisibleGearMask, rightAppearance.VisibleGearMask);
+            Assert.AreNotEqual(leftAppearance.VisibleGearMask, rightAppearance.VisibleGearMask);
             Color chestGlowColor = GetMaterialColor(leaderChestGlowRenderer.sharedMaterial);
             Color chestArmorColor = GetMaterialColor(leaderChestArmorRenderer.sharedMaterial);
             Assert.Greater(chestGlowColor.g, 0.70f);
@@ -1921,8 +1967,8 @@ namespace LaneSurvivor.Tests.PlayMode
             Assert.Greater(rightBounds.size.x, 0.30f);
             PlayerSquad playerSquadComponent = playerSquad.GetComponent<PlayerSquad>();
             Assert.IsNotNull(playerSquadComponent);
-            // Only the rendered imported leader may fire; hidden generated wing anchors must never emit detached effects.
-            Assert.AreEqual(1, playerSquadComponent.WeaponMuzzleCount);
+            // All three rendered imported rifles may fire; hidden generated fallback anchors remain excluded.
+            Assert.AreEqual(3, playerSquadComponent.WeaponMuzzleCount);
             PrototypeHumanoidAnimator playerAnimator = playerSquad.GetComponent<PrototypeHumanoidAnimator>();
             Assert.IsNotNull(playerAnimator);
             Assert.AreEqual(PrototypeHumanoidAnimationStyle.SurvivorSquad, playerAnimator.AnimationStyle);

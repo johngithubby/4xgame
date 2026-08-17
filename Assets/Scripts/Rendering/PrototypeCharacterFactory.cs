@@ -9,8 +9,6 @@ namespace LaneSurvivor.Rendering
 {
     public static class PrototypeCharacterFactory
     {
-        private const float SurvivorWingScale = 1f;
-
         // Old generated scenes may still contain this flat child, so visibility code can suppress it.
         public const string SoldierReferenceVisualName = "Soldier Reference Visual";
 
@@ -32,7 +30,7 @@ namespace LaneSurvivor.Rendering
         // Every visible squad member uses this same rifle silhouette so the soldiers read as one uniform model.
         public const string LeaderRifleName = "Leader Rifle";
 
-        // The technical-trial survivor is kept under a stable child name for animation, tests, and scene audits.
+        // Every imported survivor stays under one stable child name for animation, tests, and scene audits.
         public const string SwatSurvivorModelName = "SWAT Survivor 3D Model";
 
         // Zombies reuse the same licensed mesh under a distinct name so combat tests can resolve visible enemies exactly.
@@ -100,6 +98,9 @@ namespace LaneSurvivor.Rendering
 
         // One shared runtime override keeps every zombie on the same walk asset without duplicating controller assets.
         private static AnimatorOverrideController swatZombieRuntimeController;
+
+        // Wardrobe colours live in property blocks, so all three survivors can share one immutable PBR material set.
+        private static readonly Dictionary<string, Material> SwatSurvivorSharedPbrMaterials = new();
 
         // Runtime zombie PBR materials are immutable, so sharing them preserves batching and avoids per-enemy native allocations.
         private static readonly Dictionary<string, Material> SwatZombieSharedPbrMaterials = new();
@@ -250,11 +251,11 @@ namespace LaneSurvivor.Rendering
             GameObject squadRoot = new(name);
             squadRoot.transform.position = position;
 
-            // Legacy palette parameters stay in the API, while the generated soldier uses a fixed reference-art palette.
+            // Legacy palette parameters stay in the API, while imported wardrobe presets own visible colours.
             _ = uniformMaterial;
             _ = accentMaterial;
 
-            // Materials are shared across all three soldiers so the visible squad keeps one uniform armor scheme.
+            // Generated fallback materials remain shared because imported wardrobe colours use renderer property blocks.
             Material skinMaterial = CreateMaterial(SurvivorSkinColor);
             Material faceDetailMaterial = CreateMaterial(SurvivorFaceDetailColor);
             Material hairMaterial = CreateMaterial(SurvivorHairColor);
@@ -269,16 +270,16 @@ namespace LaneSurvivor.Rendering
             Material referenceModelMaterial = CreateFemaleSurvivorReferenceMaterial();
             Material referenceRearMaterial = CreateFemaleSurvivorRearMaterial();
 
-            // A three-person wedge makes squad count feel like people without spawning one mesh per count value.
-            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, true);
+            // The centre commander keeps a complete navy tactical kit and leads the three-person wedge.
+            CreateSurvivor(squadRoot.transform, "Survivor Leader", new Vector3(0f, 0f, 0.08f), 1f, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, SwatSurvivorWardrobeStyle.NavyCommander);
 
-            // Side survivors sit behind the leader with a wider offset so full-size soldiers do not overlap.
-            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.52f, -0.02f, -0.38f), SurvivorWingScale, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, false);
+            // The left scout removes armor and uses charcoal cloth with deep-burgundy equipment.
+            CreateSurvivor(squadRoot.transform, "Survivor Left Wing", new Vector3(-0.52f, -0.02f, -0.38f), 1f, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, SwatSurvivorWardrobeStyle.CharcoalScout);
 
-            // Mirroring the side placement gives the player a recognizably human squad silhouette in one lane.
-            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.52f, -0.02f, -0.38f), SurvivorWingScale, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, false);
+            // The right heavy retains every dark-olive protective layer for a visibly broader silhouette.
+            CreateSurvivor(squadRoot.transform, "Survivor Right Wing", new Vector3(0.52f, -0.02f, -0.38f), 1f, LeaderRifleName, bodyMaterial, skinMaterial, faceDetailMaterial, hairMaterial, pantsMaterial, bootMaterial, gearMaterial, armorMaterial, armorTrimMaterial, glowMaterial, weaponMaterial, referenceModelMaterial, referenceRearMaterial, SwatSurvivorWardrobeStyle.OliveHeavy);
 
-            // The procedural animator moves the visible jointed soldiers when the gameplay root is moving.
+            // The procedural animator retains generated fallback support while imported Humanoids own visible locomotion.
             PrototypeHumanoidAnimator animator = squadRoot.AddComponent<PrototypeHumanoidAnimator>();
             animator.Configure(PrototypeHumanoidAnimationStyle.SurvivorSquad);
 
@@ -744,7 +745,7 @@ namespace LaneSurvivor.Rendering
             }
         }
 
-        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material skinMaterial, Material faceDetailMaterial, Material hairMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial, Material weaponMaterial, Material referenceModelMaterial, Material referenceRearMaterial, bool useSwatTechnicalTrial)
+        private static void CreateSurvivor(Transform squadRoot, string name, Vector3 localPosition, float scale, string weaponProfileName, Material bodyMaterial, Material skinMaterial, Material faceDetailMaterial, Material hairMaterial, Material pantsMaterial, Material bootMaterial, Material gearMaterial, Material armorMaterial, Material armorTrimMaterial, Material glowMaterial, Material weaponMaterial, Material referenceModelMaterial, Material referenceRearMaterial, SwatSurvivorWardrobeStyle wardrobeStyle)
         {
             // A per-survivor transform makes it cheap to scale and offset squad members as a formation.
             GameObject survivorRoot = new(name);
@@ -787,24 +788,21 @@ namespace LaneSurvivor.Rendering
             // The skinned soldier decals become the visible model, while the generated rig remains as its skeleton.
             CreateFemaleReferenceRig(survivorRoot.transform, weaponRoot, referenceModelMaterial, referenceRearMaterial);
 
-            if (useSwatTechnicalTrial)
-            {
-                // Only the leader uses the licensed model during this trial, so the shared asset is measured in gameplay.
-                CreateSwatSurvivorTechnicalTrial(survivorRoot.transform);
-            }
+            // Every visible squad member uses the licensed Humanoid model with a distinct dark wardrobe preset.
+            CreateSwatSurvivorModel(survivorRoot.transform, wardrobeStyle);
 
             // Hide primitive meshes after the skinned model exists so the minigame does not show doubled soldiers.
             HideGeneratedSurvivorMeshRenderers(survivorRoot.transform);
         }
 
-        private static void CreateSwatSurvivorTechnicalTrial(Transform survivorRoot)
+        private static void CreateSwatSurvivorModel(Transform survivorRoot, SwatSurvivorWardrobeStyle wardrobeStyle)
         {
             // Load the optimized FBX as a prefab so Unity shares its meshes and textures across future instances.
             GameObject swatPrefab = Resources.Load<GameObject>(SwatSurvivorResourcePath);
             if (swatPrefab == null)
             {
-                // The existing skinned cutout remains a safe visual fallback if the optional trial asset is absent.
-                Debug.LogWarning($"SWAT technical-trial model was not found at Resources/{SwatSurvivorResourcePath}.");
+                // The existing skinned cutout remains a safe visual fallback if the imported asset is absent.
+                Debug.LogWarning($"SWAT survivor model was not found at Resources/{SwatSurvivorResourcePath}.");
                 return;
             }
 
@@ -821,17 +819,21 @@ namespace LaneSurvivor.Rendering
             // Lower the feet to the same road contact point as the generated survivor rig.
             swatModel.transform.localPosition = new Vector3(0f, SwatSurvivorYOffset, 0f);
 
-            // Build explicit lit materials from external diffuse/normal channels instead of unreliable FBX embedding.
+            // Build explicit shared lit materials before per-instance wardrobe property blocks are applied.
             ApplySwatPbrMaterials(swatModel, false);
 
             // The imported weapon skin does not visually follow its helper-bone rotations, so render it rigidly under the aim pivot.
             BakeVisibleSwatWeaponUnderAimPivot(swatModel.transform);
 
             // Replace the invisible prototype origin with an anchor calculated from the rendered rifle's frontmost muzzle plane.
-            ReplaceLeaderMuzzleWithVisibleSwatMuzzle(survivorRoot, swatModel.transform);
+            ReplaceSurvivorMuzzleWithVisibleSwatMuzzle(survivorRoot, swatModel.transform);
 
             // Configure the imported Animator before the procedural squad animator caches any survivor transforms.
-            ConfigureSwatLocomotion(swatModel, survivorRoot);
+            ConfigureSwatLocomotion(swatModel, survivorRoot, wardrobeStyle);
+
+            // Direct dark colours and different removable equipment create commander, scout, and heavy silhouettes.
+            SwatSurvivorAppearance appearance = swatModel.AddComponent<SwatSurvivorAppearance>();
+            appearance.Configure(wardrobeStyle);
 
             // Stop the legacy camera-facing component before it can re-enable either hidden flat card.
             Transform frontReference = survivorRoot.Find(FemaleReferenceUpperName);
@@ -846,7 +848,7 @@ namespace LaneSurvivor.Rendering
             SetSkinnedRendererEnabled(survivorRoot, FemaleReferenceRearName, false);
         }
 
-        private static void ConfigureSwatLocomotion(GameObject swatModel, Transform survivorRoot)
+        private static void ConfigureSwatLocomotion(GameObject swatModel, Transform survivorRoot, SwatSurvivorWardrobeStyle wardrobeStyle)
         {
             // The controller retargets separate Mixamo Humanoid idle/run clips onto the SWAT Avatar stored with the model.
             RuntimeAnimatorController controller = Resources.Load<RuntimeAnimatorController>(SwatSurvivorControllerResourcePath);
@@ -861,18 +863,27 @@ namespace LaneSurvivor.Rendering
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
-            // Measure the Player Squad root itself; the leader child can be rewritten by animation evaluation.
+            // Measure the Player Squad root itself; imported child transforms can be rewritten by animation evaluation.
             SwatSurvivorLocomotionAnimator locomotion = swatModel.AddComponent<SwatSurvivorLocomotionAnimator>();
-            locomotion.Configure(animator, survivorRoot.parent);
+
+            // Third-cycle spacing keeps neighbouring survivors visibly out of step without introducing foot sliding.
+            float phaseOffset = wardrobeStyle switch
+            {
+                SwatSurvivorWardrobeStyle.NavyCommander => 0f,
+                SwatSurvivorWardrobeStyle.CharcoalScout => 1f / 3f,
+                SwatSurvivorWardrobeStyle.OliveHeavy => 2f / 3f,
+                _ => 0f,
+            };
+            locomotion.Configure(animator, survivorRoot.parent, phaseOffset);
         }
 
-        private static void ReplaceLeaderMuzzleWithVisibleSwatMuzzle(Transform survivorRoot, Transform swatModel)
+        private static void ReplaceSurvivorMuzzleWithVisibleSwatMuzzle(Transform survivorRoot, Transform swatModel)
         {
             // The generated marker is behind invisible prototype geometry and must not remain eligible for live shots.
             Transform generatedMuzzle = RequireDescendant(
                 survivorRoot,
                 PlayerSquad.WeaponMuzzleAnchorName,
-                "generated leader weapon muzzle");
+                "generated survivor weapon muzzle");
             generatedMuzzle.name = HiddenGeneratedWeaponMuzzleName;
 
             // The MPX joint rigidly owns the imported weapon hierarchy and gives target aiming one stable pivot.
@@ -1045,10 +1056,10 @@ namespace LaneSurvivor.Rendering
 
         private static void ApplySwatPbrMaterials(GameObject swatModel, bool useZombiePalette)
         {
-            // Zombie instances share immutable materials globally; the one survivor keeps its isolated neutral palette.
+            // Both actor types share immutable materials because every instance-specific colour lives in a property block.
             Dictionary<string, Material> resolvedMaterials = useZombiePalette
                 ? SwatZombieSharedPbrMaterials
-                : new Dictionary<string, Material>();
+                : SwatSurvivorSharedPbrMaterials;
 
             foreach (Renderer renderer in swatModel.GetComponentsInChildren<Renderer>(true))
             {
@@ -1060,9 +1071,7 @@ namespace LaneSurvivor.Rendering
                     // Imported material names match the packed texture prefixes listed in the source Blender file.
                     string sourceMaterialName = NormalizeImportedMaterialName(sourceMaterials[slotIndex]?.name);
                     // Renderer identity is part of the key because the same source slot can be metal on one mesh only.
-                    string materialCacheKey = useZombiePalette
-                        ? $"{sourceMaterialName}|{renderer.gameObject.name}"
-                        : sourceMaterialName;
+                    string materialCacheKey = $"{sourceMaterialName}|{renderer.gameObject.name}";
                     if (!resolvedMaterials.TryGetValue(materialCacheKey, out Material pbrMaterial) || pbrMaterial == null)
                     {
                         pbrMaterial = CreateSwatPbrMaterial(sourceMaterialName, renderer.gameObject.name, useZombiePalette);
@@ -1610,7 +1619,7 @@ namespace LaneSurvivor.Rendering
             // A glowing sight lens gives shots a clear forward aiming cue.
             CreateCubePart(weaponRoot, "Leader Rifle Sight Glow", new Vector3(0f, 0.155f, 0.130f), new Vector3(0.055f, 0.018f, 0.040f), glowMaterial, Quaternion.identity);
 
-            // This generated marker is replaced by the imported leader's real visible muzzle during SWAT construction.
+            // This generated marker is replaced by each imported survivor's real visible muzzle during SWAT construction.
             CreateWeaponMuzzleAnchor(weaponRoot, 0.32f);
         }
 

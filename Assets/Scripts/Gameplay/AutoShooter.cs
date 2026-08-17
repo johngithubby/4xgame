@@ -82,13 +82,13 @@ namespace LaneSurvivor.Gameplay
                 Vector3 shotOrigin;
                 if (shotStartedAtWeaponMuzzle && shotMuzzle != null)
                 {
-                    // Imported leaders rotate their real MPX weapon hierarchy before this frame's origin is sampled.
+                    // The selected imported survivor rotates her real MPX hierarchy before this frame's origin is sampled.
                     SwatSurvivorLocomotionAnimator swatShooter = shotMuzzle.GetComponentInParent<SwatSurvivorLocomotionAnimator>();
                     bool importedWeaponAimed = swatShooter != null && swatShooter.PlayWeaponShot(shotMuzzle, targetPoint);
 
                     if (!importedWeaponAimed)
                     {
-                        // Generated wing rigs retain their existing target-aware arm, weapon, and recoil animation.
+                        // Generated fallback rigs retain their existing target-aware arm, weapon, and recoil animation.
                         survivorAnimator?.PlaySurvivorShot(shotMuzzle.position, targetPoint);
                     }
 

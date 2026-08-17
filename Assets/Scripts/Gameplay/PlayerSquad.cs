@@ -92,10 +92,10 @@ namespace LaneSurvivor.Gameplay
             // Recursively scan from the gameplay root because weapons live under survivor hand chains.
             CollectWeaponMuzzleCandidates(transform);
 
-            // A licensed-model muzzle is authoritative whenever the technical-trial leader is present.
+            // Every licensed-model muzzle is authoritative because each one belongs to a rendered imported rifle.
             foreach (Transform candidate in weaponMuzzleCandidates)
             {
-                // Generated wing anchors belong to hidden placeholder soldiers and would create detached orange traces.
+                // Generated fallback anchors stay excluded because their placeholder weapons are hidden.
                 if (candidate.GetComponentInParent<SwatSurvivorLocomotionAnimator>() != null)
                 {
                     weaponMuzzles.Add(candidate);

@@ -14,6 +14,12 @@ namespace LaneSurvivor.Rendering
         // Full weight prevents the idle pose from visually suppressing the retargeted Mixamo run.
         public const float LocomotionLayerWeight = 1f;
 
+        // All squad members enter this named state with different cycle offsets so their stride does not look cloned.
+        public const string RifleRunStateName = "Rifle Run";
+
+        // Match the controller's authored idle-to-run blend while applying each member's normalized phase offset.
+        private const float RifleRunTransitionSeconds = 0.12f;
+
         // Keep both boots visually straight down the lane; two degrees only absorbs floating-point retarget jitter.
         public const float MaximumFootYawFromTravelDirection = 2f;
 
@@ -90,7 +96,14 @@ namespace LaneSurvivor.Rendering
         // The first sample only establishes a baseline and must not start the run clip.
         private bool hasPreviousWorldPosition;
 
+        // The normalized phase is serialized so scene-built squads retain their deliberately staggered strides.
+        [SerializeField, Range(0f, 1f)]
+        private float locomotionPhaseOffset;
+
         public bool IsMoving { get; private set; }
+
+        // Tests and diagnostics can confirm that the three visible survivors do not share one synchronized gait.
+        public float LocomotionPhaseOffset => locomotionPhaseOffset;
 
         // These values expose the final post-retarget pose used by rendering and regression tests.
         public float LeftFootYawFromTravelDirection { get; private set; }
@@ -107,11 +120,14 @@ namespace LaneSurvivor.Rendering
             SetMoving(isMoving);
         }
 
-        public void Configure(Animator animator, Transform authoritativeMovementRoot)
+        public void Configure(Animator animator, Transform authoritativeMovementRoot, float normalizedPhaseOffset)
         {
             // Store exact dependencies so the component never searches the whole scene at runtime.
             modelAnimator = animator;
             movementRoot = authoritativeMovementRoot;
+
+            // Repeat out-of-range input safely while preserving deliberate thirds of the authored run cycle.
+            locomotionPhaseOffset = Mathf.Repeat(normalizedPhaseOffset, 1f);
 
             // PlayerSquad is added immediately after factory construction, so LateUpdate retries this lookup when needed.
             playerSquad = movementRoot != null ? movementRoot.GetComponent<PlayerSquad>() : null;
@@ -564,6 +580,9 @@ namespace LaneSurvivor.Rendering
 
         private void SetMoving(bool isMoving)
         {
+            // Only a false-to-true edge should seek into the run clip; LateUpdate repeats the current state every frame.
+            bool startedMoving = isMoving && !IsMoving;
+
             // Public state lets tests verify clip switching without depending on Animator internals.
             IsMoving = isMoving;
 
@@ -580,6 +599,16 @@ namespace LaneSurvivor.Rendering
             {
                 // Damp-free bool switching lets the controller's authored transition duration control blending.
                 modelAnimator.SetBool(MovingParameterName, isMoving);
+
+                if (startedMoving)
+                {
+                    // Offset only time, not playback speed, so every survivor keeps the same foot-to-road velocity.
+                    modelAnimator.CrossFadeInFixedTime(
+                        RifleRunStateName,
+                        RifleRunTransitionSeconds,
+                        LocomotionLayerIndex,
+                        locomotionPhaseOffset);
+                }
             }
         }
     }
